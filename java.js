@@ -317,8 +317,8 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'register_patient') return false;
         if (action === 'view_patients') return false;
-        if (action === 'create_laudo' && setor === 'HEMO') return true; // CORREÇÃO: Apenas HEMO
         if (action === 'view_laudos') return true;
+        if (action === 'manage_members') return true;
         return false;
     }
 
@@ -4455,7 +4455,7 @@ function renderMembers() {
             ${getRoleLabel(user.role)}
             </span>
 
-            ${state.currentUser.role === 'ADMIN' && username !== 'admin' ? `
+            ${(state.currentUser.role === 'ADMIN' || state.currentUser.role === 'CHEFE_HEMO') && username !== 'admin' ? `
             <div class="flex gap-2">
             <button onclick="handleEditMember('${username}')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
             <i data-lucide="edit" class="w-4 h-4 text-slate-600"></i>
