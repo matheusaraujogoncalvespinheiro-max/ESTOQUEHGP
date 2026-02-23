@@ -1,18 +1,13 @@
-
 // ==========================================
-// SUPABASE CLIENT SETUP
+// SUPABASE CLIENT SETUP - SISHGP
 // ==========================================
 
-// NOTE: You must add the Supabase JS SDK to your index.html first:
-// <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const SUPABASE_URL = 'https://pzgpytackchnvwsymdaf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_36duPanNlpnaZc16Wa4Xzg_gYyJ-0K7';
 
 let supabase = null;
 
 function initSupabase() {
-    // When using CDN, createClient is usually inside the 'supabase' object
     const clientCreator = window.supabase ? window.supabase.createClient : (typeof createClient !== 'undefined' ? createClient : null);
 
     if (!clientCreator) {
@@ -20,7 +15,7 @@ function initSupabase() {
         return;
     }
 
-    if (SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE') {
+    if (SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE' || !SUPABASE_URL) {
         console.warn('Supabase URL/Key not configured in supabase_client.js');
         return;
     }
@@ -29,12 +24,11 @@ function initSupabase() {
     console.log('Supabase Client Initialized');
 }
 
-// Data Abstraction Layer (DAL) - Preparation
-// These functions will eventually replace the direct MOCK_DATA manipulations
+// ==========================================
+// DATA ABSTRACTION LAYER (DAL)
+// ==========================================
 
-// Data Abstraction Layer (DAL)
-// Mapping Frontend model to DB model
-
+// 1. Sync Patients
 async function db_syncPatients() {
     if (!supabase) return;
     try {
@@ -49,6 +43,61 @@ async function db_syncPatients() {
     }
 }
 
+// 2. Sync Products and Batches
+async function db_syncProducts() {
+    if (!supabase) return;
+    try {
+        // Fetch products
+        const { data: products, error: prodError } = await supabase.from('products').select('*');
+        if (prodError) throw prodError;
+
+        // Fetch batches
+        const { data: batches, error: batchError } = await supabase.from('product_batches').select('*');
+        if (batchError) throw batchError;
+
+        if (products) {
+            // Reset local data sectors
+            MOCK_DATA.HEMO = [];
+            MOCK_DATA.HEMO_ADM = [];
+            MOCK_DATA.OPME = [];
+
+            products.forEach(p => {
+                const productBatches = batches ? batches.filter(b => b.product_id === p.id) : [];
+                const totalQty = productBatches.reduce((sum, b) => sum + b.quantity, 0);
+
+                const appProduct = {
+                    id: p.id,
+                    barcode: p.barcode,
+                    material: p.material,
+                    descricao: p.descricao,
+                    empresa: p.empresa,
+                    marca: p.marca,
+                    min: p.min_quantity,
+                    qtd: totalQty,
+                    lotes: productBatches.map(b => ({
+                        id: b.id,
+                        lote: b.lote_code,
+                        validade: b.validade,
+                        quantidade: b.quantity,
+                        data_entrada: b.data_entrada
+                    }))
+                };
+
+                // Add main lote/validade info from the first batch
+                if (appProduct.lotes.length > 0) {
+                    appProduct.lote = appProduct.lotes[0].lote;
+                    appProduct.validade = appProduct.lotes[0].validade;
+                }
+
+                if (MOCK_DATA[p.sector]) MOCK_DATA[p.sector].push(appProduct);
+            });
+        }
+    } catch (err) {
+        console.error('Error syncing products:', err);
+    }
+}
+
+// 3. Sync Laudos
 async function db_syncLaudos() {
     if (!supabase) return;
     try {
@@ -60,56 +109,48 @@ async function db_syncLaudos() {
     }
 }
 
+// 4. Save Patient
 async function db_savePatient(patient) {
     if (!supabase) return;
-    const dbPatient = {
-        nome: patient.nome,
-        cartao_sus: patient.cartao_sus,
-        data_nascimento: patient.data_nascimento,
-        sexo: patient.sexo,
-        data_entrada: patient.data_entrada,
-        hora_admitido: patient.hora_admitido,
-        origem: patient.origem,
-        destino: patient.destino,
-        leito: patient.leito,
-        procedimento: patient.procedimento,
-        exame_realizado: patient.exame_realizado,
-        outro_exame: patient.outro_exame,
-        medico: patient.medico,
-        enfermeiro_admissao: patient.enfermeiro_admissao,
-        tecnico_enfermagem: patient.tecnico_enfermagem,
-        status: patient.status || 'INTERNADO'
-    };
-    const { error } = await supabase.from('patients').upsert([dbPatient], { onConflict: 'cartao_sus' });
-    if (error) console.error('Error saving patient:', error);
+    try {
+        const { error } = await supabase.from('patients').upsert({
+            nome: patient.nome,
+            cartao_sus: patient.cartao_sus,
+            data_nascimento: patient.data_nascimento,
+            sexo: patient.sexo,
+            data_entrada: patient.data_entrada,
+            hora_admitido: patient.hora_admitido,
+            origem: patient.origem,
+            destino: patient.destino,
+            leito: patient.leito,
+            procedimento: patient.procedimento,
+            exame_realizado: patient.exame_realizado,
+            outro_exame: patient.outro_exame,
+            medico: patient.medico,
+            enfermeiro_admissao: patient.enfermeiro_admissao,
+            tecnico_enfermagem: patient.tecnico_enfermagem,
+            status: patient.status || 'INTERNADO',
+            data_alta: patient.data_alta,
+            usuario_alta: patient.usuario_alta
+        }, { onConflict: 'cartao_sus' });
+        if (error) throw error;
+    } catch (err) {
+        console.error('Error saving patient:', err);
+    }
 }
 
-async function db_saveLaudo(laudo) {
-    if (!supabase) return;
-    const dbLaudo = {
-        patient_name: laudo.paciente,
-        sus_card: laudo.cartao_sus,
-        procedure_date: laudo.data,
-        procedure_time: laudo.hora,
-        sector: laudo.setor,
-        data: laudo // Storing the full object in JSONB for safety
-    };
-    const { error } = await supabase.from('laudos').insert([dbLaudo]);
-    if (error) console.error('Error saving laudo:', error);
-}
-
+// Global Sync
 async function db_syncAll() {
+    if (!supabase) return;
     await Promise.all([
         db_syncPatients(),
+        db_syncProducts(),
         db_syncLaudos()
     ]);
-    render(); // Re-render UI after sync
+    if (typeof render === 'function') render();
 }
 
-// Auto-init if SDK is present
+// Initializer
 document.addEventListener('DOMContentLoaded', () => {
-    // Explicitly check for SDK presence
-    if (window.supabase || typeof createClient !== 'undefined') {
-        initSupabase();
-    }
+    initSupabase();
 });
