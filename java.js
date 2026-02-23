@@ -4825,7 +4825,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${role === 'ADMIN' ? `
+                        ${(role === 'ADMIN' || role === 'CHEFE_HEMO') ? `
                     <button onclick="state.activeModule='MEMBERS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="users" class="w-4 h-4"></i> Gerenciar Membros
                     </button>
