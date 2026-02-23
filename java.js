@@ -5063,6 +5063,10 @@ window.changePage = changePage;
 
 function renderMapa() {
     const today = new Date().toISOString().split('T')[0];
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 2);
+    const maxDateStr = maxDate.toISOString().split('T')[0];
+
     const schedule = (MOCK_DATA.MAPA_SCHEDULE || []).sort((a, b) => {
         const dateA = new Date(a.date + 'T' + a.time);
         const dateB = new Date(b.date + 'T' + b.time);
@@ -5127,7 +5131,7 @@ function renderMapa() {
                         <form onsubmit="handleCreateSchedule(event)" class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Data</label>
-                                <input type="date" name="date" required min="${today}" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                                <input type="date" name="date" required min="${today}" max="${maxDateStr}" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Horário</label>
@@ -5139,7 +5143,7 @@ function renderMapa() {
                             </div>
                              <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Cartão SUS</label>
-                                <input type="text" name="cartaoSus" placeholder="Número do cartão" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                                <input type="text" name="cartaoSus" required maxlength="15" minlength="15" pattern="\\d{15}" title="O Cartão SUS deve ter exatamente 15 dígitos" placeholder="Número do cartão (15 dígitos)" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Origem</label>
