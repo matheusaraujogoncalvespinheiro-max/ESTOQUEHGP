@@ -45,7 +45,8 @@ function db_setupSubscriptions() {
         'mapa_schedule',
         'notifications',
         'app_users',
-        'material_requests'
+        'material_requests',
+        'procedimentos_nao_realizados'
     ];
 
     tables.forEach(table => {
@@ -62,6 +63,7 @@ function db_setupSubscriptions() {
                 else if (table === 'notifications') await db_syncNotifications();
                 else if (table === 'app_users') await db_syncMembers();
                 else if (table === 'material_requests') await db_syncRequests();
+                else if (table === 'procedimentos_nao_realizados') await db_syncNotPerformed();
 
                 // Re-render UI
                 if (typeof render === 'function') render();
@@ -292,6 +294,29 @@ async function db_syncRequests() {
     }
 }
 
+// 9. Sync Procedimentos Não Realizados
+async function db_syncNotPerformed() {
+    if (!supabase) return;
+    try {
+        const { data, error } = await supabase.from('procedimentos_nao_realizados').select('*').order('data', { ascending: false });
+        if (error) throw error;
+        if (data) {
+            MOCK_DATA.PROCEDIMENTOS_NAO_REALIZADOS = data.map(item => ({
+                id: item.id,
+                data: item.data,
+                cartao_sus: item.cartao_sus,
+                procedimento: item.procedimento,
+                nome_paciente: item.nome_paciente,
+                exame_pretendido: item.exame_pretendido,
+                motivo: item.motivo,
+                enfermeiro_responsavel: item.enfermeiro_responsavel
+            }));
+        }
+    } catch (err) {
+        console.error('Error syncing not performed procedures:', err);
+    }
+}
+
 // --- SAVE FUNCTIONS ---
 
 // Save Patient
@@ -432,6 +457,26 @@ async function db_deleteSchedule(id) {
 }
 
 // Save Request
+async function db_saveNotPerformed(item) {
+    if (!supabase) return;
+    try {
+        const { error } = await supabase.from('procedimentos_nao_realizados').upsert({
+            id: item.app_id || undefined,
+            data: item.data,
+            cartao_sus: item.cartao_sus,
+            procedimento: item.procedimento,
+            nome_paciente: item.nome_paciente,
+            exame_pretendido: item.exame_pretendido,
+            motivo: item.motivo,
+            enfermeiro_responsavel: item.enfermeiro_responsavel
+        });
+        if (error) throw error;
+    } catch (err) {
+        console.error('Error saving not performed procedure:', err);
+    }
+}
+
+// Save Request
 async function db_saveRequest(req) {
     if (!supabase) return;
     try {
@@ -474,7 +519,8 @@ async function db_syncAll() {
         db_syncNotifications(),
         db_syncHistory(),
         db_syncMembers(),
-        db_syncRequests()
+        db_syncRequests(),
+        db_syncNotPerformed()
     ]);
     if (typeof render === 'function') render();
 }
