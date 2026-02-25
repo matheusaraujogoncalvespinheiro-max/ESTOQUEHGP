@@ -5834,6 +5834,12 @@ function handleSaveProcedimentoNaoRealizado(e) {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
+    const nomePaciente = document.getElementById('lookup_nome_paciente').value;
+
+    if (!nomePaciente || nomePaciente === "Busca automática pelo SUS...") {
+        showMsg("Paciente não encontrado! O Cartão SUS deve estar cadastrado no sistema.", "error");
+        return;
+    }
 
     const newItem = {
         id: Date.now(),
