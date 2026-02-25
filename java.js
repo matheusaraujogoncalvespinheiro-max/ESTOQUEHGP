@@ -135,13 +135,6 @@ const STORAGE_KEYS = {
 // Carregar dados salvos
 function loadFromLocalStorage() {
     try {
-        // [DB INTEGRATION HOOK]
-        if (typeof supabase !== 'undefined' && supabase !== null) {
-            console.log('Sincronizando dados com Supabase...');
-            db_syncAll();
-            // Continuamos carregando do localStorage como fallback/cache inicial
-        }
-
         const savedData = localStorage.getItem(STORAGE_KEYS.MOCK_DATA);
         const savedHistory = localStorage.getItem(STORAGE_KEYS.TRANSFER_HISTORY);
         const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS_DB);
@@ -452,10 +445,15 @@ function addProductWithBatch(setor, productData) {
             if (b.validade === 'N/A') return -1;
             return new Date(a.validade) - new Date(b.validade);
         });
-        produtoExistente.lote = produtoExistente.lotes[0].lote;
-        produtoExistente.validade = produtoExistente.lotes[0].validade;
-        // Não sobrescrevemos a remessa principal aqui com o primeiro lote, 
-        // mas talvez devêssemos. Mantendo como estava, apenas atualizando se explicitamente passado.
+        if (typeof db_saveProduct === 'function') {
+            db_saveProduct(produtoExistente, setor).then(savedProd => {
+                if (savedProd && typeof db_saveBatch === 'function') {
+                    // Save the updated/added batch
+                    const TargetBatch = loteExistente || produtoExistente.lotes.find(l => l.lote === lote && l.validade === validade);
+                    if (TargetBatch) db_saveBatch(savedProd.id, TargetBatch);
+                }
+            });
+        }
 
         return { type: 'updated', produto: produtoExistente };
     } else {
@@ -483,6 +481,11 @@ function addProductWithBatch(setor, productData) {
         };
 
         MOCK_DATA[setor].push(novoProduto);
+        if (typeof db_saveProduct === 'function' && typeof db_saveBatch === 'function') {
+            db_saveProduct(novoProduto, setor).then(savedProd => {
+                if (savedProd) db_saveBatch(savedProd.id, novoProduto.lotes[0]);
+            });
+        }
         return { type: 'created', produto: novoProduto };
     }
 }
@@ -736,6 +739,12 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
     }
 
     saveToLocalStorage();
+    if (typeof db_saveBatch === 'function') {
+        const prodId = produto.id; // If it's a Supabase ID, it will work. If it's Date.now(), db_saveProduct will handle mapping.
+        db_saveProduct(produto, setor).then(savedProd => {
+            if (savedProd) db_saveBatch(savedProd.id, lote);
+        });
+    }
     return { success: true, produto: produto, lote: lote, quantidadeRemovida: quantidade };
 }
 
@@ -1367,7 +1376,7 @@ function logEntryHistory(action, sector, barcode, itemDesc, quantity, batch) {
     if (!MOCK_DATA.PRODUCT_HISTORY) MOCK_DATA.PRODUCT_HISTORY = [];
 
     const now = new Date();
-    MOCK_DATA.PRODUCT_HISTORY.unshift({
+    const historyItem = {
         id: Date.now(),
         date: now.toLocaleDateString('pt-PT'),
         time: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
@@ -1378,8 +1387,9 @@ function logEntryHistory(action, sector, barcode, itemDesc, quantity, batch) {
         product: itemDesc,
         quantity: quantity,
         batch: batch
-    });
-    // Persist immediately processed in saveToLocalStorage
+    };
+    MOCK_DATA.PRODUCT_HISTORY.unshift(historyItem);
+    if (typeof db_saveProductHistory === 'function') db_saveProductHistory(historyItem);
 }
 
 function handleRegister(e) {
@@ -1453,6 +1463,13 @@ function handleRegister(e) {
     MOCK_DATA[setor].push(newItem);
     logEntryHistory('CADASTRO', setor, barcode, newItem.material, newItem.qtd, newItem.lote);
     saveToLocalStorage();
+
+    if (typeof db_saveProduct === 'function' && typeof db_saveBatch === 'function') {
+        db_saveProduct(newItem, setor).then(savedProd => {
+            if (savedProd) db_saveBatch(savedProd.id, newItem.lotes[0]);
+        });
+    }
+
     showMsg("Produto registrado com sucesso!");
     form.reset();
 }
@@ -1995,7 +2012,7 @@ function handleTransfer(e) {
 
     // Registrar no histórico
     const now = new Date();
-    TRANSFER_HISTORY.unshift({
+    const transferItem = {
         id: Date.now(),
         usuario: state.currentUser.name,
         usuarioUsername: state.currentUser.username,
@@ -2007,7 +2024,9 @@ function handleTransfer(e) {
         data: now.toLocaleDateString('pt-PT'),
         hora: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
         lotes: lotesUsados.map(l => `${l.lote} (${l.quantidadeTransferida} un)`)
-    });
+    };
+    TRANSFER_HISTORY.unshift(transferItem);
+    if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferItem);
 
     saveToLocalStorage();
     showMsg("Transferência de " + qtd + " unidades realizada com sucesso!");
@@ -2024,6 +2043,18 @@ function handleRequestMaterial(e) {
 
     if (!targetSetor || !barcode || !quantity) {
         showMsg("Preencha todos os campos obrigatórios", "error");
+        return;
+    }
+
+    // Verificar se o produto existe no setor de origem (Target)
+    const existsInTarget = MOCK_DATA[targetSetor]?.some(p => p.barcode === barcode);
+    if (!existsInTarget) {
+        let labelSetor = targetSetor;
+        if (targetSetor === 'HEMO') labelSetor = 'Hemodinâmica';
+        if (targetSetor === 'HEMO_ADM') labelSetor = 'Hemodinâmica Adm.';
+        if (targetSetor === 'OPME') labelSetor = 'Centro Cirúrgico';
+
+        showMsg(`Código ${barcode} não encontrado no estoque do setor ${labelSetor}`, "error");
         return;
     }
 
@@ -2136,7 +2167,7 @@ function handleRequestResponse(requestId, action) {
         }
 
         const now = new Date();
-        TRANSFER_HISTORY.unshift({
+        const transferItem = {
             data: now.toLocaleDateString('pt-PT'),
             hora: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
             usuario: state.currentUser.name,
@@ -2147,7 +2178,9 @@ function handleRequestResponse(requestId, action) {
             quantidade: request.quantity,
             tipo: 'SOLICITAÇÃO_APROVADA',
             lotes: lotesUsados.map(l => `${l.lote} (${l.quantidadeTransferida} un)`)
-        });
+        };
+        TRANSFER_HISTORY.unshift(transferItem);
+        if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferItem);
         localStorage.setItem(STORAGE_KEYS.TRANSFER_HISTORY, JSON.stringify(TRANSFER_HISTORY));
 
         request.status = 'APPROVED';
@@ -2177,6 +2210,7 @@ function handleAddMember(e) {
     };
 
     saveToLocalStorage();
+    if (typeof db_saveMember === 'function') db_saveMember(username, USERS_DB[username]);
     showMsg("Membro " + name + " adicionado com sucesso!");
     form.reset();
 }
@@ -2185,6 +2219,7 @@ function handleRemoveMember(username) {
     if (confirm("Tem certeza que deseja remover o usuário \"" + username + "\"?")) {
         delete USERS_DB[username];
         saveToLocalStorage();
+        if (typeof db_deleteMember === 'function') db_deleteMember(username);
         showMsg("Usuário \"" + username + "\" removido com sucesso!");
         render();
     }
@@ -2228,6 +2263,7 @@ function addNotification(type, message, barcode = null) {
 
     NOTIFICATIONS.unshift(notification);
     saveToLocalStorage();
+    if (typeof db_saveNotification === 'function') db_saveNotification(notification);
 
     if (state.isAuthenticated && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM') {
         updateNotificationBadge();
@@ -3676,11 +3712,23 @@ function renderRequestForm() {
             </form>
         </div>
         
-        <div class="mt-8 bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-             <h3 class="text-lg font-bold text-slate-900 mb-4">Minhas Solicitações Recentes</h3>
-             ${renderMyRequestsTable()}
         </div>
     </div> `;
+}
+
+function renderMyRequests() {
+    return `
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+             <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-slate-900">Minhas Solicitações Recentes</h2>
+                <button onclick="state.activeModule='REQUEST'; render()" class="text-sm text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Nova Solicitação
+                </button>
+             </div>
+             ${renderMyRequestsTable()}
+        </div>
+    </div>`;
 }
 
 function viewRequestDetails(id) {
@@ -4626,6 +4674,8 @@ function renderContent() {
             return renderHistory();
         case 'REQUEST':
             return renderRequestForm();
+        case 'MY_REQUESTS':
+            return renderMyRequests();
         case 'MEMBERS':
             return renderMembers();
         case 'NOTIFICATIONS':
@@ -4816,6 +4866,9 @@ function renderDashboardLayout() {
                         ${hasPermission('transfer') ? `
                     <button onclick="state.activeModule='REQUEST'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'REQUEST' ? 'bg-teal-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="arrow-right-left" class="w-4 h-4"></i> Solicitar Material
+                    </button>
+                    <button onclick="state.activeModule='MY_REQUESTS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MY_REQUESTS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Minhas Solicitações
                     </button>
                     ` : ''
         }
@@ -5255,6 +5308,7 @@ function handleCreateSchedule(e) {
     MOCK_DATA.MAPA_SCHEDULE.push(newSchedule);
 
     saveToLocalStorage();
+    if (typeof db_saveSchedule === 'function') db_saveSchedule(newSchedule);
     showMsg("Agendamento criado com sucesso!");
     form.reset();
     render();
@@ -5264,6 +5318,7 @@ function handleDeleteSchedule(id) {
     if (confirm('Tem certeza que deseja remover este agendamento?')) {
         MOCK_DATA.MAPA_SCHEDULE = MOCK_DATA.MAPA_SCHEDULE.filter(item => item.id !== id);
         saveToLocalStorage();
+        if (typeof db_deleteSchedule === 'function') db_deleteSchedule(id);
         showMsg("Agendamento removido.");
         render();
     }
