@@ -2083,6 +2083,7 @@ function handleRequestMaterial(e) {
     if (!MOCK_DATA.REQUESTS) MOCK_DATA.REQUESTS = [];
     MOCK_DATA.REQUESTS.push(newRequest);
     saveToLocalStorage();
+    if (typeof db_saveRequest === 'function') db_saveRequest(newRequest);
 
     showMsg("Solicitação enviada com sucesso!", "success");
     e.target.reset();

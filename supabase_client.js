@@ -44,7 +44,8 @@ function db_setupSubscriptions() {
         'laudos',
         'mapa_schedule',
         'notifications',
-        'app_users'
+        'app_users',
+        'material_requests'
     ];
 
     tables.forEach(table => {
@@ -60,6 +61,7 @@ function db_setupSubscriptions() {
                 else if (table === 'mapa_schedule') await db_syncMapa();
                 else if (table === 'notifications') await db_syncNotifications();
                 else if (table === 'app_users') await db_syncMembers();
+                else if (table === 'material_requests') await db_syncRequests();
 
                 // Re-render UI
                 if (typeof render === 'function') render();
@@ -267,6 +269,29 @@ async function db_syncMembers() {
     }
 }
 
+// 8. Sync Requests
+async function db_syncRequests() {
+    if (!supabase) return;
+    try {
+        const { data, error } = await supabase.from('material_requests').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (data) {
+            MOCK_DATA.REQUESTS = data.map(req => ({
+                id: req.id,
+                date: req.data,
+                fromSetor: req.origem,
+                toSetor: req.destino,
+                barcode: req.barcode || (req.itens && req.itens[0]?.barcode),
+                quantity: req.quantity || (req.itens && req.itens[0]?.quantity),
+                status: req.status,
+                requester: req.solicitante
+            }));
+        }
+    } catch (err) {
+        console.error('Error syncing requests:', err);
+    }
+}
+
 // --- SAVE FUNCTIONS ---
 
 // Save Patient
@@ -406,6 +431,27 @@ async function db_deleteSchedule(id) {
     }
 }
 
+// Save Request
+async function db_saveRequest(req) {
+    if (!supabase) return;
+    try {
+        const { error } = await supabase.from('material_requests').upsert({
+            id: req.app_id || undefined, // Use internal mapping if needed
+            data: req.date,
+            solicitante: req.requester,
+            origem: req.fromSetor,
+            destino: req.toSetor,
+            status: req.status,
+            barcode: req.barcode,
+            quantity: req.quantity,
+            itens: [{ barcode: req.barcode, quantity: req.quantity }] // For compatibility with schema
+        });
+        if (error) throw error;
+    } catch (err) {
+        console.error('Error saving request:', err);
+    }
+}
+
 // Delete Member
 async function db_deleteMember(username) {
     if (!supabase) return;
@@ -427,7 +473,8 @@ async function db_syncAll() {
         db_syncMapa(),
         db_syncNotifications(),
         db_syncHistory(),
-        db_syncMembers()
+        db_syncMembers(),
+        db_syncRequests()
     ]);
     if (typeof render === 'function') render();
 }
