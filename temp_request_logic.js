@@ -51,7 +51,7 @@ function handleRequestMaterial(e) {
 
     if (!MOCK_DATA.REQUESTS) MOCK_DATA.REQUESTS = [];
     MOCK_DATA.REQUESTS.push(newRequest);
-    saveToLocalStorage();
+    if (typeof db_saveRequest === 'function') db_saveRequest(newRequest);
 
     showMsg("Solicitação enviada com sucesso!", "success");
     e.target.reset();
@@ -69,7 +69,7 @@ function handleRequestResponse(requestId, action) {
 
     if (action === 'REJECT') {
         request.status = 'REJECTED';
-        saveToLocalStorage();
+        if (typeof db_saveRequest === 'function') db_saveRequest(request);
         showMsg("Solicitação rejeitada", "success");
         render(); // Update dashboard
         return;
@@ -144,19 +144,21 @@ function handleRequestResponse(requestId, action) {
         }
 
         // Log Transfer History
-        TRANSFER_HISTORY.unshift({
-            data: new Date().toLocaleString(),
-            usuario: state.currentUser.name,
+        const itemHistorico = {
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+            user_name: state.currentUser.name,
             origem: request.fromSetor,
-            destino: request.toSetor,
+            destination: request.toSetor,
             material: product.descricao,
-            quantidade: request.quantity,
+            quantity: request.quantity,
             tipo: 'SOLICITAÇÃO_APROVADA'
-        });
-        localStorage.setItem(STORAGE_KEYS.TRANSFER_HISTORY, JSON.stringify(TRANSFER_HISTORY));
+        };
+        TRANSFER_HISTORY.unshift(itemHistorico);
+        if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(itemHistorico);
 
         request.status = 'APPROVED';
-        saveToLocalStorage();
+        if (typeof db_saveRequest === 'function') db_saveRequest(request);
         showMsg("Solicitação aprovada e transferência realizada!", "success");
         render();
     }
