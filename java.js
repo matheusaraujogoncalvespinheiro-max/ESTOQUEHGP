@@ -6,10 +6,10 @@
 const USERS_DB = {
     'admin': { password: '1234', role: 'ADMIN', name: 'Administrador Geral' },
     'chefe opme': { password: '1234', role: 'CHEFE_OPME', name: 'Chefe OPME' },
-    'chefe opme adm': { password: '1234', role: 'CHEFE_OPME_ADM', name: 'Chefe OPME Administrativo' },
+    'chefe opme adm': { password: '1234', role: 'CHEFE_OPME_ADM', name: 'Chefe OPME Adm.' },
     'enfermeiro': { password: '1234', role: 'FUNC_ENFERMAGEM', name: 'Enfermeiro Teste' },
     'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
-    'func opme adm': { password: '1234', role: 'FUNC_OPME_ADM', name: 'Funcionário OPME Administrativo' },
+    'func opme adm': { password: '1234', role: 'FUNC_OPME_ADM', name: 'Funcionário OPME Adm.' },
     'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário Centro Cirúrgico' }
 };
 
@@ -374,7 +374,7 @@ function getRoleLabel(role) {
         "ADMIN": "Administrador Geral",
         "CHEFE_OPME": "Chefe OPME",
         "CHEFE_OPME_ADM": "Chefe OPME Adm.nistrativo",
-        "FUNC_OPME_ADM": "Funcionário OPME Administrativa",
+        "FUNC_OPME_ADM": "Funcionário OPME Adm.",
         "FUNC_OPME": "Funcionário OPME",
         "FUNC_OPME": "Funcionário Centro Cirúrgico",
         "FUNC_ENFERMAGEM": "Funcionário Enfermagem"
@@ -1341,7 +1341,7 @@ function gerarPDFLaudo(laudoOrId) {
                     <div class="form-group">
                         <div class="signature-line">
                             Setor: ${laudo.setor === 'OPME' ? 'OPME' :
-            laudo.setor === 'OPME_ADM' ? 'OPME Administrativo' :
+            laudo.setor === 'OPME_ADM' ? 'OPME Adm.' :
                 'Centro Cirúrgico'}
                         </div>
                     </div>
@@ -1593,7 +1593,7 @@ function searchProductByBarcode() {
                     <div class="font-medium">${produto.marca || 'NÃO ESPECIFICADA'}</div>
                     
                     <div class="text-slate-600">Setor Atual:</div>
-                    <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Administrativo' : 'Centro Cirúrgico'}</div>
+                    <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</div>
                     
                     <div class="text-slate-600">Estoque Total:</div>
                     <div class="font-medium ${produto.qtd <= produto.min ? 'text-red-600' : 'text-green-600'}">${produto.qtd} unidades</div>
@@ -2474,7 +2474,7 @@ function getModuleTitle() {
     const titles = {
         'DASHBOARD': 'Dashboard Principal',
         'OPME': 'Estoque OPME',
-        'OPME_ADM': 'Estoque OPME Administrativo',
+        'OPME_ADM': 'Estoque OPME Adm.',
         'OPME': 'Estoque Centro Cirúrgico',
         'ENFERMAGEM': 'Registro de Pacientes',
         'PACIENTES_REGISTRADOS': 'Pacientes Registrados',
@@ -3001,7 +3001,7 @@ function renderRegisterForm() {
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de OPME Administrativo não têm permissão para adicionar novos produtos.</p>
+                <p class="text-slate-600 mb-6">Chefes de OPME Adm. não têm permissão para adicionar novos produtos.</p>
                 <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
@@ -3018,8 +3018,8 @@ function renderRegisterForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor *</label>
             <select name="setor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione um setor</option>
-            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
-            ${role === 'CHEFE_OPME' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'CHEFE_OPME' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
 
@@ -3101,7 +3101,7 @@ function renderAddExistingForm() {
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de OPME Administrativo não têm permissão para adicionar produtos ao estoque.</p>
+                <p class="text-slate-600 mb-6">Chefes de OPME Adm. não têm permissão para adicionar produtos ao estoque.</p>
                 <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
@@ -3118,9 +3118,9 @@ function renderAddExistingForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor Destino *</label>
             <select name="setorExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione o setor de destino</option>
-            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
             ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
-            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Administrativo</option>' : ''}
+            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Adm.</option>' : ''}
             ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
@@ -3548,31 +3548,31 @@ function renderTransferForm() {
     if (role === 'ADMIN') {
         origemOptions += `
     <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="OPME_ADM">OPME Adm.</option>
             <option value="OPME">Centro Cirúrgico</option>
 `;
         destinoOptions = origemOptions;
     } else if (role === 'CHEFE_OPME') {
         origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "OPME_ADM" > OPME Administrativo</option>
+    <option value = "OPME_ADM" > OPME Adm.</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'CHEFE_OPME_ADM') {
-        origemOptions += '<option value="OPME_ADM">OPME Administrativo</option>';
+        origemOptions += '<option value="OPME_ADM">OPME Adm.</option>';
         destinoOptions += `
     <option value = "OPME" > OPME</option>
         `;
     } else if (role === 'FUNC_OPME_ADM') {
-        origemOptions += '<option value="OPME_ADM">OPME Administrativo</option>';
+        origemOptions += '<option value="OPME_ADM">OPME Adm.</option>';
         destinoOptions += `
         <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="OPME_ADM">OPME Adm.</option>
 `;
     } else if (role === 'FUNC_OPME') {
         origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "OPME_ADM" > OPME Administrativo</option>
+    <option value = "OPME_ADM" > OPME Adm.</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'FUNC_OPME') {
@@ -3650,12 +3650,12 @@ function renderRequestForm() {
     if (role === 'ADMIN') {
         providerOptions += `
     <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="OPME_ADM">OPME Adm.</option>
             <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'CHEFE_OPME' || role === 'FUNC_OPME') {
         providerOptions += `
-    <option value = "OPME_ADM" > OPME Administrativo</option>
+    <option value = "OPME_ADM" > OPME Adm.</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') {
@@ -3665,7 +3665,7 @@ function renderRequestForm() {
     } else if (role === 'FUNC_OPME') {
         providerOptions += `
     <option value = "OPME" > OPME</option>
-        <option value="OPME_ADM">OPME Administrativo</option>
+        <option value="OPME_ADM">OPME Adm.</option>
 `;
     }
 
@@ -4081,7 +4081,7 @@ function renderLaudoForm() {
                 ${hasPermission('create_laudo', 'OPME_ADM') ? `
                     <button onclick="state.laudoSetor='OPME_ADM'; render()" class="p-8 bg-purple-50 hover:bg-purple-100 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center transition-all">
                         <i data-lucide="files" class="w-12 h-12 text-purple-600 mb-4"></i>
-                        <span class="font-bold text-purple-800 text-lg">OPME Administrativo</span>
+                        <span class="font-bold text-purple-800 text-lg">OPME Adm.</span>
                         <span class="text-sm text-purple-600 mt-2">Laudos e baixas deste setor</span>
                     </button>
                     ` : ''}
@@ -4103,7 +4103,7 @@ function renderLaudoForm() {
     <div class="max-w-4xl mx-auto" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Administrativo' : 'Centro Cirúrgico'}</h2>
+                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</h2>
                 <button onclick="state.laudoSetor=null; state.laudoOPMEItems=[]; state.laudoData={paciente:'',cartao_sus:'',dn:'',procedimento:'',tipo_laudo:''}; render()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold flex items-center gap-2">
                     <i data-lucide="arrow-left" class="w-4 h-4"></i> Trocar Setor
                 </button>
@@ -4465,8 +4465,8 @@ function renderMembers() {
             <option value="">Selecione um tipo</option>
             <option value="ADMIN">Administrador Geral</option>
             <option value="CHEFE_OPME">Chefe OPME</option>
-            <option value="CHEFE_OPME_ADM">Chefe OPME Administrativo</option>
-            <option value="FUNC_OPME_ADM">Funcionário OPME Administrativa</option>
+            <option value="CHEFE_OPME_ADM">Chefe OPME Adm.</option>
+            <option value="FUNC_OPME_ADM">Funcionário OPME Adm.</option>
             <option value="FUNC_OPME">Funcionário OPME</option>
             <option value="FUNC_OPME">Funcionário Centro Cirúrgico</option>
             <option value="FUNC_ENFERMAGEM">Funcionário Enfermagem</option>
@@ -4533,7 +4533,7 @@ function renderNotifications() {
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
             <i data-lucide="bell-off" class="w-16 h-16 text-slate-300 mx-auto mb-6"></i>
             <h3 class="text-2xl font-bold text-slate-900 mb-4">Sem Notificações</h3>
-            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de OPME Administrativo'} não recebem notificações de estoque.</p>
+            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de OPME Adm.'} não recebem notificações de estoque.</p>
             <p class="text-slate-500 text-sm">As notificações estão disponíveis apenas para o pessoal do almoxarifado.</p>
         </div>
         </div> `;
@@ -4772,7 +4772,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''}
 
-                    <!-- OPME_ADM (OPME Administrativo) -->
+                    <!-- OPME_ADM (OPME Adm.) -->
                     ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') ? `
                     <button onclick="state.activeModule='OPME_ADM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME_ADM' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="files" class="w-4 h-4"></i> OPME Adm.
