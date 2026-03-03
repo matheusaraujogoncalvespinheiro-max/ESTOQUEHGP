@@ -565,6 +565,35 @@ async function db_deleteMember(username) {
     }
 }
 
+// Save Sala
+async function db_saveSala(sala) {
+    if (!db) return;
+    try {
+        const id = `SALA_${sala.id}`;
+        await db.collection('salas').doc(id).set(sala);
+    } catch (err) {
+        console.error('Error saving sala:', err);
+    }
+}
+
+// Sync Salas
+async function db_syncSalas() {
+    if (!db) return;
+    try {
+        const snapshot = await db.collection('salas').get();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const index = MOCK_DATA.SALAS.findIndex(s => s.id === data.id);
+            if (index !== -1) {
+                MOCK_DATA.SALAS[index] = data;
+            }
+        });
+        if (typeof render === 'function') render();
+    } catch (err) {
+        console.error('Error syncing salas:', err);
+    }
+}
+
 // Global Sync
 async function db_syncAll() {
     if (!db) return;
@@ -577,7 +606,8 @@ async function db_syncAll() {
         db_syncHistory(),
         db_syncMembers(),
         db_syncRequests(),
-        db_syncNotPerformed()
+        db_syncNotPerformed(),
+        db_syncSalas()
     ]);
     if (typeof render === 'function') render();
 }

@@ -62,11 +62,16 @@ let MOCK_DATA = {
         }
     ],
     CENTRO_CIRURGICO: [],
-    PACIENTES: [],
-    LAUDOS: [],
-    REQUESTS: [],
     MAPA_SCHEDULE: [],
-    PROCEDIMENTOS_NAO_REALIZADOS: []
+    PROCEDIMENTOS_NAO_REALIZADOS: [],
+    SALAS: Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1,
+        status: 'DISPONIVEL',
+        paciente: '',
+        medico: '',
+        procedimento: '',
+        materiais: []
+    }))
 };
 
 // Histórico de Transferências
@@ -84,6 +89,7 @@ let state = {
     msg: { text: '', type: '' },
     currentPage: 1,
     itemsPerPage: 12,
+    activeSala: null,
     laudoSetor: null,
     laudoOPMEItems: [],
     laudoData: {
@@ -236,6 +242,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_laudos') return true;
+        if (action === 'manage_salas') return true;
         return false;
     }
 
@@ -2361,6 +2368,7 @@ function getModuleTitle() {
         'OPME': 'Estoque OPME',
         'OPME_ADM': 'Estoque OPME Adm.',
         'CENTRO_CIRURGICO': 'Estoque Centro Cirúrgico',
+        'SALAS': 'Salas de Procedimento',
         'ENFERMAGEM': 'Registro de Pacientes',
         'PACIENTES_REGISTRADOS': 'Pacientes Registrados',
         'REGISTER': 'Cadastro de Produtos',
@@ -4557,6 +4565,8 @@ function renderContent() {
             return renderProductList(MOCK_DATA.OPME_ADM, 'OPME_ADM');
         case 'CENTRO_CIRURGICO':
             return renderProductList(MOCK_DATA.CENTRO_CIRURGICO, 'CENTRO_CIRURGICO');
+        case 'SALAS':
+            return renderSalas();
         case 'ENFERMAGEM':
             return renderEnfermagem();
         case 'PACIENTES_REGISTRADOS':
@@ -4684,6 +4694,13 @@ function renderDashboardLayout() {
                     ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'FUNC_CENTRO_CIRURGICO') ? `
                     <button onclick="state.activeModule='CENTRO_CIRURGICO'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'CENTRO_CIRURGICO' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="stethoscope" class="w-4 h-4"></i> Centro Cirúrgico
+                    </button>
+                    ` : ''}
+
+                    <!-- SALAS (Salas) -->
+                    ${(role === 'ADMIN' || role === 'FUNC_CENTRO_CIRURGICO') ? `
+                    <button onclick="state.activeModule='SALAS'; state.activeSala=null; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'SALAS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="door-open" class="w-4 h-4"></i> Salas
                     </button>
                     ` : ''}
                 </div>
