@@ -5,11 +5,11 @@ const myRole = state.currentUser.role;
 let mySetor = '';
 
 // Who approves? The Provider (fromSetor).
-// If I am CHEFE_HEMO, I approve requests where fromSetor = HEMO.
-if (myRole === 'CHEFE_HEMO' || myRole === 'FUNC_HEMO') mySetor = 'HEMO';
-else if (myRole === 'CHEFE_HEMO_ADM' || myRole === 'FUNC_HEMO_ADM') mySetor = 'HEMO_ADM';
+// If I am CHEFE_OPME, I approve requests where fromSetor = OPME.
+if (myRole === 'CHEFE_OPME' || myRole === 'FUNC_OPME') mySetor = 'OPME';
+else if (myRole === 'CHEFE_OPME_ADM' || myRole === 'FUNC_OPME_ADM') mySetor = 'OPME_ADM';
 else if (myRole === 'FUNC_OPME') mySetor = 'OPME';
-else if (myRole === 'ADMIN') mySetor = 'HEMO'; // Admin sees HEMO requests? Or all? Let's say HEMO.
+else if (myRole === 'ADMIN') mySetor = 'OPME'; // Admin sees OPME requests? Or all? Let's say OPME.
 
 const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.fromSetor === mySetor && r.status === 'PENDING');
 
@@ -27,9 +27,9 @@ if (pendingRequests.length > 0) {
                     <div>
                         <div class="font-bold text-slate-800">${req.barcode}</div>
                         <div class="text-sm text-slate-500">
-                             Solicitado por: <span class="font-medium text-slate-700">${req.fromSetor === 'HEMO' ? 'Hemodinâmica' : req.fromSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'} -> ${req.toSetor === 'HEMO' ? 'Hemodinâmica' : req.toSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.fromSetor === 'OPME' ? 'OPME' : req.fromSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'} -> ${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
                              <!-- Wait, requester is toSetor. I should show who asked. -->
-                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'HEMO' ? 'Hemodinâmica' : req.toSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
                         </div>
                         <div class="text-sm text-slate-500">Quantidade: <span class="font-bold text-slate-900">${req.quantity}</span></div>
                         <div class="text-xs text-slate-400 mt-1">${new Date(req.date).toLocaleString()}</div>

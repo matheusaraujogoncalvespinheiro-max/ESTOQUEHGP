@@ -6,30 +6,30 @@ function renderRequestForm() {
     let providerOptions = '<option value="">Selecione o setor para solicitar</option>';
 
     // Logic: Who can request from whom?
-    // CHEFE_HEMO (Hemo) -> can request from OPME, HEMO_ADM
-    // CHEFE_HEMO_ADM (Hemo Adm) -> can request from HEMO, OPME
-    // FUNC_OPME (OPME) -> can request from HEMO, HEMO_ADM
+    // CHEFE_OPME (OPME) -> can request from OPME, OPME_ADM
+    // CHEFE_OPME_ADM (OPME Adm) -> can request from OPME, OPME
+    // FUNC_OPME (OPME) -> can request from OPME, OPME_ADM
 
     if (role === 'ADMIN') {
         providerOptions += `
-            <option value="HEMO">Hemodinâmica</option>
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+            <option value="OPME">OPME</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
         `;
-    } else if (role === 'CHEFE_HEMO' || role === 'FUNC_HEMO') {
+    } else if (role === 'CHEFE_OPME' || role === 'FUNC_OPME') {
         providerOptions += `
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
         `;
-    } else if (role === 'CHEFE_HEMO_ADM' || role === 'FUNC_HEMO_ADM') {
+    } else if (role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') {
         providerOptions += `
-            <option value="HEMO">Hemodinâmica</option>
+            <option value="OPME">OPME</option>
             <option value="OPME">Centro Cirúrgico</option>
         `;
     } else if (role === 'FUNC_OPME') {
         providerOptions += `
-            <option value="HEMO">Hemodinâmica</option>
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+            <option value="OPME">OPME</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
         `;
     }
 
@@ -92,11 +92,11 @@ function renderMyRequestsTable() {
 
     // Determine my sector mapping
     if (myRole.includes('OPME')) mySetor = 'OPME';
-    else if (myRole.includes('HEMO_ADM')) mySetor = 'HEMO_ADM';
-    else if (myRole.includes('HEMO')) mySetor = 'HEMO';
+    else if (myRole.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (myRole.includes('OPME')) mySetor = 'OPME';
 
-    // If admin, show everything? Or nothing? Let's assume Admin acts as HEMO for now or empty
-    if (myRole === 'ADMIN') mySetor = 'HEMO'; // Default for admin test
+    // If admin, show everything? Or nothing? Let's assume Admin acts as OPME for now or empty
+    if (myRole === 'ADMIN') mySetor = 'OPME'; // Default for admin test
 
     const myRequests = MOCK_DATA.REQUESTS.filter(req => req.toSetor === mySetor).sort((a, b) => new Date(b.date) - new Date(a.date));
 

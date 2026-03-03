@@ -5,17 +5,17 @@
 // Configuração de Utilizadores
 const USERS_DB = {
     'admin': { password: '1234', role: 'ADMIN', name: 'Administrador Geral' },
-    'chefe hemo': { password: '1234', role: 'CHEFE_HEMO', name: 'Chefe Hemodinâmica' },
-    'chefe hemo adm': { password: '1234', role: 'CHEFE_HEMO_ADM', name: 'Chefe Hemodinâmica Administrativo' },
+    'chefe opme': { password: '1234', role: 'CHEFE_OPME', name: 'Chefe OPME' },
+    'chefe opme adm': { password: '1234', role: 'CHEFE_OPME_ADM', name: 'Chefe OPME Administrativo' },
     'enfermeiro': { password: '1234', role: 'FUNC_ENFERMAGEM', name: 'Enfermeiro Teste' },
-    'func hemo': { password: '1234', role: 'FUNC_HEMO', name: 'Funcionário Hemodinâmica' },
-    'func hemo adm': { password: '1234', role: 'FUNC_HEMO_ADM', name: 'Funcionário Hemodinâmica Administrativo' },
+    'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
+    'func opme adm': { password: '1234', role: 'FUNC_OPME_ADM', name: 'Funcionário OPME Administrativo' },
     'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário Centro Cirúrgico' }
 };
 
 // Dados Iniciais
 let MOCK_DATA = {
-    HEMO: [
+    OPME: [
         {
             id: 1,
             barcode: "7891001",
@@ -38,7 +38,7 @@ let MOCK_DATA = {
             ]
         }
     ],
-    HEMO_ADM: [
+    OPME_ADM: [
         {
             id: 201,
             barcode: "99001",
@@ -304,9 +304,9 @@ function hasPermission(action, setor = null) {
 
     if (role === 'ADMIN') return true;
 
-    if (role === 'CHEFE_HEMO') {
-        if (action === 'register' && (setor === 'HEMO' || setor === 'HEMO_ADM' || setor === 'OPME')) return true;
-        if (action === 'update_stock' && (setor === 'HEMO' || setor === 'HEMO_ADM' || setor === 'OPME')) return true;
+    if (role === 'CHEFE_OPME') {
+        if (action === 'register' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'OPME')) return true;
+        if (action === 'update_stock' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'OPME')) return true;
         if (action === 'transfer') return true;
         if (action === 'view_history') return true;
         if (action === 'register_patient') return false;
@@ -316,31 +316,31 @@ function hasPermission(action, setor = null) {
         return false;
     }
 
-    if (role === 'CHEFE_HEMO_ADM') {
+    if (role === 'CHEFE_OPME_ADM') {
         if (action === 'register') return false;
         if (action === 'update_stock') return false;
         if (action === 'transfer') return true;
         if (action === 'view_history') return true;
         if (action === 'view_patients') return true;
-        if (action === 'create_laudo' && setor === 'HEMO_ADM') return true;
+        if (action === 'create_laudo' && setor === 'OPME_ADM') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
 
-    if (role === 'FUNC_HEMO_ADM') {
-        if (action === 'update_stock' && (setor === 'HEMO_ADM' || setor === null)) return true;
-        if (action === 'transfer' && (setor === 'HEMO_ADM' || setor === 'HEMO')) return true;
+    if (role === 'FUNC_OPME_ADM') {
+        if (action === 'update_stock' && (setor === 'OPME_ADM' || setor === null)) return true;
+        if (action === 'transfer' && (setor === 'OPME_ADM' || setor === 'OPME')) return true;
         if (action === 'view_history') return true;
-        if (action === 'create_laudo' && setor === 'HEMO_ADM') return true;
+        if (action === 'create_laudo' && setor === 'OPME_ADM') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
 
-    if (role === 'FUNC_HEMO') {
-        if (action === 'update_stock' && setor === 'HEMO') return true;
-        if (action === 'transfer' && (setor === 'HEMO' || setor === null)) return true;
+    if (role === 'FUNC_OPME') {
+        if (action === 'update_stock' && setor === 'OPME') return true;
+        if (action === 'transfer' && (setor === 'OPME' || setor === null)) return true;
         if (action === 'view_history') return true;
-        if (action === 'create_laudo' && setor === 'HEMO') return true;
+        if (action === 'create_laudo' && setor === 'OPME') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
@@ -372,10 +372,10 @@ function hasPermission(action, setor = null) {
 function getRoleLabel(role) {
     const labels = {
         "ADMIN": "Administrador Geral",
-        "CHEFE_HEMO": "Chefe Hemodinâmica",
-        "CHEFE_HEMO_ADM": "Chefe Hemo Administrativo",
-        "FUNC_HEMO_ADM": "Funcionário Hemodinâmica Administrativa",
-        "FUNC_HEMO": "Funcionário Hemodinâmica",
+        "CHEFE_OPME": "Chefe OPME",
+        "CHEFE_OPME_ADM": "Chefe OPME Adm.nistrativo",
+        "FUNC_OPME_ADM": "Funcionário OPME Administrativa",
+        "FUNC_OPME": "Funcionário OPME",
         "FUNC_OPME": "Funcionário Centro Cirúrgico",
         "FUNC_ENFERMAGEM": "Funcionário Enfermagem"
     };
@@ -884,7 +884,7 @@ function processarLaudo(e) {
         msg = "Laudo criado, estoque atualizado e paciente movido para histórico! A impressão iniciará em breve.";
     }
 
-    // Force show message for CHEFE_HEMO_ADM and others
+    // Force show message for CHEFE_OPME_ADM and others
     alert(msg);
 
     // Auto-print report
@@ -1340,8 +1340,8 @@ function gerarPDFLaudo(laudoOrId) {
                     </div>
                     <div class="form-group">
                         <div class="signature-line">
-                            Setor: ${laudo.setor === 'HEMO' ? 'Hemodinâmica' :
-            laudo.setor === 'HEMO_ADM' ? 'Hemodinâmica Administrativo' :
+                            Setor: ${laudo.setor === 'OPME' ? 'OPME' :
+            laudo.setor === 'OPME_ADM' ? 'OPME Administrativo' :
                 'Centro Cirúrgico'}
                         </div>
                     </div>
@@ -1369,7 +1369,7 @@ function gerarPDFLaudo(laudoOrId) {
 // ======================
 
 function checkBarcodeUnique(barcode) {
-    const allItems = [...MOCK_DATA.HEMO, ...MOCK_DATA.HEMO_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
     return !allItems.some(item => item.barcode === barcode);
 }
 
@@ -1593,7 +1593,7 @@ function searchProductByBarcode() {
                     <div class="font-medium">${produto.marca || 'NÃO ESPECIFICADA'}</div>
                     
                     <div class="text-slate-600">Setor Atual:</div>
-                    <div class="font-medium">${setor === 'HEMO' ? 'Hemodinâmica' : setor === 'HEMO_ADM' ? 'Hemodinâmica Administrativo' : 'Centro Cirúrgico'}</div>
+                    <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Administrativo' : 'Centro Cirúrgico'}</div>
                     
                     <div class="text-slate-600">Estoque Total:</div>
                     <div class="font-medium ${produto.qtd <= produto.min ? 'text-red-600' : 'text-green-600'}">${produto.qtd} unidades</div>
@@ -1849,7 +1849,7 @@ function updateQuantity(setor, id, delta, batchId = null) {
 
             // Adicionar notificação se estoque ficou baixo
             if (oldLoteQtd > produto.min && produto.qtd <= produto.min &&
-                state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM') {
+                state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
                 addNotification('low_stock', `Estoque baixo: ${produto.material} (${produto.qtd}/${produto.min})`, produto.barcode);
             }
         }
@@ -2051,8 +2051,8 @@ function handleRequestMaterial(e) {
     const existsInTarget = MOCK_DATA[targetSetor]?.some(p => p.barcode === barcode);
     if (!existsInTarget) {
         let labelSetor = targetSetor;
-        if (targetSetor === 'HEMO') labelSetor = 'Hemodinâmica';
-        if (targetSetor === 'HEMO_ADM') labelSetor = 'Hemodinâmica Adm.';
+        if (targetSetor === 'OPME') labelSetor = 'OPME';
+        if (targetSetor === 'OPME_ADM') labelSetor = 'OPME Adm.';
         if (targetSetor === 'OPME') labelSetor = 'Centro Cirúrgico';
 
         showMsg(`Código ${barcode} não encontrado no estoque do setor ${labelSetor}`, "error");
@@ -2061,9 +2061,9 @@ function handleRequestMaterial(e) {
 
     let mySetor = '';
     if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('HEMO_ADM')) mySetor = 'HEMO_ADM';
-    else if (role.includes('HEMO')) mySetor = 'HEMO';
-    else if (role === 'ADMIN') mySetor = 'HEMO';
+    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (role.includes('OPME')) mySetor = 'OPME';
+    else if (role === 'ADMIN') mySetor = 'OPME';
 
     if (!mySetor) {
         showMsg("Erro ao identificar seu setor", "error");
@@ -2234,10 +2234,10 @@ function handleEditMember(username) {
     const newName = prompt("Digite o novo nome completo:", user.name);
     if (newName === null) return;
 
-    const newRole = prompt("Digite o novo tipo de usuário (ADMIN, CHEFE_HEMO, CHEFE_HEMO_ADM, FUNC_HEMO_ADM, FUNC_HEMO, FUNC_OPME, FUNC_ENFERMAGEM):", user.role);
+    const newRole = prompt("Digite o novo tipo de usuário (ADMIN, CHEFE_OPME, CHEFE_OPME_ADM, FUNC_OPME_ADM, FUNC_OPME, FUNC_OPME, FUNC_ENFERMAGEM):", user.role);
     if (newRole === null) return;
 
-    if (!["ADMIN", "CHEFE_HEMO", "CHEFE_HEMO_ADM", "FUNC_HEMO_ADM", "FUNC_HEMO", "FUNC_OPME", "FUNC_ENFERMAGEM"].includes(newRole)) {
+    if (!["ADMIN", "CHEFE_OPME", "CHEFE_OPME_ADM", "FUNC_OPME_ADM", "FUNC_OPME", "FUNC_OPME", "FUNC_ENFERMAGEM"].includes(newRole)) {
         alert("Tipo de usuário inválido!");
         return;
     }
@@ -2267,17 +2267,17 @@ function addNotification(type, message, barcode = null) {
     saveToLocalStorage();
     if (typeof db_saveNotification === 'function') db_saveNotification(notification);
 
-    if (state.isAuthenticated && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM') {
+    if (state.isAuthenticated && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
         updateNotificationBadge();
     }
 }
 
 function checkLowStockNotifications() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMO_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
         return;
     }
 
-    const allItems = [...MOCK_DATA.HEMO, ...MOCK_DATA.HEMO_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
 
     lowStockItems.forEach(item => {
@@ -2314,14 +2314,14 @@ function markAllNotificationsAsRead() {
 }
 
 function getUnreadNotificationsCount() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMO_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
         return 0;
     }
     return NOTIFICATIONS.filter(n => !n.read).length;
 }
 
 function updateNotificationBadge() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMO_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
         const badge = document.getElementById('notification-badge');
         if (badge) {
             badge.classList.add('hidden');
@@ -2342,7 +2342,7 @@ function updateNotificationBadge() {
 // ======================
 
 function getDashboardStats() {
-    const allItems = [...MOCK_DATA.HEMO, ...MOCK_DATA.HEMO_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
     const expiredItems = allItems.filter(item => {
         if (item.validade === 'N/A') return false;
@@ -2352,7 +2352,7 @@ function getDashboardStats() {
         return diasParaVencer <= 30 && diasParaVencer > 0;
     });
 
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMO_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
         return {
             totalProducts: 0,
             totalStock: 0,
@@ -2397,14 +2397,14 @@ function handleLoginAction() {
             ...USERS_DB[username]
         };
 
-        if (state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM') {
+        if (state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
             checkLowStockNotifications();
         }
 
         if (state.currentUser.role === 'FUNC_OPME') {
             state.activeModule = 'OPME';
-        } else if (state.currentUser.role === 'CHEFE_HEMO_ADM') {
-            state.activeModule = 'HEMO_ADM';
+        } else if (state.currentUser.role === 'CHEFE_OPME_ADM') {
+            state.activeModule = 'OPME_ADM';
         }
 
         render();
@@ -2473,8 +2473,8 @@ function showMsg(text, type = 'success') {
 function getModuleTitle() {
     const titles = {
         'DASHBOARD': 'Dashboard Principal',
-        'HEMO': 'Estoque Hemodinâmica',
-        'HEMO_ADM': 'Estoque Hemodinâmica Administrativo',
+        'OPME': 'Estoque OPME',
+        'OPME_ADM': 'Estoque OPME Administrativo',
         'OPME': 'Estoque Centro Cirúrgico',
         'ENFERMAGEM': 'Registro de Pacientes',
         'PACIENTES_REGISTRADOS': 'Pacientes Registrados',
@@ -2550,10 +2550,10 @@ function renderDashboard() {
     let mySetor = '';
 
     // Who approves? The Provider (fromSetor).
-    if (myRole === 'CHEFE_HEMO' || myRole === 'FUNC_HEMO') mySetor = 'HEMO';
-    else if (myRole === 'CHEFE_HEMO_ADM' || myRole === 'FUNC_HEMO_ADM') mySetor = 'HEMO_ADM';
+    if (myRole === 'CHEFE_OPME' || myRole === 'FUNC_OPME') mySetor = 'OPME';
+    else if (myRole === 'CHEFE_OPME_ADM' || myRole === 'FUNC_OPME_ADM') mySetor = 'OPME_ADM';
     else if (myRole === 'FUNC_OPME') mySetor = 'OPME';
-    else if (myRole === 'ADMIN') mySetor = 'HEMO';
+    else if (myRole === 'ADMIN') mySetor = 'OPME';
 
     const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.fromSetor === mySetor && r.status === 'PENDING');
 
@@ -2571,7 +2571,7 @@ function renderDashboard() {
                     <div>
                         <div class="font-bold text-slate-800">${req.barcode}</div>
                         <div class="text-sm text-slate-500">
-                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'HEMO' ? 'Hemodinâmica' : req.toSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
                         </div>
                         <div class="text-sm text-slate-500">Quantidade: <span class="font-bold text-slate-900">${req.quantity}</span></div>
                         <div class="text-xs text-slate-400 mt-1">${new Date(req.date).toLocaleString()}</div>
@@ -2596,7 +2596,7 @@ function renderDashboard() {
         ${pendingRequestsWidget}
         <!-- Cards de Estatísticas -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_HEMO_ADM') ? `
+            ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_OPME_ADM') ? `
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <div class="flex items-center justify-between">
                     <div>
@@ -2665,13 +2665,13 @@ function renderDashboard() {
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <h3 class="text-lg font-bold text-slate-900 mb-6">Ações Rápidas</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                ${hasPermission('register', 'HEMO') ? `
+                ${hasPermission('register', 'OPME') ? `
                 <button onclick="state.activeModule='REGISTER'; render()" class="p-4 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors flex items-center gap-3">
                     <i data-lucide="plus-circle" class="w-5 h-5 text-emerald-600"></i>
                     <span class="font-medium text-emerald-800">Novo Produto</span>
                 </button>
                 ` : ''}
-                ${(hasPermission('update_stock', 'HEMO') || hasPermission('update_stock', 'HEMO_ADM') || hasPermission('update_stock', 'OPME')) ? `
+                ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'OPME_ADM') || hasPermission('update_stock', 'OPME')) ? `
                 <button onclick="state.activeModule='ADD_EXISTING'; render()" class="p-4 bg-cyan-50 hover:bg-cyan-100 rounded-xl transition-colors flex items-center gap-3">
                     <i data-lucide="package-plus" class="w-5 h-5 text-cyan-600"></i>
                     <span class="font-medium text-cyan-800">Adicionar Estoque</span>
@@ -2689,7 +2689,7 @@ function renderDashboard() {
                     <span class="font-medium text-pink-800">Registrar Paciente</span>
                 </button>
                 ` : ''}
-                ${(hasPermission('create_laudo', 'HEMO') || hasPermission('create_laudo', 'HEMO_ADM') || hasPermission('create_laudo', 'OPME')) ? `
+                ${(hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME')) ? `
                 <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; render()" class="p-4 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors flex items-center gap-3">
                     <i data-lucide="file-text" class="w-5 h-5 text-indigo-600"></i>
                     <span class="font-medium text-indigo-800">Criar Laudo</span>
@@ -2699,7 +2699,7 @@ function renderDashboard() {
         </div>
 
         <!-- Produtos com Estoque Baixo -->
-        ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_HEMO_ADM' && stats.lowStock > 0) ? `
+        ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_OPME_ADM' && stats.lowStock > 0) ? `
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-slate-900">Produtos com Estoque Baixo</h3>
@@ -2718,7 +2718,7 @@ function renderDashboard() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${[...MOCK_DATA.HEMO, ...MOCK_DATA.HEMO_ADM, ...MOCK_DATA.OPME]
+                        ${[...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME]
                 .filter(item => item.qtd <= item.min)
                 .slice(0, 5)
                 .map(item => `
@@ -2730,7 +2730,7 @@ function renderDashboard() {
                                 <td class="py-4 px-6 text-sm">${item.marca || item.empresa}</td>
                                 <td class="py-4 px-6 text-sm font-mono">${item.barcode}</td>
                                 <td class="py-4 px-6 text-sm">
-                                    ${item.id > 200 ? 'HEMO_ADM' : item.id > 100 ? 'OPME' : 'HEMO'}
+                                    ${item.id > 200 ? 'OPME_ADM' : item.id > 100 ? 'OPME' : 'OPME'}
                                 </td>
                                 <td class="py-4 px-6 text-sm">
                                     <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">
@@ -2780,7 +2780,7 @@ function renderDashboard() {
                             </td>
                             <td class="py-4 px-6 text-sm">
                                 <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                                    ${laudo.setor === 'HEMO' ? 'Hemodinâmica' : laudo.setor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}
+                                    ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
                                 </span>
                             </td>
                             <td class="py-4 px-6 text-sm">
@@ -2889,7 +2889,7 @@ function renderProductList(data, setor) {
                         <h3 class="font-bold text-slate-900">${item.material}</h3>
                         <p class="text-sm text-slate-500 mt-1">${item.descricao}</p>
                     </div>
-                    ${item.qtd <= item.min && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM' ?
+                    ${item.qtd <= item.min && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM' ?
             '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">BAIXO ESTOQUE</span>' :
             ''}
                 </div>
@@ -2943,7 +2943,7 @@ function renderProductList(data, setor) {
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-bold ${lote.quantidade <= 10 ? 'text-red-600' : 'text-slate-700'}">${lote.quantidade} un</span>
-                                ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_HEMO' ? `
+                                ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' ? `
                                 <div class="flex gap-1">
                                     <button onclick="removeFromSpecificBatch('${setor}', ${item.id}, ${lote.id}, 1)" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 1 unidade">
                                         <i data-lucide="minus" class="w-3 h-3 text-red-600"></i>
@@ -2961,7 +2961,7 @@ function renderProductList(data, setor) {
                 ` : ''}
 
                 <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_HEMO' ? `
+                    ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' ? `
                     <div class="flex items-center gap-3">
                         <button onclick="updateQuantity('${setor}', ${item.id}, -1)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
                             <i data-lucide="minus" class="w-4 h-4 text-slate-600"></i>
@@ -2995,14 +2995,14 @@ function renderProductList(data, setor) {
 function renderRegisterForm() {
     const role = state.currentUser.role;
 
-    if (role === 'CHEFE_HEMO_ADM') {
+    if (role === 'CHEFE_OPME_ADM') {
         return `
         <div class="max-w-3xl mx-auto">
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de Hemodinâmica Administrativo não têm permissão para adicionar novos produtos.</p>
-                <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de Hemodinâmica.</p>
+                <p class="text-slate-600 mb-6">Chefes de OPME Administrativo não têm permissão para adicionar novos produtos.</p>
+                <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
     }
@@ -3018,8 +3018,8 @@ function renderRegisterForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor *</label>
             <select name="setor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione um setor</option>
-            ${role === 'ADMIN' ? '<option value="HEMO">Hemodinâmica</option><option value="HEMO_ADM">Hemodinâmica Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
-            ${role === 'CHEFE_HEMO' ? '<option value="HEMO">Hemodinâmica</option><option value="HEMO_ADM">Hemodinâmica Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'CHEFE_OPME' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
 
@@ -3095,14 +3095,14 @@ function renderRegisterForm() {
 function renderAddExistingForm() {
     const role = state.currentUser.role;
 
-    if (role === 'CHEFE_HEMO_ADM') {
+    if (role === 'CHEFE_OPME_ADM') {
         return `
         <div class="max-w-3xl mx-auto">
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de Hemodinâmica Administrativo não têm permissão para adicionar produtos ao estoque.</p>
-                <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de Hemodinâmica.</p>
+                <p class="text-slate-600 mb-6">Chefes de OPME Administrativo não têm permissão para adicionar produtos ao estoque.</p>
+                <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
     }
@@ -3118,10 +3118,10 @@ function renderAddExistingForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor Destino *</label>
             <select name="setorExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione o setor de destino</option>
-            ${role === 'ADMIN' ? '<option value="HEMO">Hemodinâmica</option><option value="HEMO_ADM">Hemodinâmica Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
-            ${(role === 'CHEFE_HEMO' || role === 'FUNC_HEMO') ? '<option value="HEMO">Hemodinâmica</option>' : ''}
-            ${(role === 'CHEFE_HEMO' || role === 'FUNC_HEMO_ADM') ? '<option value="HEMO_ADM">Hemodinâmica Administrativo</option>' : ''}
-            ${(role === 'CHEFE_HEMO' || role === 'FUNC_OPME') ? '<option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Administrativo</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
+            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Administrativo</option>' : ''}
+            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
 
@@ -3300,7 +3300,7 @@ function renderEnfermagem() {
 
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Destino *</label>
-            <input type="text" name="destino" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: Hemodinâmica">
+            <input type="text" name="destino" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: OPME">
             </div>
             </div>
 
@@ -3459,7 +3459,7 @@ function renderDischargeForm() {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Destino *</label>
-            <input type="text" name="destino" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: Hemodinâmica">
+            <input type="text" name="destino" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: OPME">
             </div>
             
             <div>
@@ -3547,36 +3547,36 @@ function renderTransferForm() {
 
     if (role === 'ADMIN') {
         origemOptions += `
-    <option value = "HEMO" > Hemodinâmica</option>
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+    <option value = "OPME" > OPME</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
 `;
         destinoOptions = origemOptions;
-    } else if (role === 'CHEFE_HEMO') {
-        origemOptions += '<option value="HEMO">Hemodinâmica</option>';
+    } else if (role === 'CHEFE_OPME') {
+        origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "HEMO_ADM" > Hemodinâmica Administrativo</option>
+    <option value = "OPME_ADM" > OPME Administrativo</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
-    } else if (role === 'CHEFE_HEMO_ADM') {
-        origemOptions += '<option value="HEMO_ADM">Hemodinâmica Administrativo</option>';
+    } else if (role === 'CHEFE_OPME_ADM') {
+        origemOptions += '<option value="OPME_ADM">OPME Administrativo</option>';
         destinoOptions += `
-    <option value = "HEMO" > Hemodinâmica</option>
+    <option value = "OPME" > OPME</option>
         `;
-    } else if (role === 'FUNC_HEMO_ADM') {
-        origemOptions += '<option value="HEMO_ADM">Hemodinâmica Administrativo</option>';
+    } else if (role === 'FUNC_OPME_ADM') {
+        origemOptions += '<option value="OPME_ADM">OPME Administrativo</option>';
         destinoOptions += `
-        <option value = "HEMO" > Hemodinâmica</option>
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+        <option value = "OPME" > OPME</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
 `;
-    } else if (role === 'FUNC_HEMO') {
-        origemOptions += '<option value="HEMO">Hemodinâmica</option>';
+    } else if (role === 'FUNC_OPME') {
+        origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "HEMO_ADM" > Hemodinâmica Administrativo</option>
+    <option value = "OPME_ADM" > OPME Administrativo</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'FUNC_OPME') {
-        origemOptions += '<option value="HEMO">Hemodinâmica</option>';
+        origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += '<option value="OPME">Centro Cirúrgico</option>';
     }
 
@@ -3649,23 +3649,23 @@ function renderRequestForm() {
 
     if (role === 'ADMIN') {
         providerOptions += `
-    <option value = "HEMO" > Hemodinâmica</option>
-            <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+    <option value = "OPME" > OPME</option>
+            <option value="OPME_ADM">OPME Administrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
 `;
-    } else if (role === 'CHEFE_HEMO' || role === 'FUNC_HEMO') {
+    } else if (role === 'CHEFE_OPME' || role === 'FUNC_OPME') {
         providerOptions += `
-    <option value = "HEMO_ADM" > Hemodinâmica Administrativo</option>
+    <option value = "OPME_ADM" > OPME Administrativo</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
-    } else if (role === 'CHEFE_HEMO_ADM' || role === 'FUNC_HEMO_ADM') {
+    } else if (role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') {
         providerOptions += `
-            <option value="HEMO">Hemodinâmica</option>
+            <option value="OPME">OPME</option>
         `;
     } else if (role === 'FUNC_OPME') {
         providerOptions += `
-    <option value = "HEMO" > Hemodinâmica</option>
-        <option value="HEMO_ADM">Hemodinâmica Administrativo</option>
+    <option value = "OPME" > OPME</option>
+        <option value="OPME_ADM">OPME Administrativo</option>
 `;
     }
 
@@ -3756,8 +3756,8 @@ function renderMyRequestsTable() {
     let mySetor = '';
 
     if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('HEMO_ADM')) mySetor = 'HEMO_ADM';
-    else if (role.includes('HEMO') || role === 'ADMIN') mySetor = 'HEMO';
+    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
 
     const myRequests = (MOCK_DATA.REQUESTS || []).filter(req => req.toSetor === mySetor).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -3785,7 +3785,7 @@ function renderMyRequestsTable() {
                     <td class="px-4 py-3 font-mono text-xs text-slate-400">#${req.id}</td>
                     <td class="px-4 py-3">${new Date(req.date).toLocaleDateString()}</td>
                     <td class="px-4 py-3 font-medium text-slate-900">${req.barcode}</td>
-                    <td class="px-4 py-3">${req.fromSetor === 'HEMO' ? 'Hemodinâmica' : req.fromSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}</td>
+                    <td class="px-4 py-3">${req.fromSetor === 'OPME' ? 'OPME' : req.fromSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</td>
                     <td class="px-4 py-3">${req.quantity}</td>
                     <td class="px-4 py-3">
                         <span class="px-2 py-1 rounded-full text-xs font-bold ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
@@ -3813,8 +3813,8 @@ function renderTransferConfirmation() {
     let mySetor = '';
 
     if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('HEMO_ADM')) mySetor = 'HEMO_ADM';
-    else if (role.includes('HEMO') || role === 'ADMIN') mySetor = 'HEMO';
+    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
 
     // Requests targeting MY sector (Provider)
     const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.fromSetor === mySetor && r.status === 'PENDING').sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -3861,7 +3861,7 @@ function renderTransferConfirmation() {
                             </td>
                             <td class="px-6 py-4">
                                 <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                                    ${req.toSetor === 'HEMO' ? 'Hemodinâmica' : req.toSetor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}
+                                    ${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
                                 </span>
                                 <div class="text-xs text-slate-400 mt-1">por ${req.requester || 'Usuário'}</div>
                             </td>
@@ -4070,18 +4070,18 @@ function renderLaudoForm() {
             <p class="text-slate-600 mb-6">Selecione o setor para o qual deseja criar o laudo:</p>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                ${hasPermission('create_laudo', 'HEMO') ? `
-                    <button onclick="state.laudoSetor='HEMO'; render()" class="p-8 bg-blue-50 hover:bg-blue-100 rounded-2xl border-2 border-blue-200 flex flex-col items-center justify-center transition-all">
+                ${hasPermission('create_laudo', 'OPME') ? `
+                    <button onclick="state.laudoSetor='OPME'; render()" class="p-8 bg-blue-50 hover:bg-blue-100 rounded-2xl border-2 border-blue-200 flex flex-col items-center justify-center transition-all">
                         <i data-lucide="activity" class="w-12 h-12 text-blue-600 mb-4"></i>
-                        <span class="font-bold text-blue-800 text-lg">Hemodinâmica</span>
+                        <span class="font-bold text-blue-800 text-lg">OPME</span>
                         <span class="text-sm text-blue-600 mt-2">Laudos e baixas deste setor</span>
                     </button>
                     ` : ''}
 
-                ${hasPermission('create_laudo', 'HEMO_ADM') ? `
-                    <button onclick="state.laudoSetor='HEMO_ADM'; render()" class="p-8 bg-purple-50 hover:bg-purple-100 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center transition-all">
+                ${hasPermission('create_laudo', 'OPME_ADM') ? `
+                    <button onclick="state.laudoSetor='OPME_ADM'; render()" class="p-8 bg-purple-50 hover:bg-purple-100 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center transition-all">
                         <i data-lucide="files" class="w-12 h-12 text-purple-600 mb-4"></i>
-                        <span class="font-bold text-purple-800 text-lg">Hemo Administrativo</span>
+                        <span class="font-bold text-purple-800 text-lg">OPME Administrativo</span>
                         <span class="text-sm text-purple-600 mt-2">Laudos e baixas deste setor</span>
                     </button>
                     ` : ''}
@@ -4103,7 +4103,7 @@ function renderLaudoForm() {
     <div class="max-w-4xl mx-auto" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'HEMO' ? 'Hemodinâmica' : setor === 'HEMO_ADM' ? 'Hemodinâmica Administrativo' : 'Centro Cirúrgico'}</h2>
+                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Administrativo' : 'Centro Cirúrgico'}</h2>
                 <button onclick="state.laudoSetor=null; state.laudoOPMEItems=[]; state.laudoData={paciente:'',cartao_sus:'',dn:'',procedimento:'',tipo_laudo:''}; render()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold flex items-center gap-2">
                     <i data-lucide="arrow-left" class="w-4 h-4"></i> Trocar Setor
                 </button>
@@ -4253,13 +4253,13 @@ function renderHistoricoLaudos() {
         if (role === 'FUNC_OPME') {
             // OPME vê apenas OPME
             laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME');
-        } else if (['CHEFE_HEMO', 'CHEFE_HEMO_ADM', 'FUNC_HEMO', 'FUNC_HEMO_ADM'].includes(role)) {
-            // Todos do Hemo veem HEMO e HEMO_ADM. Adicionando log para debug
-            console.log("Filtering for HEMO/HEMO_ADM. Current role:", role);
-            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'HEMO' || laudo.setor === 'HEMO_ADM');
-        } else if (role === 'CHEFE_HEMO_ADM') {
+        } else if (['CHEFE_OPME', 'CHEFE_OPME_ADM', 'FUNC_OPME', 'FUNC_OPME_ADM'].includes(role)) {
+            // Todos do OPME veem OPME e OPME_ADM. Adicionando log para debug
+            console.log("Filtering for OPME/OPME_ADM. Current role:", role);
+            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'OPME_ADM');
+        } else if (role === 'CHEFE_OPME_ADM') {
             // This block is technically unreachable due to the above, but kept for clarity/fallback
-            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'HEMO' || laudo.setor === 'HEMO_ADM');
+            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'OPME_ADM');
 
         } else if (role === 'FUNC_ENFERMAGEM') {
             return `
@@ -4295,7 +4295,7 @@ function renderHistoricoLaudos() {
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-slate-900">Histórico de Laudos</h2>
-                ${hasPermission('create_laudo', 'HEMO') || hasPermission('create_laudo', 'HEMO_ADM') || hasPermission('create_laudo', 'OPME') ? `
+                ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME') ? `
                 <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; render()" 
                         class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Laudo
@@ -4347,7 +4347,7 @@ function renderHistoricoLaudos() {
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
-                                ${laudo.setor === 'HEMO' ? 'Hemodinâmica' : laudo.setor === 'HEMO_ADM' ? 'Hemo Adm.' : 'Centro Cirúrgico'}
+                                ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
                             </span>
                             <button onclick="gerarPDFLaudo(${laudo.id})" 
                                     class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2">
@@ -4464,10 +4464,10 @@ function renderMembers() {
             <select name="role" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione um tipo</option>
             <option value="ADMIN">Administrador Geral</option>
-            <option value="CHEFE_HEMO">Chefe Hemodinâmica</option>
-            <option value="CHEFE_HEMO_ADM">Chefe Hemodinâmica Administrativo</option>
-            <option value="FUNC_HEMO_ADM">Funcionário Hemodinâmica Administrativa</option>
-            <option value="FUNC_HEMO">Funcionário Hemodinâmica</option>
+            <option value="CHEFE_OPME">Chefe OPME</option>
+            <option value="CHEFE_OPME_ADM">Chefe OPME Administrativo</option>
+            <option value="FUNC_OPME_ADM">Funcionário OPME Administrativa</option>
+            <option value="FUNC_OPME">Funcionário OPME</option>
             <option value="FUNC_OPME">Funcionário Centro Cirúrgico</option>
             <option value="FUNC_ENFERMAGEM">Funcionário Enfermagem</option>
             </select>
@@ -4505,7 +4505,7 @@ function renderMembers() {
             ${getRoleLabel(user.role)}
             </span>
 
-            ${(state.currentUser.role === 'ADMIN' || state.currentUser.role === 'CHEFE_HEMO') && username !== 'admin' ? `
+            ${(state.currentUser.role === 'ADMIN' || state.currentUser.role === 'CHEFE_OPME') && username !== 'admin' ? `
             <div class="flex gap-2">
             <button onclick="handleEditMember('${username}')" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
             <i data-lucide="edit" class="w-4 h-4 text-slate-600"></i>
@@ -4527,13 +4527,13 @@ function renderNotifications() {
     const unreadCount = getUnreadNotificationsCount();
     const role = state.currentUser.role;
 
-    if (role === 'FUNC_ENFERMAGEM' || role === 'CHEFE_HEMO_ADM') {
+    if (role === 'FUNC_ENFERMAGEM' || role === 'CHEFE_OPME_ADM') {
         return `
     <div class="max-w-3xl mx-auto" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
             <i data-lucide="bell-off" class="w-16 h-16 text-slate-300 mx-auto mb-6"></i>
             <h3 class="text-2xl font-bold text-slate-900 mb-4">Sem Notificações</h3>
-            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de Hemodinâmica Administrativo'} não recebem notificações de estoque.</p>
+            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de OPME Administrativo'} não recebem notificações de estoque.</p>
             <p class="text-slate-500 text-sm">As notificações estão disponíveis apenas para o pessoal do almoxarifado.</p>
         </div>
         </div> `;
@@ -4632,7 +4632,7 @@ function renderBackupTools() {
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Estatísticas do Sistema</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="p-4 bg-slate-50 rounded-xl text-center">
-                    <div class="text-2xl font-bold text-slate-900">${MOCK_DATA.HEMO.length + MOCK_DATA.HEMO_ADM.length + MOCK_DATA.OPME.length}</div>
+                    <div class="text-2xl font-bold text-slate-900">${MOCK_DATA.OPME.length + MOCK_DATA.OPME_ADM.length + MOCK_DATA.OPME.length}</div>
                     <div class="text-sm text-slate-500">Produtos</div>
                 </div>
                 <div class="p-4 bg-slate-50 rounded-xl text-center">
@@ -4656,10 +4656,10 @@ function renderContent() {
     switch (state.activeModule) {
         case 'DASHBOARD':
             return renderDashboard();
-        case 'HEMO':
-            return renderProductList(MOCK_DATA.HEMO, 'HEMO');
-        case 'HEMO_ADM':
-            return renderProductList(MOCK_DATA.HEMO_ADM, 'HEMO_ADM');
+        case 'OPME':
+            return renderProductList(MOCK_DATA.OPME, 'OPME');
+        case 'OPME_ADM':
+            return renderProductList(MOCK_DATA.OPME_ADM, 'OPME_ADM');
         case 'OPME':
             return renderProductList(MOCK_DATA.OPME, 'OPME');
         case 'ENFERMAGEM':
@@ -4751,7 +4751,7 @@ function renderDashboardLayout() {
 
                 <nav class="flex-1 px-4 space-y-6 overflow-y-auto custom-scrollbar">
                     <!-- Dashboard -->
-                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_HEMO_ADM' ? `
+                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_OPME_ADM' ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Geral</p>
                     <button onclick="state.activeModule='DASHBOARD'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DASHBOARD' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
@@ -4765,28 +4765,28 @@ function renderDashboardLayout() {
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Estoques</p>
 
-                    <!-- HEMO (Hemodinâmica) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMO' || role === 'CHEFE_HEMO_ADM' || role === 'FUNC_HEMO_ADM' || role === 'FUNC_HEMO') ? `
-                    <button onclick="state.activeModule='HEMO'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HEMO' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="activity" class="w-4 h-4"></i> Hemodinâmica
+                    <!-- OPME (OPME) -->
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM' || role === 'FUNC_OPME') ? `
+                    <button onclick="state.activeModule='OPME'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="activity" class="w-4 h-4"></i> OPME
                     </button>
                     ` : ''}
 
-                    <!-- HEMO_ADM (Hemodinâmica Administrativo) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMO' || role === 'CHEFE_HEMO_ADM' || role === 'FUNC_HEMO_ADM') ? `
-                    <button onclick="state.activeModule='HEMO_ADM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HEMO_ADM' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="files" class="w-4 h-4"></i> Hemodinâmica Adm.
+                    <!-- OPME_ADM (OPME Administrativo) -->
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') ? `
+                    <button onclick="state.activeModule='OPME_ADM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME_ADM' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="files" class="w-4 h-4"></i> OPME Adm.
                     </button>
                     ` : ''}
                     
-                    ${(role === 'CHEFE_HEMO_ADM' || role === 'ADMIN') ? `
+                    ${(role === 'CHEFE_OPME_ADM' || role === 'ADMIN') ? `
                     <button onclick="state.activeModule='MAPA'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MAPA' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="calendar" class="w-4 h-4"></i> Mapa
                     </button>
                     ` : ''}
 
                     <!-- OPME (Centro Cirúrgico) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMO' || role === 'FUNC_OPME') ? `
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? `
                     <button onclick="state.activeModule='OPME'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="stethoscope" class="w-4 h-4"></i> Centro Cirúrgico
                     </button>
@@ -4794,8 +4794,8 @@ function renderDashboardLayout() {
                 </div>
                 ` : ''}
 
-                    <!-- Enfermagem (não para chefe hemodinâmica) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMO_ADM' || role === 'FUNC_ENFERMAGEM') ? `
+                    <!-- Enfermagem (não para chefe opme) -->
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_ENFERMAGEM') ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Enfermagem</p>
                     
@@ -4817,7 +4817,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''}
 
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMO_ADM' || role === 'FUNC_ENFERMAGEM') ? `
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_ENFERMAGEM') ? `
                     <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
                     </button>
@@ -4831,12 +4831,12 @@ function renderDashboardLayout() {
                     <!-- Administração -->
                     <div>
                         <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Administração</p>
-                        ${hasPermission('register', 'HEMO') ? `
+                        ${hasPermission('register', 'OPME') ? `
                     <button onclick="state.activeModule='REGISTER'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'REGISTER' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Produto
                     </button>
                     ` : ''}
-                        ${(hasPermission('update_stock', 'HEMO') || hasPermission('update_stock', 'HEMO_ADM') || hasPermission('update_stock', 'OPME')) ? `
+                        ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'OPME_ADM') || hasPermission('update_stock', 'OPME')) ? `
                     <button onclick="state.activeModule='ADD_EXISTING'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="package-plus" class="w-4 h-4"></i> Adicionar Estoque
                     </button>
@@ -4858,7 +4858,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${hasPermission('create_laudo', 'HEMO') || hasPermission('create_laudo', 'HEMO_ADM') || hasPermission('create_laudo', 'OPME') ? `
+                        ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME') ? `
                     <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
                     </button>
@@ -4879,13 +4879,13 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${(role === 'CHEFE_HEMO' || role === 'CHEFE_HEMO_ADM' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
+                        ${(role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
                     <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="check-square" class="w-4 h-4"></i> Confirmação
                     </button>
                     ` : ''
         }
-                        ${(role === 'ADMIN' || role === 'CHEFE_HEMO') ? `
+                        ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
                     <button onclick="state.activeModule='MEMBERS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="users" class="w-4 h-4"></i> Gerenciar Membros
                     </button>
@@ -4894,7 +4894,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${(role === 'ADMIN' || role === 'FUNC_HEMO_ADM') ? `
+                        ${(role === 'ADMIN' || role === 'FUNC_OPME_ADM') ? `
                     <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-pink-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
                     </button>
@@ -4931,7 +4931,7 @@ function renderDashboardLayout() {
                 <header class="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
                     <h3 class="font-black text-slate-800 uppercase tracking-wider">${getModuleTitle()}</h3>
 
-                    ${['HEMO', 'HEMO_ADM', 'OPME', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
+                    ${['OPME', 'OPME_ADM', 'OPME', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
                 <div class="relative w-80">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                     <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar por nome, cartão SUS, leito ou exame...' : state.activeModule === 'HISTORICO_LAUDOS' ? 'Buscar por paciente, cartão SUS, tipo de laudo ou procedimento...' : 'Buscar por material, código, marca ou empresa...'}" class="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
@@ -5086,7 +5086,7 @@ loadFromLocalStorage();
 
 // Verificar notificações de estoque baixo
 setTimeout(() => {
-    if (state.currentUser && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMO_ADM') {
+    if (state.currentUser && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
         checkLowStockNotifications();
     }
 }, 1000);
@@ -5158,7 +5158,7 @@ function renderMapa() {
             <div class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
                 <div>
                     <h2 class="text-xl font-bold text-slate-800">Mapa de Agendamentos</h2>
-                    <p class="text-sm text-slate-500">Agendamentos da Hemodinâmica</p>
+                    <p class="text-sm text-slate-500">Agendamentos da OPME</p>
                 </div>
                 
                 <div class="flex items-center gap-4 w-full md:w-auto">
@@ -5410,7 +5410,7 @@ function generateMapaPDF(targetDate = null) {
     printWindow.document.write(`
         <html>
             <head>
-                <title>Mapa de Agendamentos - Hemodinâmica</title>
+                <title>Mapa de Agendamentos - OPME</title>
                 <style>
                     body {font-family: Arial, sans-serif; padding: 20px; }
                     h1 {text-align: center; color: #333; margin-bottom: 20px; }
@@ -5434,7 +5434,7 @@ function generateMapaPDF(targetDate = null) {
                     <img src="logo_estado.png" style="height: 60px;">
                         <div style="text-align: center;">
                             <h2 style="margin: 0;">Hospital Geral de Palmas</h2>
-                            <p style="margin: 5px 0; color: #666;">Mapa Cirúrgico - Hemodinâmica</p>
+                            <p style="margin: 5px 0; color: #666;">Mapa Cirúrgico - OPME</p>
                         </div>
                 </div>
 
@@ -5547,7 +5547,7 @@ function renderStatusPacientes() {
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-right">
-                                ${state.currentUser.role !== 'CHEFE_HEMO_ADM' ? `
+                                ${state.currentUser.role !== 'CHEFE_OPME_ADM' ? `
                                 <button onclick="prepareDischarge('${p.id}')" class="px-3 py-1.5 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1" title="Ir para Alta">
                                     <i data-lucide="arrow-right-circle" class="w-3 h-3"></i> Dar Alta
                                 </button>

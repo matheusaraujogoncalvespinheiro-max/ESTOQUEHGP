@@ -110,8 +110,8 @@ async function db_syncProducts() {
         const batches = snapshotToArray(batchesSnap);
 
         // Reset local data sectors
-        MOCK_DATA.HEMO = [];
-        MOCK_DATA.HEMO_ADM = [];
+        MOCK_DATA.OPME = [];
+        MOCK_DATA.OPME_ADM = [];
         MOCK_DATA.OPME = [];
 
         products.forEach(p => {

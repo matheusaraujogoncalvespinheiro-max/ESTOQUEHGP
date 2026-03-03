@@ -15,9 +15,9 @@ function handleRequestMaterial(e) {
     // Determine my sector (Requester)
     let mySetor = '';
     if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('HEMO_ADM')) mySetor = 'HEMO_ADM';
-    else if (role.includes('HEMO')) mySetor = 'HEMO';
-    else if (role === 'ADMIN') mySetor = 'HEMO'; // Admin testing as Hemo
+    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (role.includes('OPME')) mySetor = 'OPME';
+    else if (role === 'ADMIN') mySetor = 'OPME'; // Admin testing as OPME
 
     if (!mySetor) {
         showMsg("Erro ao identificar seu setor", "error");
@@ -33,7 +33,7 @@ function handleRequestMaterial(e) {
     if (!product) {
         // Try to find it in ANY sector to see if barcode is valid but wrong sector?
         // For now, let's just say "Produto não encontrado no setor de origem"
-        showMsg(`Produto ${barcode} não encontrado no setor ${targetSetor === 'HEMO_ADM' ? 'Hemodinâmica Adm.' : targetSetor === 'HEMO' ? 'Hemodinâmica' : 'Centro Cirúrgico'}`, "error");
+        showMsg(`Produto ${barcode} não encontrado no setor ${targetSetor === 'OPME_ADM' ? 'OPME Adm.' : targetSetor === 'OPME' ? 'OPME' : 'Centro Cirúrgico'}`, "error");
         return;
     }
 
