@@ -10,7 +10,7 @@ const USERS_DB = {
     'enfermeiro': { password: '1234', role: 'FUNC_ENFERMAGEM', name: 'Enfermeiro Teste' },
     'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
     'func opme adm': { password: '1234', role: 'FUNC_OPME_ADM', name: 'Funcionário OPME Adm.' },
-    'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário Centro Cirúrgico' }
+    'func centro cirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' }
 };
 
 // Dados Iniciais
@@ -43,50 +43,29 @@ let MOCK_DATA = {
             id: 201,
             barcode: "99001",
             material: "PAPEL A4",
-            descricao: "RESMA 500 FOLHAS",
-            empresa: "CHAMEX",
-            marca: "CHAMEX",
+            descricao: "PAPEL A4 BRANCO",
+            empresa: "REPORT",
+            marca: "REPORT",
             lote: "N/A",
             validade: "N/A",
             qtd: 50,
             min: 10,
             lotes: [
                 {
-                    id: 2011,
+                    id: 201,
                     lote: "N/A",
                     validade: "N/A",
                     quantidade: 50,
-                    data_entrada: "2024-03-01"
+                    data_entrada: "2024-01-10"
                 }
             ]
         }
     ],
-    OPME: [
-        {
-            id: 101,
-            barcode: "55001",
-            material: "GRAMPEADOR LINEAR",
-            descricao: "75MM CIRÚRGICO",
-            empresa: "ETHICON",
-            marca: "ETHICON",
-            lote: "9901336",
-            validade: "2028-03-31",
-            qtd: 5,
-            min: 20,
-            lotes: [
-                {
-                    id: 1011,
-                    lote: "9901336",
-                    validade: "2028-03-31",
-                    quantidade: 5,
-                    data_entrada: "2024-02-20"
-                }
-            ]
-        }
-    ],
+    CENTRO_CIRURGICO: [],
     PACIENTES: [],
     LAUDOS: [],
     REQUESTS: [],
+    MAPA_SCHEDULE: [],
     PROCEDIMENTOS_NAO_REALIZADOS: []
 };
 
@@ -135,106 +114,12 @@ const STORAGE_KEYS = {
 
 // Carregar dados salvos
 function loadFromLocalStorage() {
-    try {
-        const savedData = localStorage.getItem(STORAGE_KEYS.MOCK_DATA);
-        const savedHistory = localStorage.getItem(STORAGE_KEYS.TRANSFER_HISTORY);
-        const savedUsers = localStorage.getItem(STORAGE_KEYS.USERS_DB);
-        const savedNotifications = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-        const savedLaudos = localStorage.getItem(STORAGE_KEYS.LAUDOS);
-        const savedProductHistory = localStorage.getItem(STORAGE_KEYS.PRODUCT_HISTORY);
-        const savedMapa = localStorage.getItem(STORAGE_KEYS.MAPA_SCHEDULE);
-        const savedPatientsHistory = localStorage.getItem(STORAGE_KEYS.PATIENTS_HISTORY);
-
-        if (savedData) MOCK_DATA = JSON.parse(savedData);
-        if (savedHistory) MOCK_DATA.TRANSFER_HISTORY = JSON.parse(savedHistory);
-        if (savedUsers) {
-            const parsedUsers = JSON.parse(savedUsers);
-            Object.assign(USERS_DB, parsedUsers);
-        }
-        if (savedNotifications) NOTIFICATIONS.splice(0, NOTIFICATIONS.length, ...JSON.parse(savedNotifications));
-        if (savedLaudos) MOCK_DATA.LAUDOS = JSON.parse(savedLaudos);
-        if (savedProductHistory) MOCK_DATA.PRODUCT_HISTORY = JSON.parse(savedProductHistory);
-        if (savedMapa) MOCK_DATA.MAPA_SCHEDULE = JSON.parse(savedMapa);
-        if (savedPatientsHistory) MOCK_DATA.PATIENTS_HISTORY = JSON.parse(savedPatientsHistory);
-
-        // The original code had this else block for savedProductHistory,
-        // but the instruction placed it after savedMapa.
-        // Re-associating it with savedProductHistory for logical correctness.
-        if (!savedProductHistory) {
-            MOCK_DATA.PRODUCT_HISTORY = [];
-        }
-
-        const savedRequests = localStorage.getItem(STORAGE_KEYS.REQUESTS);
-        if (savedRequests) MOCK_DATA.REQUESTS = JSON.parse(savedRequests);
-
-        // Verificar notificações de estoque baixo ao carregar
-        // checkLowStockNotifications(); // Assuming this function exists elsewhere or will be added.
-
-        // Garantir que todos os produtos tenham o campo lotes e marca
-        for (const setor in MOCK_DATA) {
-            if (setor === 'PACIENTES' || setor === 'LAUDOS' || setor === 'REQUESTS' || setor === 'PATIENTS_HISTORY') continue; // Added REQUESTS to skip
-            MOCK_DATA[setor].forEach(produto => {
-                if (!produto.lotes) {
-                    produto.lotes = [{
-                        id: Date.now(),
-                        lote: produto.lote,
-                        validade: produto.validade,
-                        quantidade: produto.qtd,
-                        data_entrada: new Date().toISOString().split('T')[0]
-                    }];
-                }
-                if (!produto.marca) {
-                    produto.marca = produto.empresa || 'NÃO ESPECIFICADA';
-                }
-            });
-        }
-    } catch (error) {
-        console.warn('Erro ao carregar dados do localStorage:', error);
-    }
+    // Local storage is disabled. Data is loaded from Firebase.
 }
 
 // Salvar dados
 function saveToLocalStorage() {
-    try {
-        // [DB INTEGRATION HOOK]
-        // Future implementation:
-        // if (supabase) {
-        //     // Trigger async save or queue update
-        //     // db_saveChanges(MOCK_DATA);
-        // }
-
-        // Garantir que todos os produtos tenham o campo lotes e marca
-        for (const setor in MOCK_DATA) {
-            if (setor === 'PACIENTES' || setor === 'LAUDOS' || setor === 'REQUESTS' || setor === 'PRODUCT_HISTORY' || setor === 'MAPA_SCHEDULE' || setor === 'PATIENTS_HISTORY') continue;
-            MOCK_DATA[setor].forEach(produto => {
-                if (!produto.lotes) {
-                    produto.lotes = [{
-                        id: Date.now(),
-                        lote: produto.lote,
-                        validade: produto.validade,
-                        quantidade: produto.qtd,
-                        data_entrada: new Date().toISOString().split('T')[0]
-                    }];
-                }
-                if (!produto.marca) {
-                    produto.marca = produto.empresa || 'NÃO ESPECIFICADA';
-                }
-            });
-        }
-
-        localStorage.setItem(STORAGE_KEYS.MOCK_DATA, JSON.stringify(MOCK_DATA));
-        localStorage.setItem(STORAGE_KEYS.TRANSFER_HISTORY, JSON.stringify(TRANSFER_HISTORY));
-        localStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(USERS_DB));
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(NOTIFICATIONS));
-        localStorage.setItem(STORAGE_KEYS.LAUDOS, JSON.stringify(MOCK_DATA.LAUDOS));
-        localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(MOCK_DATA.REQUESTS));
-        localStorage.setItem(STORAGE_KEYS.PRODUCT_HISTORY, JSON.stringify(MOCK_DATA.PRODUCT_HISTORY || []));
-        localStorage.setItem(STORAGE_KEYS.MAPA_SCHEDULE, JSON.stringify(MOCK_DATA.MAPA_SCHEDULE || []));
-        localStorage.setItem(STORAGE_KEYS.PATIENTS_HISTORY, JSON.stringify(MOCK_DATA.PATIENTS_HISTORY || []));
-    } catch (error) {
-        console.error('Erro ao salvar dados no localStorage:', error);
-        showMsg('Erro ao salvar dados localmente', 'error');
-    }
+    // Local storage is disabled. Data is saved to Firebase directly by mutation functions.
 }
 
 // Exportar dados
@@ -305,8 +190,8 @@ function hasPermission(action, setor = null) {
     if (role === 'ADMIN') return true;
 
     if (role === 'CHEFE_OPME') {
-        if (action === 'register' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'OPME')) return true;
-        if (action === 'update_stock' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'OPME')) return true;
+        if (action === 'register' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'CENTRO_CIRURGICO')) return true;
+        if (action === 'update_stock' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'CENTRO_CIRURGICO')) return true;
         if (action === 'transfer') return true;
         if (action === 'view_history') return true;
         if (action === 'register_patient') return false;
@@ -345,11 +230,11 @@ function hasPermission(action, setor = null) {
         return false;
     }
 
-    if (role === 'FUNC_OPME') {
-        if (action === 'update_stock' && setor === 'OPME') return true;
-        if (action === 'transfer' && setor === 'OPME') return true;
+    if (role === 'FUNC_CENTRO_CIRURGICO') {
+        if (action === 'update_stock' && setor === 'CENTRO_CIRURGICO') return true;
+        if (action === 'transfer' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_history') return true;
-        if (action === 'create_laudo' && setor === 'OPME') return true;
+        if (action === 'create_laudo' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
@@ -841,7 +726,7 @@ function processarLaudo(e) {
 
     // Salvar laudo
     MOCK_DATA.LAUDOS.unshift(novoLaudo);
-    if (supabase) db_saveLaudo(novoLaudo);
+    if (typeof db_saveLaudo === "function") db_saveLaudo(novoLaudo);
 
     // ============================================
     // DAR BAIXA NO PACIENTE (Discharge)
@@ -870,7 +755,7 @@ function processarLaudo(e) {
         patientObj.data_alta = new Date().toISOString();
         if (!MOCK_DATA.PATIENTS_HISTORY) MOCK_DATA.PATIENTS_HISTORY = [];
         MOCK_DATA.PATIENTS_HISTORY.unshift(patientObj);
-        if (supabase) db_savePatient(patientObj);
+        if (typeof db_savePatient === "function") db_savePatient(patientObj);
     }
 
     saveToLocalStorage();
@@ -1727,7 +1612,7 @@ function handleRegisterPatient(e) {
 
     MOCK_DATA.PACIENTES.unshift(novoPaciente);
     saveToLocalStorage();
-    if (supabase) db_savePatient(novoPaciente);
+    if (typeof db_savePatient === "function") db_savePatient(novoPaciente);
     showMsg("Paciente registrado com sucesso!");
     form.reset();
 
@@ -1776,7 +1661,7 @@ function handleDischargePatient(e) {
     if (supabase) db_updatePatient(paciente); // Assuming this function exists or will need to be handled. `db_savePatient` was used for create. I might need to check if `db_updatePatient` exists or use `db_savePatient` if it handles upsert.
     // Actually, looking at `supabase_client.js` is not possible right now, but `java.js` calls `db_savePatient`. I'll assume for now `saveToLocalStorage` is the primary sync and `db_savePatient` might be an upsert or I should check.
     // For now I'll comment out the supabase call if I'm unsure, OR just stick to local storage modification as the primary requested feature.
-    // The previous code used `if (supabase) db_savePatient(novoPaciente);`.
+    // The previous code used `if (typeof db_savePatient === "function") db_savePatient(novoPaciente);`.
     // I'll stick to updating local storage effectively.
 
     showMsg("Alta registrada com sucesso!");
@@ -2183,7 +2068,6 @@ function handleRequestResponse(requestId, action) {
         };
         TRANSFER_HISTORY.unshift(transferItem);
         if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferItem);
-        localStorage.setItem(STORAGE_KEYS.TRANSFER_HISTORY, JSON.stringify(TRANSFER_HISTORY));
 
         request.status = 'APPROVED';
         saveToLocalStorage();
@@ -2220,6 +2104,7 @@ function handleAddMember(e) {
 function handleRemoveMember(username) {
     if (confirm("Tem certeza que deseja remover o usuário \"" + username + "\"?")) {
         delete USERS_DB[username];
+        if (typeof db_deleteMember === 'function') db_deleteMember(username);
         saveToLocalStorage();
         if (typeof db_deleteMember === 'function') db_deleteMember(username);
         showMsg("Usuário \"" + username + "\" removido com sucesso!");
@@ -2475,7 +2360,7 @@ function getModuleTitle() {
         'DASHBOARD': 'Dashboard Principal',
         'OPME': 'Estoque OPME',
         'OPME_ADM': 'Estoque OPME Adm.',
-        'OPME': 'Estoque Centro Cirúrgico',
+        'CENTRO_CIRURGICO': 'Estoque Centro Cirúrgico',
         'ENFERMAGEM': 'Registro de Pacientes',
         'PACIENTES_REGISTRADOS': 'Pacientes Registrados',
         'REGISTER': 'Cadastro de Produtos',
@@ -2485,8 +2370,6 @@ function getModuleTitle() {
         'MEMBERS': 'Gerenciamento de Membros',
         'BACKUP': 'Backup e Restauração',
         'NOTIFICATIONS': 'Notificações',
-        'LAUDO': 'Criar Laudo',
-        'HISTORICO_LAUDOS': 'Histórico de Laudos',
         'LAUDO': 'Criar Laudo',
         'HISTORICO_LAUDOS': 'Histórico de Laudos',
         'MAPA': 'Mapa',
@@ -3018,8 +2901,11 @@ function renderRegisterForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor *</label>
             <select name="setor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione um setor</option>
-            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
-            ${role === 'CHEFE_OPME' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
+                <option value="OPME">OPME</option>
+                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
+            ` : ''}
             </select>
             </div>
 
@@ -3118,10 +3004,19 @@ function renderAddExistingForm() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor Destino *</label>
             <select name="setorExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             <option value="">Selecione o setor de destino</option>
-            ${role === 'ADMIN' ? '<option value="OPME">OPME</option><option value="OPME_ADM">OPME Adm.</option><option value="OPME">Centro Cirúrgico</option>' : ''}
-            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
-            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Adm.</option>' : ''}
-            ${(role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? '<option value="OPME">Centro Cirúrgico</option>' : ''}
+            ${role === 'ADMIN' ? `
+                <option value="OPME">OPME</option>
+                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
+            ` : ''}
+            ${role === 'CHEFE_OPME' ? `
+                <option value="OPME">OPME</option>
+                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
+            ` : ''}
+            ${(role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
+            ${(role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Adm.</option>' : ''}
+            ${(role === 'FUNC_CENTRO_CIRURGICO') ? '<option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
 
@@ -4660,8 +4555,8 @@ function renderContent() {
             return renderProductList(MOCK_DATA.OPME, 'OPME');
         case 'OPME_ADM':
             return renderProductList(MOCK_DATA.OPME_ADM, 'OPME_ADM');
-        case 'OPME':
-            return renderProductList(MOCK_DATA.OPME, 'OPME');
+        case 'CENTRO_CIRURGICO':
+            return renderProductList(MOCK_DATA.CENTRO_CIRURGICO, 'CENTRO_CIRURGICO');
         case 'ENFERMAGEM':
             return renderEnfermagem();
         case 'PACIENTES_REGISTRADOS':
@@ -4785,9 +4680,9 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''}
 
-                    <!-- OPME (Centro Cirúrgico) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'FUNC_OPME') ? `
-                    <button onclick="state.activeModule='OPME'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <!-- CENTRO_CIRURGICO (Centro Cirúrgico) -->
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'FUNC_CENTRO_CIRURGICO') ? `
+                    <button onclick="state.activeModule='CENTRO_CIRURGICO'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'CENTRO_CIRURGICO' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="stethoscope" class="w-4 h-4"></i> Centro Cirúrgico
                     </button>
                     ` : ''}
@@ -4931,7 +4826,7 @@ function renderDashboardLayout() {
                 <header class="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
                     <h3 class="font-black text-slate-800 uppercase tracking-wider">${getModuleTitle()}</h3>
 
-                    ${['OPME', 'OPME_ADM', 'OPME', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
+                    ${['OPME', 'OPME_ADM', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
                 <div class="relative w-80">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                     <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar por nome, cartão SUS, leito ou exame...' : state.activeModule === 'HISTORICO_LAUDOS' ? 'Buscar por paciente, cartão SUS, tipo de laudo ou procedimento...' : 'Buscar por material, código, marca ou empresa...'}" class="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">

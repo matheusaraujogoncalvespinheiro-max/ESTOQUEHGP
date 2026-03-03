@@ -112,7 +112,7 @@ async function db_syncProducts() {
         // Reset local data sectors
         MOCK_DATA.OPME = [];
         MOCK_DATA.OPME_ADM = [];
-        MOCK_DATA.OPME = [];
+        MOCK_DATA.CENTRO_CIRURGICO = [];
 
         products.forEach(p => {
             const productBatches = batches.filter(b => b.product_id === p.id);
@@ -182,6 +182,7 @@ async function db_saveLaudo(laudo) {
             itens_opme: laudo.itensOPME || [],
             baixas_realizadas: laudo.baixas_realizadas || []
         });
+        console.log('✓ Laudo salvo no Firebase');
     } catch (err) {
         console.error('Error saving laudo:', err);
     }
@@ -205,6 +206,7 @@ async function db_saveProduct(product, sector) {
         };
 
         await db.collection('products').doc(docId).set(prodData, { merge: true });
+        console.log(`✓ Produto ${product.barcode} salvo no Firebase (${sector})`);
         return prodData;
     } catch (err) {
         console.error('Error saving product:', err);
@@ -227,6 +229,7 @@ async function db_saveBatch(productId, batch) {
             quantity: batch.quantidade || batch.quantity || 0,
             data_entrada: batch.data_entrada || new Date().toISOString().split('T')[0]
         }, { merge: true });
+        console.log(`✓ Lote ${loteCode} salvo no Firebase`);
     } catch (err) {
         console.error('Error saving batch:', err);
     }
@@ -377,6 +380,7 @@ async function db_savePatient(patient) {
             data_alta: patient.data_alta || null,
             usuario_alta: patient.usuario_alta || ""
         }, { merge: true });
+        console.log(`✓ Paciente ${patient.nome} salvo no Firebase`);
     } catch (err) {
         console.error('Error saving patient:', err);
     }
