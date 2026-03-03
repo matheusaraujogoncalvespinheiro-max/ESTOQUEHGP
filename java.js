@@ -1,6 +1,7 @@
 // ======================
 // CONFIGURAÇÃO INICIAL
 // ======================
+console.log('SISHGP Core (java.js) Loading...');
 
 // Configuração de Utilizadores
 const USERS_DB = {

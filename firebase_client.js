@@ -49,7 +49,8 @@ function db_setupSubscriptions() {
         { name: 'notifications', sync: db_syncNotifications },
         { name: 'app_users', sync: db_syncMembers },
         { name: 'material_requests', sync: db_syncRequests },
-        { name: 'procedimentos_nao_realizados', sync: db_syncNotPerformed }
+        { name: 'procedimentos_nao_realizados', sync: db_syncNotPerformed },
+        { name: 'salas', sync: db_syncSalas }
     ];
 
     tables.forEach(table => {
@@ -581,14 +582,33 @@ async function db_syncSalas() {
     if (!db) return;
     try {
         const snapshot = await db.collection('salas').get();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const index = MOCK_DATA.SALAS.findIndex(s => s.id === data.id);
-            if (index !== -1) {
-                MOCK_DATA.SALAS[index] = data;
+
+        if (snapshot.empty) {
+            console.log('Initializing Salas in Firebase...');
+            // If empty, we could initialize or just use the mock data
+            // Let's initialize the 12 rooms to ensure the "database" exists
+            const batch = db.batch();
+            for (let i = 1; i <= 12; i++) {
+                const salaRef = db.collection('salas').doc(`SALA_${i}`);
+                batch.set(salaRef, {
+                    id: i,
+                    status: 'DISPONIVEL',
+                    paciente: '',
+                    medico: '',
+                    procedimento: '',
+                    materiais: []
+                });
             }
-        });
-        if (typeof render === 'function') render();
+            await batch.commit();
+        } else {
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const index = MOCK_DATA.SALAS.findIndex(s => s.id === data.id);
+                if (index !== -1) {
+                    MOCK_DATA.SALAS[index] = data;
+                }
+            });
+        }
     } catch (err) {
         console.error('Error syncing salas:', err);
     }
@@ -596,8 +616,12 @@ async function db_syncSalas() {
 
 // Global Sync
 async function db_syncAll() {
-    if (!db) return;
-    await Promise.all([
+    if (!db) {
+        if (typeof render === 'function') render();
+        return;
+    }
+
+    const syncTasks = [
         db_syncPatients(),
         db_syncProducts(),
         db_syncLaudos(),
@@ -608,7 +632,11 @@ async function db_syncAll() {
         db_syncRequests(),
         db_syncNotPerformed(),
         db_syncSalas()
-    ]);
+    ];
+
+    // Use settle or individual try-catches to ensure one failure doesn't block the UI
+    await Promise.all(syncTasks.map(t => t.catch(err => console.error('Sync task failed:', err))));
+
     if (typeof render === 'function') render();
 }
 
