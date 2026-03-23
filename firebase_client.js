@@ -1,4 +1,4 @@
-// ==========================================
+﻿// ==========================================
 // FIREBASE CLIENT SETUP - SISHGP
 // ==========================================
 
@@ -112,7 +112,7 @@ async function db_syncProducts() {
 
         // Reset local data sectors
         MOCK_DATA.OPME = [];
-        MOCK_DATA.OPME_ADM = [];
+        MOCK_DATA.HEMODINAMICA = [];
         MOCK_DATA.CENTRO_CIRURGICO = [];
 
         products.forEach(p => {
@@ -644,3 +644,5 @@ async function db_syncAll() {
 document.addEventListener('DOMContentLoaded', () => {
     initFirebase();
 });
+
+

@@ -1,4 +1,4 @@
-function renderRequestForm() {
+﻿function renderRequestForm() {
     const role = state.currentUser.role;
 
     // Define options for 'Solicitar De' (Provider) based on current user role
@@ -6,22 +6,22 @@ function renderRequestForm() {
     let providerOptions = '<option value="">Selecione o setor para solicitar</option>';
 
     // Logic: Who can request from whom?
-    // CHEFE_OPME (OPME) -> can request from OPME, OPME_ADM
-    // CHEFE_OPME_ADM (OPME Adm) -> can request from OPME, OPME
-    // FUNC_OPME (OPME) -> can request from OPME, OPME_ADM
+    // CHEFE_OPME (OPME) -> can request from OPME, HEMODINAMICA
+    // CHEFE_HEMODINAMICA (Hemodinâmica) -> can request from OPME, OPME
+    // FUNC_OPME (OPME) -> can request from OPME, HEMODINAMICA
 
     if (role === 'ADMIN') {
         providerOptions += `
             <option value="OPME">OPME</option>
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="HEMODINAMICA">Hemodinâmicainistrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
         `;
     } else if (role === 'CHEFE_OPME' || role === 'FUNC_OPME') {
         providerOptions += `
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="HEMODINAMICA">Hemodinâmicainistrativo</option>
             <option value="OPME">Centro Cirúrgico</option>
         `;
-    } else if (role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') {
+    } else if (role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA') {
         providerOptions += `
             <option value="OPME">OPME</option>
             <option value="OPME">Centro Cirúrgico</option>
@@ -29,7 +29,7 @@ function renderRequestForm() {
     } else if (role === 'FUNC_OPME') {
         providerOptions += `
             <option value="OPME">OPME</option>
-            <option value="OPME_ADM">OPME Administrativo</option>
+            <option value="HEMODINAMICA">Hemodinâmicainistrativo</option>
         `;
     }
 
@@ -92,7 +92,7 @@ function renderMyRequestsTable() {
 
     // Determine my sector mapping
     if (myRole.includes('OPME')) mySetor = 'OPME';
-    else if (myRole.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (myRole.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
     else if (myRole.includes('OPME')) mySetor = 'OPME';
 
     // If admin, show everything? Or nothing? Let's assume Admin acts as OPME for now or empty
@@ -138,3 +138,4 @@ function renderMyRequestsTable() {
     </div>
     `;
 }
+

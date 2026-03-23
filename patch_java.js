@@ -1,4 +1,4 @@
-const fs = require('fs');
+﻿const fs = require('fs');
 
 let content = fs.readFileSync('java.js', 'utf8');
 
@@ -42,3 +42,4 @@ content = content.replace(/MOCK_DATA\.REQUESTS\.unshift\(novoPedido\);/g, `MOCK_
 
 fs.writeFileSync('java.js', content, 'utf8');
 console.log('java.js patched successfully.');
+

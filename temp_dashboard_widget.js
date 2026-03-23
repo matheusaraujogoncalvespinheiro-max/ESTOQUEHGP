@@ -1,4 +1,4 @@
-// PENDING REQUESTS WIDGET
+﻿// PENDING REQUESTS WIDGET
 // Show if there are requests targeting MY sector with status 'PENDING'
 let pendingRequestsWidget = '';
 const myRole = state.currentUser.role;
@@ -7,7 +7,7 @@ let mySetor = '';
 // Who approves? The Provider (fromSetor).
 // If I am CHEFE_OPME, I approve requests where fromSetor = OPME.
 if (myRole === 'CHEFE_OPME' || myRole === 'FUNC_OPME') mySetor = 'OPME';
-else if (myRole === 'CHEFE_OPME_ADM' || myRole === 'FUNC_OPME_ADM') mySetor = 'OPME_ADM';
+else if (myRole === 'CHEFE_HEMODINAMICA' || myRole === 'FUNC_HEMODINAMICA') mySetor = 'HEMODINAMICA';
 else if (myRole === 'FUNC_OPME') mySetor = 'OPME';
 else if (myRole === 'ADMIN') mySetor = 'OPME'; // Admin sees OPME requests? Or all? Let's say OPME.
 
@@ -27,9 +27,9 @@ if (pendingRequests.length > 0) {
                     <div>
                         <div class="font-bold text-slate-800">${req.barcode}</div>
                         <div class="text-sm text-slate-500">
-                             Solicitado por: <span class="font-medium text-slate-700">${req.fromSetor === 'OPME' ? 'OPME' : req.fromSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'} -> ${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.fromSetor === 'OPME' ? 'OPME' : req.fromSetor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'} -> ${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</span>
                              <!-- Wait, requester is toSetor. I should show who asked. -->
-                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</span>
                         </div>
                         <div class="text-sm text-slate-500">Quantidade: <span class="font-bold text-slate-900">${req.quantity}</span></div>
                         <div class="text-xs text-slate-400 mt-1">${new Date(req.date).toLocaleString()}</div>
@@ -48,3 +48,4 @@ if (pendingRequests.length > 0) {
         </div>
         `;
 }
+

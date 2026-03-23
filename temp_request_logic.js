@@ -15,7 +15,7 @@ function handleRequestMaterial(e) {
     // Determine my sector (Requester)
     let mySetor = '';
     if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
+    else if (role.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
     else if (role.includes('OPME')) mySetor = 'OPME';
     else if (role === 'ADMIN') mySetor = 'OPME'; // Admin testing as OPME
 
@@ -33,7 +33,7 @@ function handleRequestMaterial(e) {
     if (!product) {
         // Try to find it in ANY sector to see if barcode is valid but wrong sector?
         // For now, let's just say "Produto não encontrado no setor de origem"
-        showMsg(`Produto ${barcode} não encontrado no setor ${targetSetor === 'OPME_ADM' ? 'OPME Adm.' : targetSetor === 'OPME' ? 'OPME' : 'Centro Cirúrgico'}`, "error");
+        showMsg(`Produto ${barcode} não encontrado no setor ${targetSetor === 'HEMODINAMICA' ? 'Hemodinâmica' : targetSetor === 'OPME' ? 'OPME' : 'Centro Cirúrgico'}`, "error");
         return;
     }
 
@@ -160,6 +160,51 @@ function handleRequestResponse(requestId, action) {
         request.status = 'APPROVED';
         if (typeof db_saveRequest === 'function') db_saveRequest(request);
         showMsg("Solicitação aprovada e transferência realizada!", "success");
+        generateTransferReport(request, itemHistorico);
         render();
     }
 }
+
+function generateTransferReport(request, itemHistorico) {
+    const reportWindow = window.open('', '_blank');
+    const html = `
+        <html>
+        <head>
+            <title>Relatório de Transferência</title>
+            <style>
+                body {font-family: Arial, sans-serif; margin: 20px;}
+                .header {text-align: center; margin-bottom: 20px;}
+                .section {margin-bottom: 10px;}
+                .signature {margin-top: 40px; display: flex; justify-content: space-between;}
+                .signature div {width: 45%; text-align: center;}
+                .signature-line {border-top: 1px solid #000; margin-top: 60px;}
+            </style>
+        </head>
+        <body class="print-content">
+            <div class="header"><h2>Relatório de Transferência</h2></div>
+            <div class="section"><strong>Data:</strong> ${itemHistorico.date}</div>
+            <div class="section"><strong>Hora:</strong> ${itemHistorico.time}</div>
+            <div class="section"><strong>Origem:</strong> ${itemHistorico.origem}</div>
+            <div class="section"><strong>Destino:</strong> ${itemHistorico.destination}</div>
+            <div class="section"><strong>Material:</strong> ${itemHistorico.material}</div>
+            <div class="section"><strong>Quantidade:</strong> ${itemHistorico.quantity}</div>
+            <div class="signature">
+                <div>
+                    <div class="signature-line"></div>
+                    <div>Assinatura do Transferente</div>
+                </div>
+                <div>
+                    <div class="signature-line"></div>
+                    <div>Assinatura do Recebedor</div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+    reportWindow.document.write(html);
+    reportWindow.document.close();
+    reportWindow.focus();
+    reportWindow.print();
+}
+
+

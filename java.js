@@ -7,10 +7,10 @@ console.log('SISHGP Core (java.js) Loading...');
 const USERS_DB = {
     'admin': { password: '1234', role: 'ADMIN', name: 'Administrador Geral' },
     'chefe opme': { password: '1234', role: 'CHEFE_OPME', name: 'Chefe OPME' },
-    'chefe opme adm': { password: '1234', role: 'CHEFE_OPME_ADM', name: 'Chefe OPME Adm.' },
+    'chefe hemodinamica': { password: '1234', role: 'CHEFE_HEMODINAMICA', name: 'Chefe Hemodinâmica' },
     'enfermeiro': { password: '1234', role: 'FUNC_ENFERMAGEM', name: 'Enfermeiro Teste' },
     'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
-    'func opme adm': { password: '1234', role: 'FUNC_OPME_ADM', name: 'Funcionário OPME Adm.' },
+    'func hemodinamica': { password: '1234', role: 'FUNC_HEMODINAMICA', name: 'Funcionário Hemodinâmica' },
     'func centro cirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' }
 };
 
@@ -39,7 +39,7 @@ let MOCK_DATA = {
             ]
         }
     ],
-    OPME_ADM: [
+    HEMODINAMICA: [
         {
             id: 201,
             barcode: "99001",
@@ -65,6 +65,11 @@ let MOCK_DATA = {
     CENTRO_CIRURGICO: [],
     MAPA_SCHEDULE: [],
     PROCEDIMENTOS_NAO_REALIZADOS: [],
+    PACIENTES: [],
+    PATIENTS_HISTORY: [],
+    LAUDOS: [],
+    REQUESTS: [],
+    SALAS_HISTORY: [],
     SALAS: Array.from({ length: 12 }, (_, i) => ({
         id: i + 1,
         status: 'DISPONIVEL',
@@ -197,8 +202,8 @@ function hasPermission(action, setor = null) {
     if (role === 'ADMIN') return true;
 
     if (role === 'CHEFE_OPME') {
-        if (action === 'register' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'CENTRO_CIRURGICO')) return true;
-        if (action === 'update_stock' && (setor === 'OPME' || setor === 'OPME_ADM' || setor === 'CENTRO_CIRURGICO')) return true;
+        if (action === 'register' && (setor === 'OPME' || setor === 'HEMODINAMICA' || setor === 'CENTRO_CIRURGICO')) return true;
+        if (action === 'update_stock' && (setor === 'OPME' || setor === 'HEMODINAMICA' || setor === 'CENTRO_CIRURGICO')) return true;
         if (action === 'transfer') return true;
         if (action === 'view_history') return true;
         if (action === 'register_patient') return false;
@@ -208,22 +213,22 @@ function hasPermission(action, setor = null) {
         return false;
     }
 
-    if (role === 'CHEFE_OPME_ADM') {
+    if (role === 'CHEFE_HEMODINAMICA') {
         if (action === 'register') return false;
         if (action === 'update_stock') return false;
         if (action === 'transfer') return true;
         if (action === 'view_history') return true;
         if (action === 'view_patients') return true;
-        if (action === 'create_laudo' && setor === 'OPME_ADM') return true;
+        if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
 
-    if (role === 'FUNC_OPME_ADM') {
-        if (action === 'update_stock' && (setor === 'OPME_ADM' || setor === null)) return true;
-        if (action === 'transfer' && (setor === 'OPME_ADM' || setor === 'OPME')) return true;
+    if (role === 'FUNC_HEMODINAMICA') {
+        if (action === 'update_stock' && (setor === 'HEMODINAMICA' || setor === null)) return true;
+        if (action === 'transfer' && (setor === 'HEMODINAMICA' || setor === 'OPME')) return true;
         if (action === 'view_history') return true;
-        if (action === 'create_laudo' && setor === 'OPME_ADM') return true;
+        if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
         return false;
     }
@@ -266,10 +271,10 @@ function getRoleLabel(role) {
     const labels = {
         "ADMIN": "Administrador Geral",
         "CHEFE_OPME": "Chefe OPME",
-        "CHEFE_OPME_ADM": "Chefe OPME Adm.nistrativo",
-        "FUNC_OPME_ADM": "Funcionário OPME Adm.",
+        "CHEFE_HEMODINAMICA": "Chefe Hemodinâmica",
+        "FUNC_HEMODINAMICA": "Funcionário Hemodinâmica",
         "FUNC_OPME": "Funcionário OPME",
-        "FUNC_OPME": "Funcionário Centro Cirúrgico",
+        "FUNC_CENTRO_CIRURGICO": "Funcionário Centro Cirúrgico",
         "FUNC_ENFERMAGEM": "Funcionário Enfermagem"
     };
     return labels[role] || "Colaborador";
@@ -777,7 +782,7 @@ function processarLaudo(e) {
         msg = "Laudo criado, estoque atualizado e paciente movido para histórico! A impressão iniciará em breve.";
     }
 
-    // Force show message for CHEFE_OPME_ADM and others
+    // Force show message for CHEFE_HEMODINAMICA and others
     alert(msg);
 
     // Auto-print report
@@ -1234,7 +1239,7 @@ function gerarPDFLaudo(laudoOrId) {
                     <div class="form-group">
                         <div class="signature-line">
                             Setor: ${laudo.setor === 'OPME' ? 'OPME' :
-            laudo.setor === 'OPME_ADM' ? 'OPME Adm.' :
+            laudo.setor === 'HEMODINAMICA' ? 'Hemodinâmica' :
                 'Centro Cirúrgico'}
                         </div>
                     </div>
@@ -1262,7 +1267,7 @@ function gerarPDFLaudo(laudoOrId) {
 // ======================
 
 function checkBarcodeUnique(barcode) {
-    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
     return !allItems.some(item => item.barcode === barcode);
 }
 
@@ -1486,7 +1491,7 @@ function searchProductByBarcode() {
                     <div class="font-medium">${produto.marca || 'NÃO ESPECIFICADA'}</div>
                     
                     <div class="text-slate-600">Setor Atual:</div>
-                    <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</div>
+                    <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</div>
                     
                     <div class="text-slate-600">Estoque Total:</div>
                     <div class="font-medium ${produto.qtd <= produto.min ? 'text-red-600' : 'text-green-600'}">${produto.qtd} unidades</div>
@@ -1742,7 +1747,7 @@ function updateQuantity(setor, id, delta, batchId = null) {
 
             // Adicionar notificação se estoque ficou baixo
             if (oldLoteQtd > produto.min && produto.qtd <= produto.min &&
-                state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
+                state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
                 addNotification('low_stock', `Estoque baixo: ${produto.material} (${produto.qtd}/${produto.min})`, produto.barcode);
             }
         }
@@ -1927,160 +1932,346 @@ function handleTransfer(e) {
     form.reset();
 }
 
-function handleRequestMaterial(e) {
+function handleAddToCart(e) {
     e.preventDefault();
+    state.transferCart = state.transferCart || [];
     const formData = new FormData(e.target);
-    const targetSetor = formData.get('targetSetor');
+    const fromSetor = formData.get('fromSetor');
     const barcode = formData.get('barcodeRequest');
     const quantity = parseInt(formData.get('qtdRequest'));
     const role = state.currentUser.role;
 
-    if (!targetSetor || !barcode || !quantity) {
-        showMsg("Preencha todos os campos obrigatórios", "error");
-        return;
-    }
-
-    // Verificar se o produto existe no setor de origem (Target)
-    const existsInTarget = MOCK_DATA[targetSetor]?.some(p => p.barcode === barcode);
-    if (!existsInTarget) {
-        let labelSetor = targetSetor;
-        if (targetSetor === 'OPME') labelSetor = 'OPME';
-        if (targetSetor === 'OPME_ADM') labelSetor = 'OPME Adm.';
-        if (targetSetor === 'OPME') labelSetor = 'Centro Cirúrgico';
-
-        showMsg(`Código ${barcode} não encontrado no estoque do setor ${labelSetor}`, "error");
+    if (!fromSetor || !barcode || !quantity) {
+        showMsg("Preencha todos os campos", "error");
         return;
     }
 
     let mySetor = '';
-    if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
-    else if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role === 'ADMIN') mySetor = 'OPME';
+    if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    else if (role.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
 
-    if (!mySetor) {
-        showMsg("Erro ao identificar seu setor", "error");
+    const toSetor = mySetor;
+
+    if (fromSetor === toSetor) {
+        showMsg("O setor de origem não pode ser o mesmo do seu setor", "error");
         return;
     }
 
-    const newRequest = {
+    const product = findProductByBarcodeAndSetor(barcode, fromSetor);
+    if (!product) {
+        showMsg(`Produto ${barcode} não encontrado no estoque do setor ${fromSetor}`, "error");
+        return;
+    }
+
+    const totalStock = product.lotes.reduce((acc, l) => acc + l.quantidade, 0);
+    const inCart = state.transferCart.filter(item => item.barcode === barcode).reduce((acc, item) => acc + item.quantity, 0);
+    
+    if (totalStock < quantity + inCart) {
+        showMsg(`Estoque insuficiente no setor ${fromSetor}. Disponível: ${totalStock}, No carrinho: ${inCart}`, "error");
+        return;
+    }
+
+    state.transferCart.push({
+        id: Date.now() + Math.random(),
+        barcode: barcode,
+        descricao: product.descricao,
+        quantity: quantity,
+        toSetor: toSetor,
+        fromSetor: fromSetor
+    });
+
+    showMsg("Item adicionado à lista", "success");
+    e.target.reset();
+    // Maintain fromSetor selection
+    setTimeout(() => {
+        const select = document.querySelector('select[name="fromSetor"]');
+        if (select) select.value = fromSetor;
+    }, 50);
+    render();
+}
+
+function removeFromCart(id) {
+    state.transferCart = state.transferCart.filter(item => item.id !== id);
+    render();
+}
+
+function generateTransferReportMulti(transfer, items) {
+    const reportWindow = window.open('', '_blank');
+    const itemsHtml = items.map(item => {
+        const product = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor) || {};
+        const empresa = product.empresa || '-';
+        const marca = product.marca || '-';
+        const lote = product.lotes && product.lotes.length > 0 ? product.lotes[0].lote : (product.lote || '-');
+        
+        let validade = '-';
+        if (product.lotes && product.lotes.length > 0) {
+            const spl = product.lotes[0].validade.split('-');
+            if (spl.length === 3) validade = `${spl[2]}/${spl[1]}/${spl[0]}`;
+        } else if (product.validade) {
+            validade = product.validade;
+        }
+        
+        return `
+        <tr>
+            <td style="border: 1px solid #ccc; padding: 5px;">${item.barcode}</td>
+            <td style="border: 1px solid #ccc; padding: 5px;">${item.descricao}</td>
+            <td style="border: 1px solid #ccc; padding: 5px;">${empresa} <br> <small>${marca}</small></td>
+            <td style="border: 1px solid #ccc; padding: 5px;">${lote}</td>
+            <td style="border: 1px solid #ccc; padding: 5px;">${validade}</td>
+            <td style="border: 1px solid #ccc; padding: 5px; text-align: center;"><b>${item.quantity}</b></td>
+        </tr>
+        `;
+    }).join('');
+
+    const html = `
+        <html>
+        <head>
+            <title>Relatório de Transferência #${transfer.id}</title>
+            <style>
+                body {font-family: Arial, sans-serif; margin: 40px; font-size: 12px;}
+                .header {text-align: center; margin-bottom: 20px;}
+                .info {margin-bottom: 20px; display: flex; justify-content: space-between;}
+                table {width: 100%; border-collapse: collapse; margin-bottom: 40px;}
+                th {background-color: #f3f4f6; padding: 8px; border: 1px solid #ccc;}
+                .signature {margin-top: 60px; display: flex; justify-content: space-around;}
+                .signature div {width: 40%; text-align: center;}
+                .signature-line {border-top: 1px solid #000; margin-top: 40px;}
+            </style>
+        </head>
+        <body class="print-content">
+            <div class="header">
+                <h2>Guia de Transferência e Conferência #${transfer.id}</h2>
+            </div>
+            <div class="info">
+                <div><strong>Origem (Emissor):</strong> ${transfer.fromSetor}</div>
+                <div><strong>Destino (Recebedor):</strong> ${transfer.toSetor}</div>
+                <div><strong>Data:</strong> ${new Date(transfer.date).toLocaleString('pt-PT')}</div>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 15%">Cód. Barras</th>
+                        <th style="width: 35%">Material</th>
+                        <th style="width: 20%">Empresa/Marca</th>
+                        <th style="width: 10%">Lote</th>
+                        <th style="width: 10%">Validade</th>
+                        <th style="width: 10%">Qtd</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${itemsHtml}
+                </tbody>
+            </table>
+
+            <div class="signature">
+                <div>
+                    <div class="signature-line"></div>
+                    <div><strong>${transfer.fromSetor}</strong><br>Responsável pelo Envio</div>
+                </div>
+                <div>
+                    <div class="signature-line"></div>
+                    <div><strong>${transfer.toSetor}</strong><br>Responsável pelo Recebimento (Baixa)</div>
+                </div>
+            </div>
+            
+            <script>
+                window.onload = () => { window.print(); };
+            </script>
+        </body>
+        </html>
+    `;
+    reportWindow.document.write(html);
+    reportWindow.document.close();
+}
+
+function finalizeTransferCart() {
+    if (!state.transferCart || state.transferCart.length === 0) {
+        showMsg("A lista de transferência está vazia", "error");
+        return;
+    }
+
+    const firstItem = state.transferCart[0];
+    const fromSetor = firstItem.fromSetor;
+    const toSetor = firstItem.toSetor;
+
+    // Check if all items go to the same sector and come from same origin
+    const allSameDest = state.transferCart.every(item => item.toSetor === toSetor && item.fromSetor === fromSetor);
+    if (!allSameDest) {
+        showMsg("Todos os itens da lista devem ter a mesma origem e destino", "error");
+        return;
+    }
+
+    const role = state.currentUser.role;
+    let mySetor = '';
+    if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    else if (role.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
+
+    const isRequestingFromOther = (fromSetor !== mySetor);
+
+    const newTransfer = {
         id: Date.now(),
         date: new Date().toISOString(),
-        fromSetor: targetSetor, // Provider
-        toSetor: mySetor,       // Requester
-        barcode: barcode,
-        quantity: quantity,
-        status: 'PENDING',
+        fromSetor: fromSetor,
+        toSetor: toSetor,
+        items: [...state.transferCart],
+        status: isRequestingFromOther ? 'PENDING_APPROVAL' : 'PENDING_RECEIPT',
         requester: state.currentUser.name || state.currentUser.username
     };
 
-    if (!MOCK_DATA.REQUESTS) MOCK_DATA.REQUESTS = [];
-    MOCK_DATA.REQUESTS.push(newRequest);
-    saveToLocalStorage();
-    if (typeof db_saveRequest === 'function') db_saveRequest(newRequest);
+    if (!isRequestingFromOther) {
+        // Immediate deduction since user is sending their own stock
+        for (let item of state.transferCart) {
+            const product = findProductByBarcodeAndSetor(item.barcode, fromSetor);
+            if (product) {
+                let remainingToRemove = item.quantity;
+                const batches = [...product.lotes].sort((a, b) => new Date(a.validade) - new Date(b.validade));
+                
+                for (let batch of batches) {
+                    if (remainingToRemove <= 0) break;
+                    const qtyToRemove = Math.min(batch.quantidade, remainingToRemove);
+                    removeFromBatch(fromSetor, product.id, batch.id, qtyToRemove);
+                    remainingToRemove -= qtyToRemove;
+                }
+            }
+        }
+    }
 
-    showMsg("Solicitação enviada com sucesso!", "success");
-    e.target.reset();
+    if (!MOCK_DATA.REQUESTS) MOCK_DATA.REQUESTS = [];
+    MOCK_DATA.REQUESTS.push(newTransfer);
+    saveToLocalStorage();
+    if (typeof db_saveRequest === 'function') db_saveRequest(newTransfer);
+
+    if (!isRequestingFromOther) {
+        // Generate physical report
+        generateTransferReportMulti(newTransfer, newTransfer.items);
+        showMsg("Transferência criada e enviada! Aguardando baixa do destino.", "success");
+    } else {
+        showMsg("Solicitação enviada. Aguardando aprovação e envio.", "success");
+    }
+
+    state.transferCart = [];
+    render();
+}
+
+function approveRequest(id) {
+    const request = MOCK_DATA.REQUESTS.find(r => r.id === id);
+    if (!request || request.status !== 'PENDING_APPROVAL') return;
+
+    // Deduct stock from origin
+    for (let item of request.items) {
+        const product = findProductByBarcodeAndSetor(item.barcode, request.fromSetor);
+        if (product) {
+            let remainingToRemove = item.quantity;
+            const batches = [...product.lotes].sort((a, b) => new Date(a.validade) - new Date(b.validade));
+            
+            for (let batch of batches) {
+                if (remainingToRemove <= 0) break;
+                const qtyToRemove = Math.min(batch.quantidade, remainingToRemove);
+                removeFromBatch(request.fromSetor, product.id, batch.id, qtyToRemove);
+                remainingToRemove -= qtyToRemove;
+            }
+        } else {
+            showMsg("Produto ausente no estoque para envio. Estoque pode ter zerado.", "error");
+            return;
+        }
+    }
+
+    request.status = 'PENDING_RECEIPT';
+    saveToLocalStorage();
+    if (typeof db_saveRequest === 'function') db_saveRequest(request);
+
+    generateTransferReportMulti(request, request.items);
+    showMsg("Transferência aprovada e enviada! Guia de impressão aberta.", "success");
     render();
 }
 
 function handleRequestResponse(requestId, action) {
     const requestIndex = MOCK_DATA.REQUESTS.findIndex(r => r.id === requestId);
     if (requestIndex === -1) {
-        showMsg("Solicitação não encontrada", "error");
+        showMsg("Transferência não encontrada", "error");
         return;
     }
 
-    const request = MOCK_DATA.REQUESTS[requestIndex];
+    const transfer = MOCK_DATA.REQUESTS[requestIndex];
 
     if (action === 'REJECT') {
-        request.status = 'REJECTED';
+        // Return items to sender stock
+        for (let item of transfer.items) {
+             const destList = MOCK_DATA[transfer.fromSetor];
+             // Simple refund to a generic lot
+             const product = destList.find(p => p.barcode === item.barcode);
+             if (product) {
+                 product.lotes[0].quantidade += item.quantity;
+             }
+        }
+        transfer.status = 'REJECTED';
         saveToLocalStorage();
-        showMsg("Solicitação rejeitada", "success");
+        if (typeof db_saveRequest === 'function') db_saveRequest(transfer);
+        showMsg("Transferência cancelada e estoque devolvido à origem", "success");
         render();
         return;
     }
 
     if (action === 'APPROVE') {
-        const product = findProductByBarcodeAndSetor(request.barcode, request.fromSetor);
-
-        if (!product) {
-            showMsg("Erro: Produto não encontrado no estoque de origem", "error");
-            return;
-        }
-
-        const totalStock = product.lotes.reduce((acc, l) => acc + l.quantidade, 0);
-        if (totalStock < request.quantity) {
-            showMsg(`Erro: Estoque insuficiente na origem (${totalStock} disponíveis)`, "error");
-            return;
-        }
-
-        let remainingToTransfer = request.quantity;
-        const batches = [...product.lotes].sort((a, b) => new Date(a.validade) - new Date(b.validade));
-        const lotesUsados = [];
-
-        for (let batch of batches) {
-            if (remainingToTransfer <= 0) break;
-
-            const qtyToRemove = Math.min(batch.quantidade, remainingToTransfer);
-
-            removeFromBatch(request.fromSetor, product.id, batch.id, qtyToRemove);
-            lotesUsados.push({ lote: batch.lote, quantidadeTransferida: qtyToRemove });
-
-            const destProduct = findProductByBarcodeAndSetor(request.barcode, request.toSetor);
-
+        // Add items to destination stock
+        for (let item of transfer.items) {
+            const destProduct = findProductByBarcodeAndSetor(item.barcode, transfer.toSetor);
+            const sourceProduct = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor); // to get details if new
+            
             if (destProduct) {
-                addProductWithBatch(request.toSetor, {
-                    barcode: request.barcode,
+                addProductWithBatch(transfer.toSetor, {
+                    barcode: item.barcode,
                     lotes: [{
-                        lote: batch.lote,
-                        validade: batch.validade,
-                        quantidade: qtyToRemove,
+                        lote: `TRANSF-${transfer.id}`,
+                        validade: '2099-12-31', // generic if unknown during transfer
+                        quantidade: item.quantity,
                         data_entrada: new Date().toISOString().split('T')[0]
                     }]
                 });
             } else {
-                let destList = MOCK_DATA[request.toSetor];
-                // If destList is undefined (shouldn't happen), init it
+                let destList = MOCK_DATA[transfer.toSetor];
                 if (!destList) {
-                    MOCK_DATA[request.toSetor] = [];
+                    MOCK_DATA[transfer.toSetor] = [];
                 }
+                
+                // Copy base product info
+                let baseProduct = sourceProduct ? {...sourceProduct} : {descricao: item.descricao, marca: 'Desconhecida', fornecedor: 'Desconhecido'};
 
-                MOCK_DATA[request.toSetor].push({
-                    ...product,
+                MOCK_DATA[transfer.toSetor].push({
+                    ...baseProduct,
                     id: Date.now() + Math.random(),
+                    barcode: item.barcode,
                     lotes: [{
-                        lote: batch.lote,
-                        validade: batch.validade,
-                        quantidade: qtyToRemove,
+                        lote: `TRANSF-${transfer.id}`,
+                        validade: '2099-12-31',
+                        quantidade: item.quantity,
                         data_entrada: new Date().toISOString().split('T')[0]
                     }]
                 });
             }
-
-            remainingToTransfer -= qtyToRemove;
         }
 
         const now = new Date();
-        const transferItem = {
+        const transferHistoryItem = {
             data: now.toLocaleDateString('pt-PT'),
             hora: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
             usuario: state.currentUser.name,
-            origem: request.fromSetor,
-            destino: request.toSetor,
-            material: product.descricao,
-            barcode: request.barcode,
-            quantidade: request.quantity,
-            tipo: 'SOLICITAÇÃO_APROVADA',
-            lotes: lotesUsados.map(l => `${l.lote} (${l.quantidadeTransferida} un)`)
+            origem: transfer.fromSetor,
+            destino: transfer.toSetor,
+            material: transfer.items.length > 1 ? `Vários (${transfer.items.length} itens)` : transfer.items[0].descricao,
+            barcode: transfer.items.length > 1 ? 'Múltiplos' : transfer.items[0].barcode,
+            quantidade: transfer.items.reduce((acc, item) => acc + item.quantity, 0),
+            tipo: 'TRANSFERENCIA_RECEBIDA'
         };
-        TRANSFER_HISTORY.unshift(transferItem);
-        if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferItem);
+        TRANSFER_HISTORY.unshift(transferHistoryItem);
+        if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferHistoryItem);
 
-        request.status = 'APPROVED';
+        transfer.status = 'COMPLETED';
         saveToLocalStorage();
-        showMsg("Solicitação aprovada e transferência realizada!", "success");
-        render(); // Force re-render to update dashboard/history
+        if (typeof db_saveRequest === 'function') db_saveRequest(transfer);
+        showMsg("Baixa confirmada! Itens adicionados ao seu estoque.", "success");
+        render(); 
     }
 }
 
@@ -2127,10 +2318,10 @@ function handleEditMember(username) {
     const newName = prompt("Digite o novo nome completo:", user.name);
     if (newName === null) return;
 
-    const newRole = prompt("Digite o novo tipo de usuário (ADMIN, CHEFE_OPME, CHEFE_OPME_ADM, FUNC_OPME_ADM, FUNC_OPME, FUNC_OPME, FUNC_ENFERMAGEM):", user.role);
+    const newRole = prompt("Digite o novo tipo de usuário (ADMIN, CHEFE_OPME, CHEFE_HEMODINAMICA, FUNC_HEMODINAMICA, FUNC_OPME, FUNC_OPME, FUNC_ENFERMAGEM):", user.role);
     if (newRole === null) return;
 
-    if (!["ADMIN", "CHEFE_OPME", "CHEFE_OPME_ADM", "FUNC_OPME_ADM", "FUNC_OPME", "FUNC_OPME", "FUNC_ENFERMAGEM"].includes(newRole)) {
+    if (!["ADMIN", "CHEFE_OPME", "CHEFE_HEMODINAMICA", "FUNC_HEMODINAMICA", "FUNC_OPME", "FUNC_OPME", "FUNC_ENFERMAGEM"].includes(newRole)) {
         alert("Tipo de usuário inválido!");
         return;
     }
@@ -2160,17 +2351,17 @@ function addNotification(type, message, barcode = null) {
     saveToLocalStorage();
     if (typeof db_saveNotification === 'function') db_saveNotification(notification);
 
-    if (state.isAuthenticated && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
+    if (state.isAuthenticated && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
         updateNotificationBadge();
     }
 }
 
 function checkLowStockNotifications() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {
         return;
     }
 
-    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
 
     lowStockItems.forEach(item => {
@@ -2207,14 +2398,14 @@ function markAllNotificationsAsRead() {
 }
 
 function getUnreadNotificationsCount() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {
         return 0;
     }
     return NOTIFICATIONS.filter(n => !n.read).length;
 }
 
 function updateNotificationBadge() {
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {
         const badge = document.getElementById('notification-badge');
         if (badge) {
             badge.classList.add('hidden');
@@ -2235,7 +2426,7 @@ function updateNotificationBadge() {
 // ======================
 
 function getDashboardStats() {
-    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME];
+    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
     const expiredItems = allItems.filter(item => {
         if (item.validade === 'N/A') return false;
@@ -2245,7 +2436,7 @@ function getDashboardStats() {
         return diasParaVencer <= 30 && diasParaVencer > 0;
     });
 
-    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_OPME_ADM')) {
+    if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {
         return {
             totalProducts: 0,
             totalStock: 0,
@@ -2275,7 +2466,9 @@ function getDashboardStats() {
 // ======================
 
 function handleLoginAction() {
-    const username = document.getElementById('login_user')?.value.toLowerCase();
+    const rawUsername = document.getElementById('login_user')?.value || '';
+    // Normalize to lowercase and remove accents
+    const username = rawUsername.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const password = document.getElementById('login_pass')?.value;
 
     if (!username || !password) {
@@ -2290,14 +2483,14 @@ function handleLoginAction() {
             ...USERS_DB[username]
         };
 
-        if (state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
+        if (state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
             checkLowStockNotifications();
         }
 
         if (state.currentUser.role === 'FUNC_OPME') {
             state.activeModule = 'OPME';
-        } else if (state.currentUser.role === 'CHEFE_OPME_ADM') {
-            state.activeModule = 'OPME_ADM';
+        } else if (state.currentUser.role === 'CHEFE_HEMODINAMICA') {
+            state.activeModule = 'HEMODINAMICA';
         }
 
         render();
@@ -2367,9 +2560,10 @@ function getModuleTitle() {
     const titles = {
         'DASHBOARD': 'Dashboard Principal',
         'OPME': 'Estoque OPME',
-        'OPME_ADM': 'Estoque OPME Adm.',
+        'HEMODINAMICA': 'Estoque Hemodinâmica',
         'CENTRO_CIRURGICO': 'Estoque Centro Cirúrgico',
         'SALAS': 'Salas de Procedimento',
+        'HISTORICO_SALAS': 'Histórico de Salas',
         'ENFERMAGEM': 'Registro de Pacientes',
         'PACIENTES_REGISTRADOS': 'Pacientes Registrados',
         'REGISTER': 'Cadastro de Produtos',
@@ -2443,7 +2637,7 @@ function renderDashboard() {
 
     // Who approves? The Provider (fromSetor).
     if (myRole === 'CHEFE_OPME' || myRole === 'FUNC_OPME') mySetor = 'OPME';
-    else if (myRole === 'CHEFE_OPME_ADM' || myRole === 'FUNC_OPME_ADM') mySetor = 'OPME_ADM';
+    else if (myRole === 'CHEFE_HEMODINAMICA' || myRole === 'FUNC_HEMODINAMICA') mySetor = 'HEMODINAMICA';
     else if (myRole === 'FUNC_OPME') mySetor = 'OPME';
     else if (myRole === 'ADMIN') mySetor = 'OPME';
 
@@ -2463,7 +2657,7 @@ function renderDashboard() {
                     <div>
                         <div class="font-bold text-slate-800">${req.barcode}</div>
                         <div class="text-sm text-slate-500">
-                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</span>
+                             Solicitado por: <span class="font-medium text-slate-700">${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</span>
                         </div>
                         <div class="text-sm text-slate-500">Quantidade: <span class="font-bold text-slate-900">${req.quantity}</span></div>
                         <div class="text-xs text-slate-400 mt-1">${new Date(req.date).toLocaleString()}</div>
@@ -2488,7 +2682,7 @@ function renderDashboard() {
         ${pendingRequestsWidget}
         <!-- Cards de Estatísticas -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_OPME_ADM') ? `
+            ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_HEMODINAMICA') ? `
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <div class="flex items-center justify-between">
                     <div>
@@ -2563,7 +2757,7 @@ function renderDashboard() {
                     <span class="font-medium text-emerald-800">Novo Produto</span>
                 </button>
                 ` : ''}
-                ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'OPME_ADM') || hasPermission('update_stock', 'OPME')) ? `
+                ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'HEMODINAMICA') || hasPermission('update_stock', 'OPME')) ? `
                 <button onclick="state.activeModule='ADD_EXISTING'; render()" class="p-4 bg-cyan-50 hover:bg-cyan-100 rounded-xl transition-colors flex items-center gap-3">
                     <i data-lucide="package-plus" class="w-5 h-5 text-cyan-600"></i>
                     <span class="font-medium text-cyan-800">Adicionar Estoque</span>
@@ -2581,7 +2775,7 @@ function renderDashboard() {
                     <span class="font-medium text-pink-800">Registrar Paciente</span>
                 </button>
                 ` : ''}
-                ${(hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME')) ? `
+                ${(hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'OPME')) ? `
                 <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; render()" class="p-4 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors flex items-center gap-3">
                     <i data-lucide="file-text" class="w-5 h-5 text-indigo-600"></i>
                     <span class="font-medium text-indigo-800">Criar Laudo</span>
@@ -2591,7 +2785,7 @@ function renderDashboard() {
         </div>
 
         <!-- Produtos com Estoque Baixo -->
-        ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_OPME_ADM' && stats.lowStock > 0) ? `
+        ${(role !== 'FUNC_ENFERMAGEM' && role !== 'CHEFE_HEMODINAMICA' && stats.lowStock > 0) ? `
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <h3 class="text-lg font-bold text-slate-900">Produtos com Estoque Baixo</h3>
@@ -2610,7 +2804,7 @@ function renderDashboard() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${[...MOCK_DATA.OPME, ...MOCK_DATA.OPME_ADM, ...MOCK_DATA.OPME]
+                        ${[...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME]
                 .filter(item => item.qtd <= item.min)
                 .slice(0, 5)
                 .map(item => `
@@ -2622,7 +2816,7 @@ function renderDashboard() {
                                 <td class="py-4 px-6 text-sm">${item.marca || item.empresa}</td>
                                 <td class="py-4 px-6 text-sm font-mono">${item.barcode}</td>
                                 <td class="py-4 px-6 text-sm">
-                                    ${item.id > 200 ? 'OPME_ADM' : item.id > 100 ? 'OPME' : 'OPME'}
+                                    ${item.id > 200 ? 'HEMODINAMICA' : item.id > 100 ? 'OPME' : 'OPME'}
                                 </td>
                                 <td class="py-4 px-6 text-sm">
                                     <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">
@@ -2672,7 +2866,7 @@ function renderDashboard() {
                             </td>
                             <td class="py-4 px-6 text-sm">
                                 <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-full">
-                                    ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
+                                    ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}
                                 </span>
                             </td>
                             <td class="py-4 px-6 text-sm">
@@ -2781,7 +2975,7 @@ function renderProductList(data, setor) {
                         <h3 class="font-bold text-slate-900">${item.material}</h3>
                         <p class="text-sm text-slate-500 mt-1">${item.descricao}</p>
                     </div>
-                    ${item.qtd <= item.min && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM' ?
+                    ${item.qtd <= item.min && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA' ?
             '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">BAIXO ESTOQUE</span>' :
             ''}
                 </div>
@@ -2835,7 +3029,7 @@ function renderProductList(data, setor) {
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="text-sm font-bold ${lote.quantidade <= 10 ? 'text-red-600' : 'text-slate-700'}">${lote.quantidade} un</span>
-                                ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' ? `
+                                ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
                                 <div class="flex gap-1">
                                     <button onclick="removeFromSpecificBatch('${setor}', ${item.id}, ${lote.id}, 1)" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 1 unidade">
                                         <i data-lucide="minus" class="w-3 h-3 text-red-600"></i>
@@ -2853,7 +3047,7 @@ function renderProductList(data, setor) {
                 ` : ''}
 
                 <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-                    ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' ? `
+                    ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
                     <div class="flex items-center gap-3">
                         <button onclick="updateQuantity('${setor}', ${item.id}, -1)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
                             <i data-lucide="minus" class="w-4 h-4 text-slate-600"></i>
@@ -2887,13 +3081,13 @@ function renderProductList(data, setor) {
 function renderRegisterForm() {
     const role = state.currentUser.role;
 
-    if (role === 'CHEFE_OPME_ADM') {
+    if (role === 'CHEFE_HEMODINAMICA') {
         return `
         <div class="max-w-3xl mx-auto">
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de OPME Adm. não têm permissão para adicionar novos produtos.</p>
+                <p class="text-slate-600 mb-6">Chefes de Hemodinâmica não têm permissão para adicionar novos produtos.</p>
                 <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
@@ -2912,7 +3106,7 @@ function renderRegisterForm() {
             <option value="">Selecione um setor</option>
             ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
                 <option value="OPME">OPME</option>
-                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="HEMODINAMICA">Hemodinâmica</option>
                 <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
             ` : ''}
             </select>
@@ -2990,13 +3184,13 @@ function renderRegisterForm() {
 function renderAddExistingForm() {
     const role = state.currentUser.role;
 
-    if (role === 'CHEFE_OPME_ADM') {
+    if (role === 'CHEFE_HEMODINAMICA') {
         return `
         <div class="max-w-3xl mx-auto">
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                 <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
                 <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
-                <p class="text-slate-600 mb-6">Chefes de OPME Adm. não têm permissão para adicionar produtos ao estoque.</p>
+                <p class="text-slate-600 mb-6">Chefes de Hemodinâmica não têm permissão para adicionar produtos ao estoque.</p>
                 <p class="text-slate-500 text-sm">Esta funcionalidade está disponível apenas para Administradores e Chefes de OPME.</p>
             </div>
         </div>`;
@@ -3015,16 +3209,16 @@ function renderAddExistingForm() {
             <option value="">Selecione o setor de destino</option>
             ${role === 'ADMIN' ? `
                 <option value="OPME">OPME</option>
-                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="HEMODINAMICA">Hemodinâmica</option>
                 <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
             ` : ''}
             ${role === 'CHEFE_OPME' ? `
                 <option value="OPME">OPME</option>
-                <option value="OPME_ADM">OPME Adm.</option>
+                <option value="HEMODINAMICA">Hemodinâmica</option>
                 <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
             ` : ''}
             ${(role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
-            ${(role === 'FUNC_OPME_ADM') ? '<option value="OPME_ADM">OPME Adm.</option>' : ''}
+            ${(role === 'FUNC_HEMODINAMICA') ? '<option value="HEMODINAMICA">Hemodinâmica</option>' : ''}
             ${(role === 'FUNC_CENTRO_CIRURGICO') ? '<option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>' : ''}
             </select>
             </div>
@@ -3452,31 +3646,31 @@ function renderTransferForm() {
     if (role === 'ADMIN') {
         origemOptions += `
     <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Adm.</option>
+            <option value="HEMODINAMICA">Hemodinâmica</option>
             <option value="OPME">Centro Cirúrgico</option>
 `;
         destinoOptions = origemOptions;
     } else if (role === 'CHEFE_OPME') {
         origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "OPME_ADM" > OPME Adm.</option>
+    <option value = "HEMODINAMICA" > Hemodinâmica</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
-    } else if (role === 'CHEFE_OPME_ADM') {
-        origemOptions += '<option value="OPME_ADM">OPME Adm.</option>';
+    } else if (role === 'CHEFE_HEMODINAMICA') {
+        origemOptions += '<option value="HEMODINAMICA">Hemodinâmica</option>';
         destinoOptions += `
     <option value = "OPME" > OPME</option>
         `;
-    } else if (role === 'FUNC_OPME_ADM') {
-        origemOptions += '<option value="OPME_ADM">OPME Adm.</option>';
+    } else if (role === 'FUNC_HEMODINAMICA') {
+        origemOptions += '<option value="HEMODINAMICA">Hemodinâmica</option>';
         destinoOptions += `
         <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Adm.</option>
+            <option value="HEMODINAMICA">Hemodinâmica</option>
 `;
     } else if (role === 'FUNC_OPME') {
         origemOptions += '<option value="OPME">OPME</option>';
         destinoOptions += `
-    <option value = "OPME_ADM" > OPME Adm.</option>
+    <option value = "HEMODINAMICA" > Hemodinâmica</option>
         <option value="OPME">Centro Cirúrgico</option>
 `;
     } else if (role === 'FUNC_OPME') {
@@ -3548,77 +3742,110 @@ function renderTransferForm() {
 
 function renderRequestForm() {
     const role = state.currentUser.role;
-
-    let providerOptions = '<option value="">Selecione o setor para solicitar</option>';
+    let origemOptions = '<option value="">Selecione o setor para solicitar (Origem)</option>';
 
     if (role === 'ADMIN') {
-        providerOptions += `
-    <option value = "OPME" > OPME</option>
-            <option value="OPME_ADM">OPME Adm.</option>
-            <option value="OPME">Centro Cirúrgico</option>
-`;
+        origemOptions += `
+            <option value="OPME">OPME</option>
+            <option value="HEMODINAMICA">Hemodinâmica</option>
+            <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
+        `;
     } else if (role === 'CHEFE_OPME' || role === 'FUNC_OPME') {
-        providerOptions += `
-    <option value = "OPME_ADM" > OPME Adm.</option>
-        <option value="OPME">Centro Cirúrgico</option>
-`;
-    } else if (role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') {
-        providerOptions += `
+        origemOptions += `
+            <option value="HEMODINAMICA">Hemodinâmica</option>
+            <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
+        `;
+    } else if (role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA') {
+        origemOptions += `
             <option value="OPME">OPME</option>
         `;
-    } else if (role === 'FUNC_OPME') {
-        providerOptions += `
-    <option value = "OPME" > OPME</option>
-        <option value="OPME_ADM">OPME Adm.</option>
-`;
     }
 
-    return `
-    <div class="max-w-3xl mx-auto" >
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-            <h2 class="text-2xl font-bold text-slate-900 mb-6">Solicitar Material</h2>
-            
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-800 flex items-start gap-3">
-                <i data-lucide="info" class="w-5 h-5 shrink-0 mt-0.5"></i>
-                <p>Use esta função para solicitar materiais de outros setores. O responsável do setor de destino deverá aprovar a solicitação para que o estoque seja transferido.</p>
-            </div>
+    let mySetorLabel = getRoleLabel(role);
+    if (role === 'ADMIN') mySetorLabel = 'OPME (Admin)';
+    else if (role.includes('OPME')) mySetorLabel = 'OPME';
+    else if (role.includes('HEMODINAMICA')) mySetorLabel = 'Hemodinâmica';
 
-            <form onsubmit="handleRequestMaterial(event)" class="space-y-6">
+    const cart = state.transferCart || [];
+    
+    return `
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6">Nova Solicitação de Transferência</h2>
+            
+            <form onsubmit="handleAddToCart(event)" class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Solicitar De (Origem) *</label>
-                        <select name="targetSetor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            ${providerOptions}
+                        <select id="fromSetorSelect" name="fromSetor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            ${origemOptions}
                         </select>
                     </div>
 
                     <div>
-                         <label class="block text-sm font-medium text-slate-700 mb-2">Para (Meu Setor)</label>
-                         <input type="text" value="${getRoleLabel(role)}" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 cursor-not-allowed">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Para (Meu Setor)</label>
+                        <input type="text" value="${mySetorLabel}" disabled class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-bold cursor-not-allowed">
                     </div>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Código de Barras *</label>
-                        <input type="text" name="barcodeRequest" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <div class="flex gap-2">
+                            <input type="text" name="barcodeRequest" required class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        </div>
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Quantidade *</label>
-                        <input type="number" name="qtdRequest" min="1" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <input type="number" name="qtdRequest" min="1" value="1" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                     </div>
                 </div>
 
-                <div class="pt-4">
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95">
-                        Enviar Solicitação
+                <div class="pt-2">
+                    <button type="submit" class="w-full md:w-auto px-8 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <i data-lucide="plus" class="w-5 h-5"></i> Adicionar à Lista
                     </button>
                 </div>
             </form>
         </div>
-        
+
+        ${cart.length > 0 ? `
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <h3 class="text-lg font-bold text-slate-900 mb-4">Lista de Transferência</h3>
+            <div class="overflow-x-auto mb-6">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-50 text-slate-500 font-bold">
+                        <tr>
+                            <th class="px-4 py-3 rounded-l-lg">Material</th>
+                            <th class="px-4 py-3">Destino</th>
+                            <th class="px-4 py-3">Qtd</th>
+                            <th class="px-4 py-3 rounded-r-lg">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${cart.map(item => `
+                        <tr>
+                            <td class="px-4 py-3">
+                                <div class="font-bold text-slate-900">${item.descricao}</div>
+                                <div class="text-xs text-slate-500">${item.barcode}</div>
+                            </td>
+                            <td class="px-4 py-3">${item.fromSetor}</td>
+                            <td class="px-4 py-3 font-medium">${item.quantity}</td>
+                            <td class="px-4 py-3">
+                                <button type="button" onclick="removeFromCart(${item.id})" class="p-2 hover:bg-red-50 text-red-500 rounded-lg transition-colors">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            <button onclick="finalizeTransferCart()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                <i data-lucide="printer" class="w-5 h-5"></i> Imprimir Guia de Transferência
+            </button>
         </div>
+        ` : ''}
     </div> `;
 }
 
@@ -3641,17 +3868,24 @@ function viewRequestDetails(id) {
     const request = MOCK_DATA.REQUESTS.find(r => r.id === id);
     if (!request) return;
 
-    const details = `
-    Detalhes da Solicitação #${request.id}
---------------------------------
-    Data: ${new Date(request.date).toLocaleString()}
-Item: ${request.barcode}
-Quantidade: ${request.quantity}
-De: ${request.fromSetor}
-Para: ${request.toSetor}
-Status: ${request.status}
-`;
+    let itemsText = '';
+    if (request.items && request.items.length > 0) {
+        itemsText = request.items.map(item => `- ${item.quantity}x ${item.descricao} (${item.barcode})`).join('\n');
+    } else {
+        itemsText = `- ${request.quantity}x ${request.barcode}`;
+    }
 
+    const details = `
+    Detalhes da Transferência #${request.id}
+--------------------------------
+Data: ${new Date(request.date).toLocaleString()}
+Origem: ${request.fromSetor}
+Destino: ${request.toSetor}
+Status: ${request.status}
+
+Itens Associados:
+${itemsText}
+`;
     alert(details);
 }
 
@@ -3659,14 +3893,13 @@ function renderMyRequestsTable() {
     const role = state.currentUser.role;
     let mySetor = '';
 
-    if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
-    else if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    else if (role.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
 
-    const myRequests = (MOCK_DATA.REQUESTS || []).filter(req => req.toSetor === mySetor).sort((a, b) => new Date(b.date) - new Date(a.date));
+    const myRequests = (MOCK_DATA.REQUESTS || []).filter(req => req.fromSetor === mySetor || req.toSetor === mySetor).sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (myRequests.length === 0) {
-        return '<p class="text-slate-500 text-sm">Nenhuma solicitação realizada.</p>';
+        return '<p class="text-slate-500 text-sm">Nenhuma transferência enviada ou solicitada.</p>';
     }
 
     return `
@@ -3676,38 +3909,164 @@ function renderMyRequestsTable() {
                 <tr>
                     <th class="px-4 py-3 rounded-l-lg">ID</th>
                     <th class="px-4 py-3">Data</th>
-                    <th class="px-4 py-3">Item</th>
-                    <th class="px-4 py-3">Origem</th>
-                    <th class="px-4 py-3">Qtd</th>
+                    <th class="px-4 py-3">Itens</th>
+                    <th class="px-4 py-3">Operação</th>
                     <th class="px-4 py-3">Status</th>
-                    <th class="px-4 py-3 rounded-r-lg">Detalhes</th>
+                    <th class="px-4 py-3 rounded-r-lg">Ações</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-                ${myRequests.slice(0, 5).map(req => `
-                <tr>
-                    <td class="px-4 py-3 font-mono text-xs text-slate-400">#${req.id}</td>
-                    <td class="px-4 py-3">${new Date(req.date).toLocaleDateString()}</td>
-                    <td class="px-4 py-3 font-medium text-slate-900">${req.barcode}</td>
-                    <td class="px-4 py-3">${req.fromSetor === 'OPME' ? 'OPME' : req.fromSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</td>
-                    <td class="px-4 py-3">${req.quantity}</td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-1 rounded-full text-xs font-bold ${req.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-            req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                'bg-yellow-100 text-yellow-700'
-        }">
-                            ${req.status === 'APPROVED' ? 'Aprovado' : req.status === 'REJECTED' ? 'Rejeitado' : 'Pendente'}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3">
-                        <button onclick="viewRequestDetails(${req.id})" class="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors" title="Ver Detalhes">
-                            <i data-lucide="search" class="w-4 h-4"></i>
-                        </button>
-                    </td>
-                </tr>
-                `).join('')}
+                ${myRequests.slice(0, 15).map(req => {
+                    const itemCount = req.items ? req.items.length : 1;
+                    const isMySend = req.fromSetor === mySetor;
+                    return `
+                    <tr>
+                        <td class="px-4 py-3 font-mono text-xs text-slate-400">#${req.id}</td>
+                        <td class="px-4 py-3">${new Date(req.date).toLocaleDateString()}</td>
+                        <td class="px-4 py-3 font-medium text-slate-900">${itemCount} item(s)</td>
+                        <td class="px-4 py-3 font-bold ${isMySend ? 'text-blue-600' : 'text-indigo-600'}">
+                            ${isMySend ? 'Envio P/ ' + req.toSetor : 'Pedido D/ ' + req.fromSetor}
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
+                                req.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                                req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                                req.status === 'PENDING_APPROVAL' ? 'bg-blue-100 text-blue-700' :
+                                'bg-yellow-100 text-yellow-700'
+                            }">
+                                ${req.status === 'COMPLETED' ? 'Concluída' : req.status === 'REJECTED' ? 'Rejeitada' : req.status === 'PENDING_APPROVAL' ? (isMySend ? 'Aprovar Envio' : 'Aguardando Aprovação') : 'Aguard. Baixa'}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <button onclick="viewRequestDetails(${req.id})" class="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors" title="Ver Detalhes">
+                                    <i data-lucide="search" class="w-4 h-4"></i>
+                                </button>
+                                ${(req.status === 'PENDING_APPROVAL' && isMySend) ? `
+                                    <button onclick="approveRequest(${req.id})" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
+                                        <i data-lucide="check" class="w-4 h-4 inline-block mr-1"></i> Aprovar/Imprimir
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                    `}).join('')}
             </tbody>
         </table>
+    </div>
+    `;
+}
+
+function openReceiveTransferScreen(id) {
+    state.receivingTransferId = id;
+    state.activeModule = 'RECEIVE_TRANSFER';
+    state.receivedItemsCount = {};
+    render();
+}
+
+function handleScanToReceive(e) {
+    e.preventDefault();
+    const barcode = e.target.barcode.value.trim();
+    if (!barcode) return;
+    
+    e.target.reset();
+
+    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.receivingTransferId);
+    if (!transfer) return;
+
+    const item = transfer.items.find(i => i.barcode === barcode);
+    if (!item) {
+        showMsg("Este código de barras não pertence a esta transferência!", "error");
+        return;
+    }
+
+    state.receivedItemsCount[barcode] = (state.receivedItemsCount[barcode] || 0) + 1;
+    
+    if (state.receivedItemsCount[barcode] > item.quantity) {
+        state.receivedItemsCount[barcode] = item.quantity;
+        showMsg(`Quantidade máxima (${item.quantity}) já bipada para este item!`, "warning");
+    } else {
+        const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        sound.play().catch(e => {}); // subtle confirmation beep
+        showMsg(`Registrado 1x ${item.descricao}`, "success");
+    }
+    
+    render();
+}
+
+function renderReceiveTransferScreen() {
+    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.receivingTransferId);
+    if (!transfer) return '<p>Transferência não encontrada.</p>';
+
+    let allFullyScanned = true;
+    const itemsHtml = transfer.items.map(item => {
+        const scanned = state.receivedItemsCount[item.barcode] || 0;
+        const required = item.quantity;
+        const isComplete = scanned >= required;
+        if (!isComplete) allFullyScanned = false;
+
+        return `
+        <tr class="${isComplete ? 'bg-emerald-50' : 'hover:bg-slate-50'}">
+            <td class="px-4 py-3">
+                <div class="font-bold text-slate-900">${item.descricao}</div>
+                <div class="text-xs text-slate-500">${item.barcode}</div>
+            </td>
+            <td class="px-4 py-3 font-medium text-center text-lg">${required}</td>
+            <td class="px-4 py-3 font-bold text-center text-xl ${isComplete ? 'text-emerald-600' : 'text-orange-600'}">${scanned}</td>
+            <td class="px-4 py-3 text-center">
+                ${isComplete ? '<i data-lucide="check-circle" class="w-6 h-6 text-emerald-500 mx-auto"></i>' : '<i data-lucide="clock" class="w-6 h-6 text-orange-400 mx-auto animate-pulse"></i>'}
+            </td>
+        </tr>
+        `;
+    }).join('');
+
+    return `
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-900">Receber Transferência #${transfer.id}</h2>
+                <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; render()" class="text-sm text-slate-500 hover:text-slate-700 font-bold flex items-center gap-1">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Voltar
+                </button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                <p class="text-sm text-blue-800 font-medium mb-1"><i data-lucide="info" class="w-4 h-4 inline pb-1"></i> Instruções:</p>
+                <p class="text-xs text-blue-700">Para dar baixa definitiva, utilize o <b>leitor de código de barras</b> para bipar os itens recebidos. O botão de confirmação só será liberado após o escaneamento total dos materiais solicitados.</p>
+            </div>
+
+            <form onsubmit="handleScanToReceive(event)" class="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                <label class="block text-sm font-bold text-slate-700 mb-2">Escanear Código de Barras</label>
+                <div class="flex gap-2">
+                    <input type="text" name="barcode" autofocus required placeholder="Dê foco aqui e bipe os produtos..." class="flex-1 px-4 py-4 bg-white border-2 border-blue-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all font-mono text-lg text-center tracking-widest">
+                    <button type="submit" class="px-8 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-all shadow-md active:scale-95">Registrar</button>
+                </div>
+            </form>
+
+            <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <i data-lucide="list-checks" class="w-5 h-5 text-blue-600"></i> Progresso da Conferência
+            </h3>
+            
+            <div class="overflow-x-auto mb-6 rounded-xl border border-slate-200">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr>
+                            <th class="px-4 py-3">Material</th>
+                            <th class="px-4 py-3 text-center">Previsto</th>
+                            <th class="px-4 py-3 text-center">Bipado</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <button onclick="handleRequestResponse(${transfer.id}, 'APPROVE')" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
+                <i data-lucide="check-square" class="w-6 h-6"></i> ${allFullyScanned ? 'Confirmar Baixa Definitiva do Estoque' : 'Aguardando Conferência Total'}
+            </button>
+        </div>
     </div>
     `;
 }
@@ -3716,12 +4075,11 @@ function renderTransferConfirmation() {
     const role = state.currentUser.role;
     let mySetor = '';
 
-    if (role.includes('OPME')) mySetor = 'OPME';
-    else if (role.includes('OPME_ADM')) mySetor = 'OPME_ADM';
-    else if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    if (role.includes('OPME') || role === 'ADMIN') mySetor = 'OPME';
+    else if (role.includes('HEMODINAMICA')) mySetor = 'HEMODINAMICA';
 
-    // Requests targeting MY sector (Provider)
-    const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.fromSetor === mySetor && r.status === 'PENDING').sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Requests targeting MY sector (Destination) to receive
+    const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.toSetor === mySetor && r.status === 'PENDING_RECEIPT').sort((a, b) => new Date(a.date) - new Date(b.date));
 
     return `
     <div class="max-w-6xl mx-auto space-y-6" >
@@ -3731,8 +4089,8 @@ function renderTransferConfirmation() {
                     <i data-lucide="check-square" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Confirmação de Transferência</h2>
-                    <p class="text-slate-500">Aprove ou rejeite solicitações de material de outros setores</p>
+                    <h2 class="text-2xl font-bold text-slate-900">Confirmação de Recebimento</h2>
+                    <p class="text-slate-500">Dê baixa nas transferências enviadas para o seu setor</p>
                 </div>
             </div>
 
@@ -3741,8 +4099,8 @@ function renderTransferConfirmation() {
                 <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i data-lucide="inbox" class="w-8 h-8"></i>
                 </div>
-                <h3 class="text-lg font-bold text-slate-600 mb-2">Nenhuma solicitação pendente</h3>
-                <p class="text-slate-500">Você não tem novas solicitações para aprovar no momento.</p>
+                <h3 class="text-lg font-bold text-slate-600 mb-2">Nenhuma transferência pendente</h3>
+                <p class="text-slate-500">Você não tem novas transferências para dar baixa no momento.</p>
             </div>
             ` : `
             <div class="overflow-x-auto">
@@ -3750,14 +4108,15 @@ function renderTransferConfirmation() {
                     <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
                         <tr>
                             <th class="px-6 py-4 rounded-l-lg">Data</th>
-                            <th class="px-6 py-4">Solicitante</th>
-                            <th class="px-6 py-4">Item (Código)</th>
-                            <th class="px-6 py-4">Qtd</th>
-                            <th class="px-6 py-4 text-center rounded-r-lg">Ação</th>
+                            <th class="px-6 py-4">Origem</th>
+                            <th class="px-6 py-4">Itens</th>
+                            <th class="px-6 py-4 text-center rounded-r-lg">Ações</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        ${pendingRequests.map(req => `
+                        ${pendingRequests.map(req => {
+                            const itemCount = req.items ? req.items.length : 1;
+                            return `
                         <tr class="hover:bg-slate-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="text-slate-900 font-medium">${new Date(req.date).toLocaleDateString()}</span>
@@ -3765,18 +4124,18 @@ function renderTransferConfirmation() {
                             </td>
                             <td class="px-6 py-4">
                                 <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                                    ${req.toSetor === 'OPME' ? 'OPME' : req.toSetor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
+                                    ${req.fromSetor}
                                 </span>
                                 <div class="text-xs text-slate-400 mt-1">por ${req.requester || 'Usuário'}</div>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="font-bold text-slate-900">${req.barcode}</div>
+                                <div class="font-bold text-slate-900">${itemCount} item(s)</div>
+                                <button onclick="viewRequestDetails(${req.id})" class="text-xs text-blue-600 hover:underline mt-1">Ver itens</button>
                             </td>
-                            <td class="px-6 py-4 font-bold text-slate-900 text-lg">${req.quantity}</td>
                             <td class="px-6 py-4">
                                 <div class="flex justify-center gap-2">
-                                    <button onclick="handleRequestResponse(${req.id}, 'APPROVE')" class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-all shadow-md active:scale-95">
-                                        <i data-lucide="check" class="w-4 h-4"></i> Aprovar
+                                    <button onclick="openReceiveTransferScreen(${req.id})" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all shadow-md active:scale-95">
+                                        <i data-lucide="barcode" class="w-4 h-4"></i> Iniciar Conferência
                                     </button>
                                     <button onclick="handleRequestResponse(${req.id}, 'REJECT')" class="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold transition-all">
                                         <i data-lucide="x" class="w-4 h-4"></i> Rejeitar
@@ -3784,7 +4143,7 @@ function renderTransferConfirmation() {
                                 </div>
                             </td>
                         </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             </div>
@@ -3982,10 +4341,10 @@ function renderLaudoForm() {
                     </button>
                     ` : ''}
 
-                ${hasPermission('create_laudo', 'OPME_ADM') ? `
-                    <button onclick="state.laudoSetor='OPME_ADM'; render()" class="p-8 bg-purple-50 hover:bg-purple-100 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center transition-all">
+                ${hasPermission('create_laudo', 'HEMODINAMICA') ? `
+                    <button onclick="state.laudoSetor='HEMODINAMICA'; render()" class="p-8 bg-purple-50 hover:bg-purple-100 rounded-2xl border-2 border-purple-200 flex flex-col items-center justify-center transition-all">
                         <i data-lucide="files" class="w-12 h-12 text-purple-600 mb-4"></i>
-                        <span class="font-bold text-purple-800 text-lg">OPME Adm.</span>
+                        <span class="font-bold text-purple-800 text-lg">Hemodinâmica</span>
                         <span class="text-sm text-purple-600 mt-2">Laudos e baixas deste setor</span>
                     </button>
                     ` : ''}
@@ -4007,7 +4366,7 @@ function renderLaudoForm() {
     <div class="max-w-4xl mx-auto" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}</h2>
+                <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</h2>
                 <button onclick="state.laudoSetor=null; state.laudoOPMEItems=[]; state.laudoData={paciente:'',cartao_sus:'',dn:'',procedimento:'',tipo_laudo:''}; render()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold flex items-center gap-2">
                     <i data-lucide="arrow-left" class="w-4 h-4"></i> Trocar Setor
                 </button>
@@ -4157,13 +4516,13 @@ function renderHistoricoLaudos() {
         if (role === 'FUNC_OPME') {
             // OPME vê apenas OPME
             laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME');
-        } else if (['CHEFE_OPME', 'CHEFE_OPME_ADM', 'FUNC_OPME', 'FUNC_OPME_ADM'].includes(role)) {
-            // Todos do OPME veem OPME e OPME_ADM. Adicionando log para debug
-            console.log("Filtering for OPME/OPME_ADM. Current role:", role);
-            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'OPME_ADM');
-        } else if (role === 'CHEFE_OPME_ADM') {
+        } else if (['CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_OPME', 'FUNC_HEMODINAMICA'].includes(role)) {
+            // Todos do OPME veem OPME e HEMODINAMICA. Adicionando log para debug
+            console.log("Filtering for OPME/HEMODINAMICA. Current role:", role);
+            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'HEMODINAMICA');
+        } else if (role === 'CHEFE_HEMODINAMICA') {
             // This block is technically unreachable due to the above, but kept for clarity/fallback
-            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'OPME_ADM');
+            laudosFiltrados = laudosFiltrados.filter(laudo => laudo.setor === 'OPME' || laudo.setor === 'HEMODINAMICA');
 
         } else if (role === 'FUNC_ENFERMAGEM') {
             return `
@@ -4199,7 +4558,7 @@ function renderHistoricoLaudos() {
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-slate-900">Histórico de Laudos</h2>
-                ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME') ? `
+                ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'OPME') ? `
                 <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; render()" 
                         class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-2">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Laudo
@@ -4251,7 +4610,7 @@ function renderHistoricoLaudos() {
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
-                                ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'OPME_ADM' ? 'OPME Adm.' : 'Centro Cirúrgico'}
+                                ${laudo.setor === 'OPME' ? 'OPME' : laudo.setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}
                             </span>
                             <button onclick="gerarPDFLaudo(${laudo.id})" 
                                     class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold flex items-center gap-2">
@@ -4369,10 +4728,10 @@ function renderMembers() {
             <option value="">Selecione um tipo</option>
             <option value="ADMIN">Administrador Geral</option>
             <option value="CHEFE_OPME">Chefe OPME</option>
-            <option value="CHEFE_OPME_ADM">Chefe OPME Adm.</option>
-            <option value="FUNC_OPME_ADM">Funcionário OPME Adm.</option>
+            <option value="CHEFE_HEMODINAMICA">Chefe Hemodinâmica</option>
+            <option value="FUNC_HEMODINAMICA">Funcionário Hemodinâmica</option>
             <option value="FUNC_OPME">Funcionário OPME</option>
-            <option value="FUNC_OPME">Funcionário Centro Cirúrgico</option>
+            <option value="FUNC_CENTRO_CIRURGICO">Funcionário Centro Cirúrgico</option>
             <option value="FUNC_ENFERMAGEM">Funcionário Enfermagem</option>
             </select>
             </div>
@@ -4431,13 +4790,13 @@ function renderNotifications() {
     const unreadCount = getUnreadNotificationsCount();
     const role = state.currentUser.role;
 
-    if (role === 'FUNC_ENFERMAGEM' || role === 'CHEFE_OPME_ADM') {
+    if (role === 'FUNC_ENFERMAGEM' || role === 'CHEFE_HEMODINAMICA') {
         return `
     <div class="max-w-3xl mx-auto" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
             <i data-lucide="bell-off" class="w-16 h-16 text-slate-300 mx-auto mb-6"></i>
             <h3 class="text-2xl font-bold text-slate-900 mb-4">Sem Notificações</h3>
-            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de OPME Adm.'} não recebem notificações de estoque.</p>
+            <p class="text-slate-600 mb-6">${role === 'FUNC_ENFERMAGEM' ? 'Funcionários de enfermagem' : 'Chefes de Hemodinâmica'} não recebem notificações de estoque.</p>
             <p class="text-slate-500 text-sm">As notificações estão disponíveis apenas para o pessoal do almoxarifado.</p>
         </div>
         </div> `;
@@ -4536,7 +4895,7 @@ function renderBackupTools() {
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Estatísticas do Sistema</h2>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="p-4 bg-slate-50 rounded-xl text-center">
-                    <div class="text-2xl font-bold text-slate-900">${MOCK_DATA.OPME.length + MOCK_DATA.OPME_ADM.length + MOCK_DATA.OPME.length}</div>
+                    <div class="text-2xl font-bold text-slate-900">${MOCK_DATA.OPME.length + MOCK_DATA.HEMODINAMICA.length + MOCK_DATA.OPME.length}</div>
                     <div class="text-sm text-slate-500">Produtos</div>
                 </div>
                 <div class="p-4 bg-slate-50 rounded-xl text-center">
@@ -4562,12 +4921,14 @@ function renderContent() {
             return renderDashboard();
         case 'OPME':
             return renderProductList(MOCK_DATA.OPME, 'OPME');
-        case 'OPME_ADM':
-            return renderProductList(MOCK_DATA.OPME_ADM, 'OPME_ADM');
+        case 'HEMODINAMICA':
+            return renderProductList(MOCK_DATA.HEMODINAMICA, 'HEMODINAMICA');
         case 'CENTRO_CIRURGICO':
             return renderProductList(MOCK_DATA.CENTRO_CIRURGICO, 'CENTRO_CIRURGICO');
         case 'SALAS':
             return renderSalas();
+        case 'HISTORICO_SALAS':
+            return renderHistoricoSalas();
         case 'ENFERMAGEM':
             return renderEnfermagem();
         case 'PACIENTES_REGISTRADOS':
@@ -4604,6 +4965,8 @@ function renderContent() {
             return renderHistoricoAltas();
         case 'TRANSFER_CONFIRMATION':
             return renderTransferConfirmation();
+        case 'RECEIVE_TRANSFER':
+            return renderReceiveTransferScreen();
         default:
             return renderDashboard();
     }
@@ -4627,13 +4990,13 @@ function renderLogin() {
         <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-200 fade-in relative z-50">
             <div class="text-center mb-8">
                 <div class="flex justify-center mx-auto mb-6">
-                    <img src="logo_hgp.jpg" alt="Hospital Geral de Palmas" class="h-24 object-contain">
+                    <img src="logo_hgp.jpg" alt="Hospital Geral de Palmas" class="h-40 object-contain">
                 </div>
-                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">SISTEMA OPME</h1>
+                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">GESTAO DE ESTOQUE</h1>
             </div>
             <div class="space-y-4">
-                <input id="login_user" type="text" placeholder="Utilizador" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <input id="login_pass" type="password" placeholder="Senha" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <input id="login_user" type="text" placeholder="Utilizador" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                    <input id="login_pass" type="password" placeholder="Senha" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                         <button onclick="handleLoginAction()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-95">Entrar no Sistema</button>
                     </div>
                     <div id="login-error" class="mt-4 text-red-500 text-xs text-center font-bold hidden">Credenciais Inválidas</div>
@@ -4652,12 +5015,12 @@ function renderDashboardLayout() {
             <!-- Sidebar -->
             <aside class="w-64 bg-slate-900 text-white flex flex-col shrink-0">
                 <div class="p-8">
-                    <h2 class="text-xl font-black tracking-tighter text-blue-400">SISTEMA OPME</h2>
+                    <h2 class="text-xl font-black tracking-tighter text-blue-400">GESTAO DE ESTOQUE</h2>
                 </div>
 
                 <nav class="flex-1 px-4 space-y-6 overflow-y-auto custom-scrollbar">
                     <!-- Dashboard -->
-                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_OPME_ADM' ? `
+                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_HEMODINAMICA' ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Geral</p>
                     <button onclick="state.activeModule='DASHBOARD'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DASHBOARD' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
@@ -4672,20 +5035,20 @@ function renderDashboardLayout() {
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Estoques</p>
 
                     <!-- OPME (OPME) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM' || role === 'FUNC_OPME') ? `
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA' || role === 'FUNC_OPME') ? `
                     <button onclick="state.activeModule='OPME'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> OPME
                     </button>
                     ` : ''}
 
-                    <!-- OPME_ADM (OPME Adm.) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME_ADM') ? `
-                    <button onclick="state.activeModule='OPME_ADM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME_ADM' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="files" class="w-4 h-4"></i> OPME Adm.
+                    <!-- HEMODINAMICA (Hemodinâmica) -->
+                    ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA') ? `
+                    <button onclick="state.activeModule='HEMODINAMICA'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HEMODINAMICA' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="files" class="w-4 h-4"></i> Hemodinâmica
                     </button>
                     ` : ''}
                     
-                    ${(role === 'CHEFE_OPME_ADM' || role === 'ADMIN') ? `
+                    ${(role === 'CHEFE_HEMODINAMICA' || role === 'ADMIN') ? `
                     <button onclick="state.activeModule='MAPA'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MAPA' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="calendar" class="w-4 h-4"></i> Mapa
                     </button>
@@ -4703,12 +5066,15 @@ function renderDashboardLayout() {
                     <button onclick="state.activeModule='SALAS'; state.activeSala=null; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'SALAS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="door-open" class="w-4 h-4"></i> Salas
                     </button>
+                    <button onclick="state.activeModule='HISTORICO_SALAS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORICO_SALAS' ? 'bg-emerald-700' : 'hover:bg-slate-800 text-slate-400'}">
+                        <i data-lucide="history" class="w-4 h-4"></i> Histórico de Salas
+                    </button>
                     ` : ''}
                 </div>
                 ` : ''}
 
                     <!-- Enfermagem (não para chefe opme) -->
-                    ${(role === 'ADMIN' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_ENFERMAGEM') ? `
+                    ${(role === 'ADMIN' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_ENFERMAGEM') ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Enfermagem</p>
                     
@@ -4730,7 +5096,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''}
 
-                    ${(role === 'ADMIN' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_ENFERMAGEM') ? `
+                    ${(role === 'ADMIN' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_ENFERMAGEM') ? `
                     <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
                     </button>
@@ -4749,7 +5115,7 @@ function renderDashboardLayout() {
                         <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Produto
                     </button>
                     ` : ''}
-                        ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'OPME_ADM') || hasPermission('update_stock', 'OPME')) ? `
+                        ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'HEMODINAMICA') || hasPermission('update_stock', 'OPME')) ? `
                     <button onclick="state.activeModule='ADD_EXISTING'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="package-plus" class="w-4 h-4"></i> Adicionar Estoque
                     </button>
@@ -4771,7 +5137,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'OPME_ADM') || hasPermission('create_laudo', 'OPME') ? `
+                        ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'OPME') ? `
                     <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
                     </button>
@@ -4792,7 +5158,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${(role === 'CHEFE_OPME' || role === 'CHEFE_OPME_ADM' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
+                        ${(role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
                     <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="check-square" class="w-4 h-4"></i> Confirmação
                     </button>
@@ -4807,7 +5173,7 @@ function renderDashboardLayout() {
                     </button>
                     ` : ''
         }
-                        ${(role === 'ADMIN' || role === 'FUNC_OPME_ADM') ? `
+                        ${(role === 'ADMIN' || role === 'FUNC_HEMODINAMICA') ? `
                     <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-pink-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
                     </button>
@@ -4844,7 +5210,7 @@ function renderDashboardLayout() {
                 <header class="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
                     <h3 class="font-black text-slate-800 uppercase tracking-wider">${getModuleTitle()}</h3>
 
-                    ${['OPME', 'OPME_ADM', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
+                    ${['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
                 <div class="relative w-80">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                     <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar por nome, cartão SUS, leito ou exame...' : state.activeModule === 'HISTORICO_LAUDOS' ? 'Buscar por paciente, cartão SUS, tipo de laudo ou procedimento...' : 'Buscar por material, código, marca ou empresa...'}" class="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
@@ -4999,7 +5365,7 @@ loadFromLocalStorage();
 
 // Verificar notificações de estoque baixo
 setTimeout(() => {
-    if (state.currentUser && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_OPME_ADM') {
+    if (state.currentUser && state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
         checkLowStockNotifications();
     }
 }, 1000);
@@ -5460,7 +5826,7 @@ function renderStatusPacientes() {
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-right">
-                                ${state.currentUser.role !== 'CHEFE_OPME_ADM' ? `
+                                ${state.currentUser.role !== 'CHEFE_HEMODINAMICA' ? `
                                 <button onclick="prepareDischarge('${p.id}')" class="px-3 py-1.5 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg text-xs font-bold transition-all inline-flex items-center gap-1" title="Ir para Alta">
                                     <i data-lucide="arrow-right-circle" class="w-3 h-3"></i> Dar Alta
                                 </button>
@@ -5807,3 +6173,5 @@ function renderProcedimentosNaoRealizadosRows() {
         </tr>
     `).join('');
 }
+
+
