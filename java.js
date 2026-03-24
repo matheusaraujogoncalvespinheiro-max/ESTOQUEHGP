@@ -406,16 +406,16 @@ function removeFromBatch(setor, productId, batchId, quantidade) {
     // Reduzir quantidade do lote
     lote.quantidade -= quantidade;
 
-    const productId = `${produto.barcode}_${setor}`;
+    const syncId = `${produto.barcode}_${setor}`;
 
     if (lote.quantidade <= 0) {
         // Se zerou, remover o lote localmente e no Firebase
         const deletedLoteCode = lote.lote;
         produto.lotes.splice(loteIndex, 1);
-        if (typeof db_deleteBatch === 'function') db_deleteBatch(productId, deletedLoteCode);
+        if (typeof db_deleteBatch === 'function') db_deleteBatch(syncId, deletedLoteCode);
     } else {
         // Se ainda tem, apenas atualizar no Firebase
-        if (typeof db_saveBatch === 'function') db_saveBatch(productId, lote);
+        if (typeof db_saveBatch === 'function') db_saveBatch(syncId, lote);
     }
 
     // Atualizar quantidade total do produto
@@ -427,7 +427,7 @@ function removeFromBatch(setor, productId, batchId, quantidade) {
         if (produtoIndex > -1) {
             MOCK_DATA[setor].splice(produtoIndex, 1);
         }
-        if (typeof db_deleteProduct === 'function') db_deleteProduct(productId, setor);
+        if (typeof db_deleteProduct === 'function') db_deleteProduct(syncId, setor);
     } else {
         // Atualizar lote e validade principais e salvar no Firebase
         produto.lotes.sort((a, b) => {
