@@ -1,4 +1,4 @@
-﻿// ==========================================
+// ==========================================
 // FIREBASE CLIENT SETUP - SISHGP
 // ==========================================
 
@@ -50,7 +50,9 @@ function db_setupSubscriptions() {
         { name: 'app_users', sync: db_syncMembers },
         { name: 'material_requests', sync: db_syncRequests },
         { name: 'procedimentos_nao_realizados', sync: db_syncNotPerformed },
-        { name: 'salas', sync: db_syncSalas }
+        { name: 'salas', sync: db_syncSalas },
+        { name: 'salas_history', sync: db_syncSalasHistory },
+        { name: 'stock_transfer_history', sync: db_syncHistory }
     ];
 
     tables.forEach(table => {
@@ -279,6 +281,12 @@ async function db_syncHistory() {
 
         MOCK_DATA.PRODUCT_HISTORY = entryData;
         MOCK_DATA.TRANSFER_HISTORY = transferData;
+        
+        if (typeof TRANSFER_HISTORY !== 'undefined') {
+            // Update global variable in java.js
+            TRANSFER_HISTORY.length = 0;
+            transferData.forEach(item => TRANSFER_HISTORY.push(item));
+        }
     } catch (err) {
         console.error('Error syncing history:', err);
     }
@@ -319,8 +327,9 @@ async function db_syncRequests() {
             date: req.data,
             fromSetor: req.origem,
             toSetor: req.destino,
-            barcode: req.barcode || (req.itens && req.itens[0]?.barcode),
-            quantity: req.quantity || (req.itens && req.itens[0]?.quantity),
+            barcode: req.barcode || (req.itens && req.itens.length > 0 ? req.itens[0].barcode : null),
+            quantity: req.quantity || (req.itens && req.itens.length > 0 ? req.itens[0].quantity : null),
+            items: req.itens || [{ barcode: req.barcode, quantity: req.quantity }],
             status: req.status,
             requester: req.solicitante
         }));
@@ -447,16 +456,15 @@ async function db_saveTransferHistory(item) {
     if (!db) return;
     try {
         await db.collection('stock_transfer_history').add({
-            date: item.date,
-            time: item.time,
-            user_name: item.user_name,
-            user_username: item.user_username,
+            data: item.data,
+            hora: item.hora,
+            usuario: item.usuario,
+            origem: item.origem,
+            destino: item.destino,
             material: item.material,
             barcode: item.barcode,
-            quantity: item.quantity,
-            origin_sector: item.origin,
-            destination_sector: item.destination,
-            batches_info: item.batches,
+            quantidade: item.quantidade,
+            tipo: item.tipo || 'TRANSFERENCIA_RECEBIDA',
             created_at: new Date().toISOString()
         });
     } catch (err) {
@@ -541,13 +549,13 @@ async function db_saveRequest(req) {
             origem: req.fromSetor,
             destino: req.toSetor,
             status: req.status,
-            barcode: req.barcode,
-            quantity: req.quantity,
-            itens: [{ barcode: req.barcode, quantity: req.quantity }]
+            barcode: req.items ? req.items[0].barcode : req.barcode,
+            quantity: req.items ? req.items[0].quantity : req.quantity,
+            itens: req.items || [{ barcode: req.barcode, quantity: req.quantity }]
         };
 
         if (id) {
-            await db.collection('material_requests').doc(id).set(dataPayload, { merge: true });
+            await db.collection('material_requests').doc(id.toString()).set(dataPayload, { merge: true });
         } else {
             await db.collection('material_requests').add(dataPayload);
         }
@@ -614,6 +622,44 @@ async function db_syncSalas() {
     }
 }
 
+// Save Sala History
+async function db_saveSalaHistory(item) {
+    if (!db) return;
+    try {
+        const id = item.id ? item.id.toString() : Date.now().toString();
+        await db.collection('salas_history').doc(id).set(item, { merge: true });
+    } catch (err) {
+        console.error('Error saving sala history:', err);
+    }
+}
+
+// Sync Salas History
+async function db_syncSalasHistory() {
+    if (!db) return;
+    try {
+        const snapshot = await db.collection('salas_history').get();
+        
+        if (snapshot.empty && MOCK_DATA.SALAS_HISTORY && MOCK_DATA.SALAS_HISTORY.length > 0) {
+            console.log('Migrating local salas history to Firebase...');
+            const batch = db.batch();
+            MOCK_DATA.SALAS_HISTORY.forEach(item => {
+                const id = item.id ? item.id.toString() : Date.now().toString();
+                const ref = db.collection('salas_history').doc(id);
+                batch.set(ref, item);
+            });
+            await batch.commit();
+            console.log('Migration complete');
+            return; // Will trigger re-sync automatically due to snapshot listener
+        }
+
+        let data = snapshotToArray(snapshot);
+        data.sort((a, b) => new Date(b.data_fim || 0) - new Date(a.data_fim || 0));
+        MOCK_DATA.SALAS_HISTORY = data;
+    } catch (err) {
+        console.error('Error syncing salas history:', err);
+    }
+}
+
 // Global Sync
 async function db_syncAll() {
     if (!db) {
@@ -631,7 +677,8 @@ async function db_syncAll() {
         db_syncMembers(),
         db_syncRequests(),
         db_syncNotPerformed(),
-        db_syncSalas()
+        db_syncSalas(),
+        db_syncSalasHistory()
     ];
 
     // Use settle or individual try-catches to ensure one failure doesn't block the UI

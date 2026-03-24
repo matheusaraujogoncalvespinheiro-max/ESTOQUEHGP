@@ -271,7 +271,7 @@ function handleFinishProcedimento(salaIndex) {
 
     // Salvar no histórico de salas
     if (!MOCK_DATA.SALAS_HISTORY) MOCK_DATA.SALAS_HISTORY = [];
-    MOCK_DATA.SALAS_HISTORY.unshift({
+    const newHistoryItem = {
         id: Date.now(),
         sala_id: sala.id,
         paciente: sala.paciente,
@@ -283,7 +283,9 @@ function handleFinishProcedimento(salaIndex) {
         data_inicio: sala.data_inicio || new Date().toISOString(),
         data_fim: new Date().toISOString(),
         materiais: JSON.parse(JSON.stringify(sala.materiais.filter(m => m.qtd_confirmada > 0)))
-    });
+    };
+    MOCK_DATA.SALAS_HISTORY.unshift(newHistoryItem);
+    if (typeof db_saveSalaHistory === 'function') db_saveSalaHistory(newHistoryItem);
     if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
 
     // Reset sala
@@ -443,7 +445,7 @@ function returnMaterialToStock(item, qtd) {
 
 function renderHistoricoSalas() {
     const historico = MOCK_DATA.SALAS_HISTORY || [];
-    
+
     // Sort descending by data_fim
     historico.sort((a, b) => new Date(b.data_fim) - new Date(a.data_fim));
 
@@ -487,11 +489,31 @@ function renderHistoricoSalas() {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            ${paginatedItems.map(item => `
+                            ${paginatedItems.map(item => {
+        const inicio = item.data_inicio ? new Date(item.data_inicio) : null;
+        const fim = new Date(item.data_fim);
+        let durationStr = 'N/A';
+        let startTimeStr = 'N/A';
+
+        if (inicio) {
+            startTimeStr = inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const diffMs = Math.max(0, fim - inicio);
+            const diffMins = Math.floor(diffMs / 60000);
+            const hours = Math.floor(diffMins / 60);
+            const mins = diffMins % 60;
+            if (hours > 0) durationStr = `${hours}h ${mins}m`;
+            else durationStr = `${mins}m`;
+        }
+
+        return `
                                 <tr class="hover:bg-slate-50 transition-colors">
                                     <td class="px-6 py-4">
-                                        <div class="font-bold text-slate-800 flex items-center gap-2" title="Data/Hora de Término"><i data-lucide="calendar-check" class="w-3 h-3 text-emerald-500"></i> ${new Date(item.data_fim).toLocaleDateString('pt-BR')}</div>
-                                        <div class="text-xs text-slate-500 flex items-center gap-2 mt-1"><i data-lucide="clock" class="w-3 h-3 text-slate-400"></i> Terminou às: <span class="font-bold text-slate-700">${new Date(item.data_fim).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span></div>
+                                        <div class="font-bold text-slate-800 flex items-center gap-2" title="Data do Procedimento"><i data-lucide="calendar-check" class="w-3 h-3 text-emerald-500"></i> ${fim.toLocaleDateString('pt-BR')}</div>
+                                        <div class="text-[11px] text-slate-500 flex flex-col gap-1 mt-2">
+                                            <div class="flex items-center gap-1"><i data-lucide="play-circle" class="w-3 h-3 text-emerald-400"></i> Início: <span class="font-bold text-slate-700">${startTimeStr}</span></div>
+                                            <div class="flex items-center gap-1"><i data-lucide="stop-circle" class="w-3 h-3 text-rose-400"></i> Término: <span class="font-bold text-slate-700">${fim.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                                            <div class="flex items-center gap-1"><i data-lucide="timer" class="w-3 h-3 text-blue-400"></i> Duração: <span class="font-bold text-blue-700">${durationStr}</span></div>
+                                        </div>
                                     </td>
                                     <td class="px-6 py-4 text-center">
                                         <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-slate-100 text-slate-700 font-black text-lg border border-slate-200">
@@ -502,7 +524,7 @@ function renderHistoricoSalas() {
                                         <div class="font-bold text-slate-800">${item.paciente}</div>
                                         ${item.cartaoSus ? `<div class="text-[10px] text-slate-500 mt-0.5">SUS: ${item.cartaoSus}</div>` : ''}
                                         <div class="text-[11px] text-slate-500 mt-1 uppercase tracking-wider font-bold">PROCEDIMENTO:</div>
-                                        <div class="text-sm text-slate-700 truncate max-w-xs" title="${item.procedimento} ${item.data_inicio ? `(Iniciado em: ${new Date(item.data_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})})` : ''}">${item.procedimento}</div>
+                                        <div class="text-sm text-slate-700 truncate max-w-xs" title="${item.procedimento} ${item.data_inicio ? `(Iniciado em: ${new Date(item.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : ''}">${item.procedimento}</div>
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="text-sm">
@@ -514,15 +536,15 @@ function renderHistoricoSalas() {
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 max-w-sm overflow-y-auto max-h-32 custom-scrollbar">
-                                            ${(!item.materiais || item.materiais.length === 0) ? 
-                                                '<span class="text-xs text-slate-400 italic">Nenhum material consumido</span>' :
-                                                item.materiais.map(m => `
+                                            ${(!item.materiais || item.materiais.length === 0) ?
+                '<span class="text-xs text-slate-400 italic">Nenhum material consumido</span>' :
+                item.materiais.map(m => `
                                                     <div class="text-xs flex justify-between items-center border-b border-slate-100 last:border-0 py-2">
                                                         <span class="truncate pr-3 font-medium text-slate-700" title="${m.material}">${m.material}</span>
                                                         <span class="font-black text-indigo-600 whitespace-nowrap bg-indigo-50 px-2 py-0.5 rounded-md">${m.qtd_confirmada} UN</span>
                                                     </div>
                                                 `).join('')
-                                            }
+            }
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-right">
@@ -531,7 +553,7 @@ function renderHistoricoSalas() {
                                         </button>
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -600,8 +622,14 @@ function imprimirRelatorioSala(id) {
                 <div class="section">
                     <div class="section-title">Dados Gerais</div>
                     <div class="row">Lugar: <span>Sala ${item.sala_id}</span></div>
-                    <div class="row">Início do Procedimento: <span>${item.data_inicio ? new Date(item.data_inicio).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : 'N/A'}</span></div>
-                    <div class="row">Término do Procedimento: <span>${new Date(item.data_fim).toLocaleDateString('pt-BR')} às ${new Date(item.data_fim).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span></div>
+                    <div class="row">Início do Procedimento: <span>${item.data_inicio ? new Date(item.data_inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span></div>
+                    <div class="row">Término do Procedimento: <span>${new Date(item.data_fim).toLocaleDateString('pt-BR')} às ${new Date(item.data_fim).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                    ${item.data_inicio ? (() => {
+                        const diffMs = Math.max(0, new Date(item.data_fim) - new Date(item.data_inicio));
+                        const diffMins = Math.floor(diffMs / 60000);
+                        const dur = diffMins >= 60 ? Math.floor(diffMins/60) + 'h ' + (diffMins%60) + 'm' : diffMins + 'm';
+                        return '<div class="row">Duração do Procedimento: <span>' + dur + '</span></div>';
+                    })() : ''}
                 </div>
                 
                 <div class="section">

@@ -663,6 +663,13 @@ function processarLaudo(e) {
     const procedimento = form.procedimento.value;
     const observacoes = form.observacoes?.value || '';
     const cartaoSUS = form.cartao_sus.value;
+    const paciente = form.paciente.value;
+
+    // Validate if Patient is actually loaded
+    if (!paciente || paciente.trim() === '') {
+        showMsg("Erro: Você deve usar um Cartão SUS válido e ter um paciente carregado antes de criar o laudo!", "error");
+        return;
+    }
 
     // Validate Cartão SUS
     const susValidation = validateCartaoSUS(cartaoSUS);
@@ -802,6 +809,11 @@ function processarLaudo(e) {
 }
 
 function escanearItemOPME() {
+    if (!state.laudoData || !state.laudoData.paciente || state.laudoData.paciente.trim() === '') {
+        showMsg("Erro: Você deve usar um Cartão SUS válido e ter um paciente selecionado antes de adicionar produtos!", "error");
+        return;
+    }
+
     const barcodeInput = document.getElementById('opme_barcode');
     if (!barcodeInput) return;
 
@@ -1932,6 +1944,73 @@ function handleTransfer(e) {
     form.reset();
 }
 
+// ----- SEARCH LOGIC FOR REQUEST FORM -----
+function handleSearchStockRequest(e) {
+    const searchTerm = e.target.value.toLowerCase().trim();
+    const resultsContainer = document.getElementById('searchResultsRequest');
+    const fromSetor = document.getElementById('fromSetorSelect').value;
+    
+    if (!fromSetor) {
+        resultsContainer.innerHTML = '<div class="p-3 text-sm text-red-500 font-bold">Por favor, selecione primeiro o setor de origem (Solicitar De).</div>';
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    if (searchTerm.length < 2) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+
+    const availableStock = MOCK_DATA[fromSetor] || [];
+    
+    // Search by Name or Barcode
+    const results = availableStock.filter(item => 
+        item.descricao.toLowerCase().includes(searchTerm) || 
+        item.barcode.includes(searchTerm)
+    ).slice(0, 15); // limit to 15 results
+
+    if (results.length === 0) {
+        resultsContainer.innerHTML = '<div class="p-3 text-sm text-slate-500">Nenhum produto encontrado neste setor com a sua busca.</div>';
+        resultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    resultsContainer.innerHTML = results.map(item => `
+        <div onclick="selectRequestSearchResult('${item.barcode}')" class="p-3 hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg cursor-pointer transition-all flex justify-between items-center group">
+            <div>
+                <p class="text-sm font-bold text-slate-900 group-hover:text-blue-600">${item.descricao}</p>
+                <div class="flex gap-3 text-xs text-slate-500 mt-1">
+                    <span>Cod: <span class="font-mono text-slate-600">${item.barcode}</span></span>
+                    <span>Qtd Disponível: <span class="font-bold text-emerald-600">${item.qtd}</span></span>
+                </div>
+            </div>
+            <button type="button" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+        </div>
+    `).join('');
+    
+    resultsContainer.classList.remove('hidden');
+    lucide.createIcons();
+}
+
+function selectRequestSearchResult(barcode) {
+    const input = document.getElementById('barcodeRequest');
+    if (input) {
+        input.value = barcode;
+        input.dispatchEvent(new Event('input', { bubbles: true })); // Trigger any bound validation
+    }
+    document.getElementById('searchResultsRequest').classList.add('hidden');
+}
+
+function clearRequestSearch() {
+    const input = document.getElementById('barcodeRequest');
+    if (input) input.value = '';
+    const resultsContainer = document.getElementById('searchResultsRequest');
+    if (resultsContainer) resultsContainer.classList.add('hidden');
+}
+// ------------------------------------------
+
 function handleAddToCart(e) {
     e.preventDefault();
     state.transferCart = state.transferCart || [];
@@ -2040,7 +2119,7 @@ function generateTransferReportMulti(transfer, items) {
         </head>
         <body class="print-content">
             <div class="header">
-                <h2>Guia de Transferência e Conferência #${transfer.id}</h2>
+                <h2>${transfer.status === 'COMPLETED' ? 'Comprovante Definitivo de Transferência' : 'Guia de Transferência e Conferência'} #${transfer.id}</h2>
             </div>
             <div class="info">
                 <div><strong>Origem (Emissor):</strong> ${transfer.fromSetor}</div>
@@ -2066,12 +2145,24 @@ function generateTransferReportMulti(transfer, items) {
 
             <div class="signature">
                 <div>
-                    <div class="signature-line"></div>
-                    <div><strong>${transfer.fromSetor}</strong><br>Responsável pelo Envio</div>
+                    ${transfer.status === 'COMPLETED' ? `
+                        <b>Autorizado por (Origem):</b><br/>
+                        ${transfer.approved_by || transfer.fromSetor}<br/>
+                        <small>${new Date(transfer.approval_date || transfer.date).toLocaleString('pt-BR')}</small>
+                    ` : `
+                        <div class="signature-line"></div>
+                        <div><strong>${transfer.fromSetor}</strong><br>Responsável pelo Envio</div>
+                    `}
                 </div>
                 <div>
-                    <div class="signature-line"></div>
-                    <div><strong>${transfer.toSetor}</strong><br>Responsável pelo Recebimento (Baixa)</div>
+                    ${transfer.status === 'COMPLETED' ? `
+                        <b>Recebido por (Destino):</b><br/>
+                        ${transfer.received_by || transfer.toSetor}<br/>
+                        <small>${new Date(transfer.completion_date || transfer.date).toLocaleString('pt-BR')}</small>
+                    ` : `
+                        <div class="signature-line"></div>
+                        <div><strong>${transfer.toSetor}</strong><br>Responsável pelo Recebimento (Baixa)</div>
+                    `}
                 </div>
             </div>
             
@@ -2178,6 +2269,25 @@ function approveRequest(id) {
     }
 
     request.status = 'PENDING_RECEIPT';
+    request.approved_by = state.currentUser.name;
+    request.approval_date = new Date().toISOString();
+    
+    // Add to history
+    const now = new Date();
+    const transferHistoryItem = {
+        data: now.toLocaleDateString('pt-PT'),
+        hora: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+        usuario: state.currentUser.name,
+        origem: request.fromSetor,
+        destino: request.toSetor,
+        material: request.items.length > 1 ? `Vários (${request.items.length} itens)` : request.items[0].descricao,
+        barcode: request.items.length > 1 ? 'Múltiplos' : request.items[0].barcode,
+        quantidade: request.items.reduce((acc, item) => acc + item.quantity, 0),
+        tipo: 'TRANSFERENCIA_ENVIADA'
+    };
+    TRANSFER_HISTORY.unshift(transferHistoryItem);
+    if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferHistoryItem);
+
     saveToLocalStorage();
     if (typeof db_saveRequest === 'function') db_saveRequest(request);
 
@@ -2268,6 +2378,8 @@ function handleRequestResponse(requestId, action) {
         if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferHistoryItem);
 
         transfer.status = 'COMPLETED';
+        transfer.received_by = state.currentUser.name;
+        transfer.completion_date = new Date().toISOString();
         saveToLocalStorage();
         if (typeof db_saveRequest === 'function') db_saveRequest(transfer);
         showMsg("Baixa confirmada! Itens adicionados ao seu estoque.", "success");
@@ -3777,7 +3889,7 @@ function renderRequestForm() {
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-2">Solicitar De (Origem) *</label>
-                        <select id="fromSetorSelect" name="fromSetor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <select id="fromSetorSelect" name="fromSetor" required onchange="clearRequestSearch()" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                             ${origemOptions}
                         </select>
                     </div>
@@ -3788,9 +3900,12 @@ function renderRequestForm() {
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-2">Código de Barras *</label>
-                        <div class="flex gap-2">
-                            <input type="text" name="barcodeRequest" required class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Código de Barras ou Nome do Produto *</label>
+                        <div class="relative">
+                            <div class="flex gap-2 relative z-10 w-full">
+                                <input type="text" id="barcodeRequest" name="barcodeRequest" required autocomplete="off" oninput="handleSearchStockRequest(event)" placeholder="Digite o nome do produto ou código de barras..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                            </div>
+                            <div id="searchResultsRequest" class="hidden absolute top-full left-0 right-0 mt-2 p-2 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 max-h-64 overflow-y-auto space-y-1"></div>
                         </div>
                     </div>
 
@@ -3943,8 +4058,18 @@ function renderMyRequestsTable() {
                                     <i data-lucide="search" class="w-4 h-4"></i>
                                 </button>
                                 ${(req.status === 'PENDING_APPROVAL' && isMySend) ? `
-                                    <button onclick="approveRequest(${req.id})" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
-                                        <i data-lucide="check" class="w-4 h-4 inline-block mr-1"></i> Aprovar/Imprimir
+                                    <button onclick="openApproveTransferScreen(${req.id})" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
+                                        <i data-lucide="barcode" class="w-4 h-4 inline-block mr-1"></i> Iniciar Separação
+                                    </button>
+                                ` : ''}
+                                ${(req.status === 'PENDING_APPROVAL' && !isMySend) ? `
+                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}), MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Guia de Solicitação">
+                                        <i data-lucide="printer" class="w-4 h-4"></i>
+                                    </button>
+                                ` : ''}
+                                ${(req.status === 'COMPLETED') ? `
+                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}), MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Comprovante Definitivo">
+                                        <i data-lucide="printer" class="w-4 h-4"></i>
                                     </button>
                                 ` : ''}
                             </div>
@@ -4065,6 +4190,121 @@ function renderReceiveTransferScreen() {
 
             <button onclick="handleRequestResponse(${transfer.id}, 'APPROVE')" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
                 <i data-lucide="check-square" class="w-6 h-6"></i> ${allFullyScanned ? 'Confirmar Baixa Definitiva do Estoque' : 'Aguardando Conferência Total'}
+            </button>
+        </div>
+    </div>
+    </div>
+    `;
+}
+
+function openApproveTransferScreen(id) {
+    state.approvingTransferId = id;
+    state.activeModule = 'APPROVE_TRANSFER';
+    state.approvedItemsCount = {};
+    render();
+}
+
+function handleScanToApprove(e) {
+    e.preventDefault();
+    const barcode = e.target.barcode.value.trim();
+    if (!barcode) return;
+    
+    e.target.reset();
+
+    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.approvingTransferId);
+    if (!transfer) return;
+
+    const item = transfer.items.find(i => i.barcode === barcode);
+    if (!item) {
+        showMsg("Este código de barras não pertence a esta solicitação!", "error");
+        return;
+    }
+
+    state.approvedItemsCount[barcode] = (state.approvedItemsCount[barcode] || 0) + 1;
+    
+    if (state.approvedItemsCount[barcode] > item.quantity) {
+        state.approvedItemsCount[barcode] = item.quantity;
+        showMsg(`Quantidade máxima (${item.quantity}) já bipada para este item!`, "warning");
+    } else {
+        const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        sound.play().catch(e => {});
+        showMsg(`Separado 1x ${item.descricao}`, "success");
+    }
+    
+    render();
+}
+
+function renderApproveTransferScreen() {
+    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.approvingTransferId);
+    if (!transfer) return '<p>Transferência não encontrada.</p>';
+
+    let allFullyScanned = true;
+    const itemsHtml = transfer.items.map(item => {
+        const scanned = state.approvedItemsCount[item.barcode] || 0;
+        const required = item.quantity;
+        const isComplete = scanned >= required;
+        if (!isComplete) allFullyScanned = false;
+
+        return `
+        <tr class="${isComplete ? 'bg-emerald-50' : 'hover:bg-slate-50'}">
+            <td class="px-4 py-3">
+                <div class="font-bold text-slate-900">${item.descricao}</div>
+                <div class="text-xs text-slate-500">${item.barcode}</div>
+            </td>
+            <td class="px-4 py-3 font-medium text-center text-lg">${required}</td>
+            <td class="px-4 py-3 font-bold text-center text-xl ${isComplete ? 'text-emerald-600' : 'text-orange-600'}">${scanned}</td>
+            <td class="px-4 py-3 text-center">
+                ${isComplete ? '<i data-lucide="check-circle" class="w-6 h-6 text-emerald-500 mx-auto"></i>' : '<i data-lucide="clock" class="w-6 h-6 text-orange-400 mx-auto animate-pulse"></i>'}
+            </td>
+        </tr>
+        `;
+    }).join('');
+
+    return `
+    <div class="max-w-4xl mx-auto space-y-6">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-900">Separar Pedido #${transfer.id} (Envio para ${transfer.toSetor})</h2>
+                <button onclick="state.activeModule='MY_REQUESTS'; render()" class="text-sm text-slate-500 hover:text-slate-700 font-bold flex items-center gap-1">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Voltar
+                </button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                <p class="text-sm text-blue-800 font-medium mb-1"><i data-lucide="info" class="w-4 h-4 inline pb-1"></i> Instruções para Envio:</p>
+                <p class="text-xs text-blue-700">Utilize o <b>leitor de código de barras</b> para bipar os itens físicos que você está separando para enviar. O botão de aprovação e impressão da guia só será liberado após o escaneamento total.</p>
+            </div>
+
+            <form onsubmit="handleScanToApprove(event)" class="mb-8 p-6 bg-slate-50 border border-slate-200 rounded-xl shadow-inner">
+                <label class="block text-sm font-bold text-slate-700 mb-2">Escanear Código de Barras (Saída de Estoque)</label>
+                <div class="flex gap-2">
+                    <input type="text" name="barcode" autofocus required placeholder="Dê foco aqui e bipe os produtos a enviar..." class="flex-1 px-4 py-4 bg-white border-2 border-blue-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all font-mono text-lg text-center tracking-widest">
+                    <button type="submit" class="px-8 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-all shadow-md active:scale-95">Registrar</button>
+                </div>
+            </form>
+
+            <h3 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <i data-lucide="list-checks" class="w-5 h-5 text-blue-600"></i> Progresso da Separação
+            </h3>
+            
+            <div class="overflow-x-auto mb-6 rounded-xl border border-slate-200">
+                <table class="w-full text-sm text-left">
+                    <thead class="bg-slate-100 text-slate-600 font-bold">
+                        <tr>
+                            <th class="px-4 py-3">Material</th>
+                            <th class="px-4 py-3 text-center">Solicitado</th>
+                            <th class="px-4 py-3 text-center">Separado (Bipado)</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        ${itemsHtml}
+                    </tbody>
+                </table>
+            </div>
+
+            <button onclick="approveRequest(${transfer.id}); state.activeModule = 'MY_REQUESTS'; render();" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
+                <i data-lucide="truck" class="w-6 h-6"></i> ${allFullyScanned ? 'Finalizar Separação, Imprimir Guia e Enviar' : 'Aguardando Separação Total do Pedido'}
             </button>
         </div>
     </div>
@@ -4967,6 +5207,8 @@ function renderContent() {
             return renderTransferConfirmation();
         case 'RECEIVE_TRANSFER':
             return renderReceiveTransferScreen();
+        case 'APPROVE_TRANSFER':
+            return renderApproveTransferScreen();
         default:
             return renderDashboard();
     }
