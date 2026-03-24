@@ -104,7 +104,8 @@ let state = {
         dn: '',
         procedimento: '',
         tipo_laudo: ''
-    }
+    },
+    transferScans: {}
 };
 
 // ======================
@@ -2268,6 +2269,11 @@ function approveRequest(id) {
         }
     }
 
+    // Limpar progresso de bipagem
+    if (state.transferScans) {
+        delete state.transferScans[request.id];
+    }
+
     request.status = 'PENDING_RECEIPT';
     request.approved_by = state.currentUser.name;
     request.approval_date = new Date().toISOString();
@@ -2315,6 +2321,11 @@ function handleRequestResponse(requestId, action) {
                  product.lotes[0].quantidade += item.quantity;
              }
         }
+        // Limpar progresso de bipagem
+        if (state.transferScans) {
+            delete state.transferScans[transfer.id];
+        }
+
         transfer.status = 'REJECTED';
         saveToLocalStorage();
         if (typeof db_saveRequest === 'function') db_saveRequest(transfer);
@@ -2379,6 +2390,11 @@ function handleRequestResponse(requestId, action) {
         };
         TRANSFER_HISTORY.unshift(transferHistoryItem);
         if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferHistoryItem);
+
+        // Limpar progresso de bipagem
+        if (state.transferScans) {
+            delete state.transferScans[transfer.id];
+        }
 
         transfer.status = 'COMPLETED';
         transfer.received_by = state.currentUser.name;
@@ -4100,7 +4116,13 @@ function renderMyRequestsTable() {
 function openReceiveTransferScreen(id) {
     state.receivingTransferId = id;
     state.activeModule = 'RECEIVE_TRANSFER';
-    state.receivedItemsCount = {};
+    
+    // Recuperar ou inicializar progresso de bipagem para este ID
+    if (!state.transferScans[id]) {
+        state.transferScans[id] = {};
+    }
+    state.receivedItemsCount = state.transferScans[id];
+    
     render();
 }
 
@@ -4215,7 +4237,13 @@ function renderReceiveTransferScreen() {
 function openApproveTransferScreen(id) {
     state.approvingTransferId = id;
     state.activeModule = 'APPROVE_TRANSFER';
-    state.approvedItemsCount = {};
+
+    // Recuperar ou inicializar progresso de bipagem para este ID
+    if (!state.transferScans[id]) {
+        state.transferScans[id] = {};
+    }
+    state.approvedItemsCount = state.transferScans[id];
+
     render();
 }
 
