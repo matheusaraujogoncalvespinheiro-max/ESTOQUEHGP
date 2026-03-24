@@ -157,9 +157,9 @@ async function db_syncProducts() {
 async function db_syncLaudos() {
     if (!db) return;
     try {
-        // If there's local data structure for laudos, populate it here.
-        // The original code didn't do anything in db_syncLaudos explicitly,
-        // but it was called in some places.
+        const snapshot = await db.collection('laudos').orderBy('data', 'desc').get();
+        MOCK_DATA.LAUDOS = snapshotToArray(snapshot);
+        console.log(`✓ ${MOCK_DATA.LAUDOS.length} laudos sincronizados`);
     } catch (err) {
         console.error('Error syncing laudos:', err);
     }
@@ -170,20 +170,22 @@ async function db_syncLaudos() {
 async function db_saveLaudo(laudo) {
     if (!db) return;
     try {
-        await db.collection('laudos').add({
-            patient_name: laudo.patientName || "",
-            patient_id: laudo.patientId || "",
-            cartao_sus: laudo.cartaoSus || "",
-            tipo_laudo: laudo.tipoLaudo || "",
-            outro_laudo: laudo.outroLaudo || "",
-            procedimento: laudo.procedimento || laudo.examType || "",
-            observacoes: laudo.observacoes || laudo.notes || "",
-            data_laudo: laudo.date || "",
-            hora_laudo: laudo.time || "",
+        await db.collection('laudos').doc(String(laudo.id)).set({
+            id: laudo.id,
+            data: laudo.data || "",
+            hora: laudo.hora || "",
             setor: laudo.setor || "",
-            usuario_responsavel: laudo.usuario_responsavel || "",
-            itens_opme: laudo.itensOPME || [],
-            baixas_realizadas: laudo.baixas_realizadas || []
+            paciente: laudo.paciente || "",
+            cartao_sus: laudo.cartao_sus || "",
+            tipo_laudo: laudo.tipo_laudo || "",
+            outro_laudo: laudo.outro_laudo || "",
+            dn: laudo.dn || "",
+            procedimento: laudo.procedimento || "",
+            observacoes: laudo.observacoes || "",
+            itens_opme: laudo.itens_opme || [],
+            baixas_realizadas: laudo.baixas_realizadas || [],
+            usuario: laudo.usuario || "",
+            usuario_username: laudo.usuario_username || ""
         });
         console.log('✓ Laudo salvo no Firebase');
     } catch (err) {
