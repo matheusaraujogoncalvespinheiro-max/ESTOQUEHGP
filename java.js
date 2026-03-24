@@ -2332,12 +2332,13 @@ function handleRequestResponse(requestId, action) {
             if (destProduct) {
                 addProductWithBatch(transfer.toSetor, {
                     barcode: item.barcode,
-                    lotes: [{
-                        lote: `TRANSF-${transfer.id}`,
-                        validade: '2099-12-31', // generic if unknown during transfer
-                        quantidade: item.quantity,
-                        data_entrada: new Date().toISOString().split('T')[0]
-                    }]
+                    lote: `TRANSF-${transfer.id}`,
+                    quantidade: item.quantity,
+                    validade: '2099-12-31', // genérico para transferência sem lote especificado
+                    empresa: sourceProduct ? (sourceProduct.empresa || sourceProduct.fornecedor) : '',
+                    marca: sourceProduct ? sourceProduct.marca : '',
+                    material: sourceProduct ? sourceProduct.material : '',
+                    descricao: item.descricao
                 });
             } else {
                 let destList = MOCK_DATA[transfer.toSetor];
@@ -2352,7 +2353,9 @@ function handleRequestResponse(requestId, action) {
                     ...baseProduct,
                     id: Date.now() + Math.random(),
                     barcode: item.barcode,
+                    qtd: item.quantity,
                     lotes: [{
+                        id: Date.now() + Math.random(),
                         lote: `TRANSF-${transfer.id}`,
                         validade: '2099-12-31',
                         quantidade: item.quantity,
@@ -2383,6 +2386,7 @@ function handleRequestResponse(requestId, action) {
         saveToLocalStorage();
         if (typeof db_saveRequest === 'function') db_saveRequest(transfer);
         showMsg("Baixa confirmada! Itens adicionados ao seu estoque.", "success");
+        state.activeModule = 'TRANSFER_CONFIRMATION';
         render(); 
     }
 }
@@ -2438,9 +2442,23 @@ function handleEditMember(username) {
         return;
     }
 
+    const changePassword = confirm("Deseja alterar a senha deste usuário?");
+    if (changePassword) {
+        const newPassword = prompt("Digite a nova senha:");
+        if (newPassword === null) {
+            // Cancelou
+        } else if (newPassword.trim() !== "") {
+            user.password = newPassword.trim();
+        } else {
+            alert("A senha não pode ser vazia. Mantendo a senha anterior.");
+        }
+    }
+
     user.name = newName;
     user.role = newRole;
     saveToLocalStorage();
+    if (typeof db_saveMember === 'function') db_saveMember(username, user);
+    
     showMsg("Usuário \"" + username + "\" atualizado com sucesso!");
     render();
 }
@@ -2691,7 +2709,10 @@ function getModuleTitle() {
         'DISCHARGE': 'Dar Alta ao Paciente',
         'STATUS_PACIENTES': 'Status dos Pacientes',
         'HISTORICO_ALTAS': 'Histórico de Altas',
-        'TRANSFER_CONFIRMATION': 'Confirmação de Transferência'
+        'TRANSFER_CONFIRMATION': 'Confirmação de Transferência',
+        'APPROVE_TRANSFER': 'Aprovar Envio de Transferência',
+        'RECEIVE_TRANSFER': 'Receber Transferência',
+        'MY_REQUESTS': 'Minhas Solicitações'
     };
     return titles[state.activeModule] || 'Módulo Desconhecido';
 }
