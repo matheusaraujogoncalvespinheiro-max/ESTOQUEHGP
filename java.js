@@ -105,7 +105,8 @@ let state = {
         procedimento: '',
         tipo_laudo: ''
     },
-    transferScans: {}
+    transferScans: {},
+    selectedDischargePatient: null
 };
 
 // ======================
@@ -2775,7 +2776,8 @@ function changePage(delta) {
 
 
 function prepareDischarge(id) {
-    state.selectedPatientId = Number(id);
+    const patient = MOCK_DATA.PACIENTES.find(p => p.id === Number(id));
+    state.selectedDischargePatient = patient;
     state.activeModule = 'DISCHARGE';
     state.currentPage = 1;
     render();
@@ -3591,6 +3593,29 @@ function handleDischargePatient(e) {
     }
 
     showMsg(`Alta de ${patient.nome} realizada com sucesso!`);
+    state.selectedDischargePatient = null;
+}
+
+function searchPatientForDischarge(sus) {
+    // Clean input
+    const cleanSUS = sus.replace(/\D/g, '').slice(0, 15);
+    
+    if (cleanSUS.length === 15) {
+        const patient = MOCK_DATA.PACIENTES.find(p => p.cartao_sus === cleanSUS);
+        if (patient) {
+            state.selectedDischargePatient = patient;
+            render();
+        } else {
+            // Optional: show a message if fully typed but not found
+            // but usually we just wait for the right number
+        }
+    } else {
+        // If user is erasing, and it was found, we might want to clear it
+        if (state.selectedDischargePatient && cleanSUS.length < 15) {
+            state.selectedDischargePatient = null;
+            render();
+        }
+    }
 }
 
 function renderDischargeForm() {
@@ -3603,12 +3628,42 @@ function renderDischargeForm() {
 
             <form onsubmit="handleDischargePatient(event)" class="space-y-6">
             
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">Selecione o Paciente *</label>
-                <select name="patient_id" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                    <option value="">Selecione um paciente internado</option>
-                    ${activePatients.map(p => `<option value="${p.id}" ${state.selectedPatientId === p.id ? 'selected' : ''}>${p.nome} - Cartão SUS: ${p.cartao_sus}</option>`).join('')}
-                </select>
+            <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                <label class="block text-sm font-medium text-slate-700 mb-2">Buscar Paciente por Cartão SUS*</label>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text" 
+                           placeholder="Digite os 15 dígitos do Cartão SUS..."
+                           class="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                           maxlength="15"
+                           oninput="searchPatientForDischarge(this.value)"
+                           value="${state.selectedDischargePatient ? state.selectedDischargePatient.cartao_sus : ''}"
+                           ${state.selectedDischargePatient ? 'disabled' : ''}>
+                    
+                    ${state.selectedDischargePatient ? `
+                    <button type="button" 
+                            onclick="state.selectedDischargePatient = null; render()"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-all">
+                        Limpar Busca
+                    </button>
+                    ` : ''}
+                </div>
+
+                ${state.selectedDischargePatient ? `
+                <div class="mt-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-2">
+                    <div class="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                        <i data-lucide="user-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-emerald-600 font-bold uppercase tracking-wider">Paciente Identificado</p>
+                        <h3 class="text-lg font-bold text-slate-900">${state.selectedDischargePatient.nome}</h3>
+                        <p class="text-sm text-slate-500">Cartão SUS: ${state.selectedDischargePatient.cartao_sus}</p>
+                    </div>
+                    <input type="hidden" name="patient_id" value="${state.selectedDischargePatient.id}">
+                </div>
+                ` : `
+                <p class="mt-2 text-xs text-slate-500 italic">O sistema puxará as informações automaticamente ao preencher o Cartão SUS.</p>
+                `}
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
