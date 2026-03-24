@@ -238,6 +238,27 @@ async function db_saveBatch(productId, batch) {
     }
 }
 
+async function db_deleteBatch(productId, batchCode) {
+    if (!db) return;
+    try {
+        const docId = `${productId}_${batchCode}`;
+        await db.collection('product_batches').doc(docId).delete();
+        console.log(`- Lote ${batchCode} removido do Firebase`);
+    } catch (err) {
+        console.error('Error deleting batch:', err);
+    }
+}
+
+async function db_deleteProduct(productId, sector) {
+    if (!db) return;
+    try {
+        await db.collection('products').doc(productId).delete();
+        console.log(`- Produto ${productId} removido do Firebase (${sector})`);
+    } catch (err) {
+        console.error('Error deleting product:', err);
+    }
+}
+
 // 4. Sync Mapa
 async function db_syncMapa() {
     if (!db) return;

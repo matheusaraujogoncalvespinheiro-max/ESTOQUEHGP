@@ -406,22 +406,30 @@ function removeFromBatch(setor, productId, batchId, quantidade) {
     // Reduzir quantidade do lote
     lote.quantidade -= quantidade;
 
-    // Se quantidade zerou, remover o lote
+    const productId = `${produto.barcode}_${setor}`;
+
     if (lote.quantidade <= 0) {
+        // Se zerou, remover o lote localmente e no Firebase
+        const deletedLoteCode = lote.lote;
         produto.lotes.splice(loteIndex, 1);
+        if (typeof db_deleteBatch === 'function') db_deleteBatch(productId, deletedLoteCode);
+    } else {
+        // Se ainda tem, apenas atualizar no Firebase
+        if (typeof db_saveBatch === 'function') db_saveBatch(productId, lote);
     }
 
     // Atualizar quantidade total do produto
     produto.qtd = produto.lotes.reduce((total, l) => total + l.quantidade, 0);
 
-    // Se não há mais lotes, remover o produto
+    // Se não há mais lotes, remover o produto localmente e no Firebase
     if (produto.lotes.length === 0) {
-        const produtoIndex = MOCK_DATA[setor].findIndex(p => p.id === productId);
+        const produtoIndex = MOCK_DATA[setor].findIndex(p => p.id === produto.id);
         if (produtoIndex > -1) {
             MOCK_DATA[setor].splice(produtoIndex, 1);
         }
+        if (typeof db_deleteProduct === 'function') db_deleteProduct(productId, setor);
     } else {
-        // Atualizar lote e validade principais
+        // Atualizar lote e validade principais e salvar no Firebase
         produto.lotes.sort((a, b) => {
             if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
             if (a.validade === 'N/A') return 1;
@@ -430,6 +438,8 @@ function removeFromBatch(setor, productId, batchId, quantidade) {
         });
         produto.lote = produto.lotes[0].lote;
         produto.validade = produto.lotes[0].validade;
+        
+        if (typeof db_saveProduct === 'function') db_saveProduct(produto, setor);
     }
 
     saveToLocalStorage();
@@ -2247,7 +2257,7 @@ function finalizeTransferCart() {
 }
 
 function approveRequest(id) {
-    const request = MOCK_DATA.REQUESTS.find(r => r.id === id);
+    const request = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(id));
     if (!request || request.status !== 'PENDING_APPROVAL') return;
 
     // Deduct stock from origin
