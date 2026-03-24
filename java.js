@@ -2297,7 +2297,7 @@ function approveRequest(id) {
 }
 
 function handleRequestResponse(requestId, action) {
-    const requestIndex = MOCK_DATA.REQUESTS.findIndex(r => r.id === requestId);
+    const requestIndex = MOCK_DATA.REQUESTS.findIndex(r => String(r.id) === String(requestId));
     if (requestIndex === -1) {
         showMsg("Transferência não encontrada", "error");
         return;
@@ -4001,22 +4001,16 @@ function renderMyRequests() {
 }
 
 function viewRequestDetails(id) {
-    const request = MOCK_DATA.REQUESTS.find(r => r.id === id);
+    const request = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(id));
     if (!request) return;
 
-    let itemsText = '';
-    if (request.items && request.items.length > 0) {
-        itemsText = request.items.map(item => `- ${item.quantity}x ${item.descricao} (${item.barcode})`).join('\n');
-    } else {
-        itemsText = `- ${request.quantity}x ${request.barcode}`;
-    }
-
-    const details = `
-    Detalhes da Transferência #${request.id}
---------------------------------
+    let itemsText = request.items.map(i => `- ${i.descricao} (Cod: ${i.barcode}) - ${i.quantity} un`).join('\n');
+    let details = `
+Detalhes da Solicitação #${request.id}
 Data: ${new Date(request.date).toLocaleString()}
 Origem: ${request.fromSetor}
 Destino: ${request.toSetor}
+Solicitante: ${request.requester}
 Status: ${request.status}
 
 Itens Associados:
@@ -4075,21 +4069,21 @@ function renderMyRequestsTable() {
                         </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2">
-                                <button onclick="viewRequestDetails(${req.id})" class="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors" title="Ver Detalhes">
+                                <button onclick="viewRequestDetails('${req.id}')" class="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-blue-600 transition-colors" title="Ver Detalhes">
                                     <i data-lucide="search" class="w-4 h-4"></i>
                                 </button>
                                 ${(req.status === 'PENDING_APPROVAL' && isMySend) ? `
-                                    <button onclick="openApproveTransferScreen(${req.id})" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
+                                    <button onclick="openApproveTransferScreen('${req.id}')" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold transition-colors whitespace-nowrap shadow-sm">
                                         <i data-lucide="barcode" class="w-4 h-4 inline-block mr-1"></i> Iniciar Separação
                                     </button>
                                 ` : ''}
                                 ${(req.status === 'PENDING_APPROVAL' && !isMySend) ? `
-                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}), MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Guia de Solicitação">
+                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>String(r.id)===String('${req.id}')), MOCK_DATA.REQUESTS.find(r=>String(r.id)===String('${req.id}')).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Guia de Solicitação">
                                         <i data-lucide="printer" class="w-4 h-4"></i>
                                     </button>
                                 ` : ''}
                                 ${(req.status === 'COMPLETED') ? `
-                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}), MOCK_DATA.REQUESTS.find(r=>r.id==${req.id}).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Comprovante Definitivo">
+                                    <button onclick="generateTransferReportMulti(MOCK_DATA.REQUESTS.find(r=>String(r.id)===String('${req.id}')), MOCK_DATA.REQUESTS.find(r=>String(r.id)===String('${req.id}')).items)" class="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-blue-600 rounded-lg transition-colors shadow-sm" title="Imprimir Comprovante Definitivo">
                                         <i data-lucide="printer" class="w-4 h-4"></i>
                                     </button>
                                 ` : ''}
@@ -4117,7 +4111,7 @@ function handleScanToReceive(e) {
     
     e.target.reset();
 
-    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.receivingTransferId);
+    const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.receivingTransferId));
     if (!transfer) return;
 
     const item = transfer.items.find(i => i.barcode === barcode);
@@ -4141,7 +4135,7 @@ function handleScanToReceive(e) {
 }
 
 function renderReceiveTransferScreen() {
-    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.receivingTransferId);
+    const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.receivingTransferId));
     if (!transfer) return '<p>Transferência não encontrada.</p>';
 
     let allFullyScanned = true;
@@ -4209,7 +4203,7 @@ function renderReceiveTransferScreen() {
                 </table>
             </div>
 
-            <button onclick="handleRequestResponse(${transfer.id}, 'APPROVE')" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
+            <button onclick="handleRequestResponse('${transfer.id}', 'APPROVE')" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
                 <i data-lucide="check-square" class="w-6 h-6"></i> ${allFullyScanned ? 'Confirmar Baixa Definitiva do Estoque' : 'Aguardando Conferência Total'}
             </button>
         </div>
@@ -4232,7 +4226,7 @@ function handleScanToApprove(e) {
     
     e.target.reset();
 
-    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.approvingTransferId);
+    const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.approvingTransferId));
     if (!transfer) return;
 
     const item = transfer.items.find(i => i.barcode === barcode);
@@ -4256,7 +4250,7 @@ function handleScanToApprove(e) {
 }
 
 function renderApproveTransferScreen() {
-    const transfer = MOCK_DATA.REQUESTS.find(r => r.id === state.approvingTransferId);
+    const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.approvingTransferId));
     if (!transfer) return '<p>Transferência não encontrada.</p>';
 
     let allFullyScanned = true;
@@ -4324,7 +4318,7 @@ function renderApproveTransferScreen() {
                 </table>
             </div>
 
-            <button onclick="approveRequest(${transfer.id}); state.activeModule = 'MY_REQUESTS'; render();" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
+            <button onclick="approveRequest('${transfer.id}'); state.activeModule = 'MY_REQUESTS'; render();" ${allFullyScanned ? '' : 'disabled'} class="w-full text-lg font-bold py-5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${allFullyScanned ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-95' : 'bg-slate-200 text-slate-400 cursor-not-allowed opacity-80'}">
                 <i data-lucide="truck" class="w-6 h-6"></i> ${allFullyScanned ? 'Finalizar Separação, Imprimir Guia e Enviar' : 'Aguardando Separação Total do Pedido'}
             </button>
         </div>
@@ -4391,14 +4385,14 @@ function renderTransferConfirmation() {
                             </td>
                             <td class="px-6 py-4">
                                 <div class="font-bold text-slate-900">${itemCount} item(s)</div>
-                                <button onclick="viewRequestDetails(${req.id})" class="text-xs text-blue-600 hover:underline mt-1">Ver itens</button>
+                                <button onclick="viewRequestDetails('${req.id}')" class="text-xs text-blue-600 hover:underline mt-1">Ver itens</button>
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex justify-center gap-2">
-                                    <button onclick="openReceiveTransferScreen(${req.id})" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all shadow-md active:scale-95">
+                                    <button onclick="openReceiveTransferScreen('${req.id}')" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-all shadow-md active:scale-95">
                                         <i data-lucide="barcode" class="w-4 h-4"></i> Iniciar Conferência
                                     </button>
-                                    <button onclick="handleRequestResponse(${req.id}, 'REJECT')" class="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold transition-all">
+                                    <button onclick="handleRequestResponse('${req.id}', 'REJECT')" class="flex items-center gap-2 px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold transition-all">
                                         <i data-lucide="x" class="w-4 h-4"></i> Rejeitar
                                     </button>
                                 </div>
