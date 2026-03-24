@@ -1633,17 +1633,11 @@ function handleRegisterPatient(e) {
         cartao_sus: cartaoValidado.value,
         data_entrada: form.data_entrada.value,
         hora_admitido: form.hora_admitido.value,
-        tricotomia: form.tricotomia.value,
-        avp: form.avp.value,
-        pedido_autorizado: form.pedido_autorizado.value,
         idade: idade,
         data_nascimento: form.data_nascimento.value,
         sexo: form.sexo.value,
-        origem: form.origem.value.toUpperCase(),
-        destino: form.destino.value.toUpperCase(),
-        medico: form.medico.value.toUpperCase(),
-        data_registro: new Date().toLocaleDateString('pt-PT'),
-        hora_registro: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+        status: 'INTERNADO',
+        data_registro: new Date().toISOString()
     };
 
     MOCK_DATA.PACIENTES.unshift(novoPaciente);
@@ -3012,7 +3006,7 @@ function renderDashboard() {
                                     <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">
                                         ${item.qtd}
                                     </span>
-                                </td>
+                               </td>
                                 <td class="py-4 px-6 text-sm">${item.min}</td>
                             </tr>
                         `).join('')}
@@ -3532,35 +3526,6 @@ function renderEnfermagem() {
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Tricotomia? *</label>
-            <select name="tricotomia" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="">Selecione</option>
-            <option value="SIM">SIM</option>
-            <option value="NÃO">NÃO</option>
-            </select>
-            </div>
-
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">AVP? *</label>
-            <select name="avp" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="">Selecione</option>
-            <option value="SIM">SIM</option>
-            <option value="NÃO">NÃO</option>
-            </select>
-            </div>
-
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Pedido Autorizado? *</label>
-            <select name="pedido_autorizado" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="">Selecione</option>
-            <option value="SIM">SIM</option>
-            <option value="NÃO">NÃO</option>
-            </select>
-            </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Data de Nascimento *</label>
             <input type="date" name="data_nascimento" required max="${new Date().toISOString().split('T')[0]}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" onchange="calculateAge(this)">
             </div>
@@ -3580,24 +3545,7 @@ function renderEnfermagem() {
             </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Origem *</label>
-            <input type="text" name="origem" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: Pronto Socorro">
-            </div>
-
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Destino *</label>
-            <input type="text" name="destino" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Ex: OPME">
-            </div>
-            </div>
-
-
-
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Médico *</label>
-            <input type="text" name="medico" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Nome do médico">
-            </div>
+            
 
 
 
