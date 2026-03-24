@@ -1631,8 +1631,8 @@ function handleRegisterPatient(e) {
         id: Date.now(),
         nome: form.nome_paciente.value.toUpperCase(),
         cartao_sus: cartaoValidado.value,
-        data_entrada: form.data_entrada.value,
-        hora_admitido: form.hora_admitido.value,
+        data_entrada: new Date().toISOString().split('T')[0],
+        hora_admitido: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
         idade: idade,
         data_nascimento: form.data_nascimento.value,
         sexo: form.sexo.value,
@@ -3511,18 +3511,7 @@ function renderEnfermagem() {
             </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Data de Entrada *</label>
-            <input type="date" name="data_entrada" required max="${new Date().toISOString().split('T')[0]}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" onchange="validateDataEntradaInput(this)">
-            <p class="text-xs text-slate-500 mt-1">Data atual ou do último ano</p>
-            </div>
-
-            <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Horário Admitido *</label>
-            <input type="time" name="hora_admitido" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            </div>
-            </div>
+            
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
