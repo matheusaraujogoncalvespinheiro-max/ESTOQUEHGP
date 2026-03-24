@@ -266,7 +266,21 @@ async function db_syncMapa() {
     if (!db) return;
     try {
         const snapshot = await db.collection('mapa_schedule').orderBy('date', 'asc').get();
-        MOCK_DATA.MAPA_SCHEDULE = snapshotToArray(snapshot);
+        MOCK_DATA.MAPA_SCHEDULE = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: isNaN(doc.id) ? doc.id : Number(doc.id),
+                date: data.date,
+                time: data.time,
+                patientName: data.patientName || data.patient_name || "",
+                cartaoSus: data.cartaoSus || data.cartao_sus || "",
+                origin: data.origin || "",
+                isPediatric: data.isPediatric !== undefined ? data.isPediatric : (data.is_pediatric || false),
+                procedure: data.procedure || "",
+                doctor: data.doctor || "",
+                status: data.status || 'SCHEDULED'
+            };
+        });
     } catch (err) {
         console.error('Error syncing mapa:', err);
     }
@@ -423,31 +437,20 @@ async function db_savePatient(patient) {
 async function db_saveSchedule(item) {
     if (!db) return;
     try {
-        if (item.id) { // If it already has an ID, update it
-            await db.collection('mapa_schedule').doc(item.id).set({
-                date: item.date,
-                time: item.time,
-                patient_name: item.patientName,
-                cartao_sus: item.cartaoSus,
-                origin: item.origin,
-                is_pediatric: item.isPediatric,
-                procedure: item.procedure,
-                doctor: item.doctor,
-                status: item.status
-            }, { merge: true });
-        } else { // Create new document
-            await db.collection('mapa_schedule').add({
-                date: item.date,
-                time: item.time,
-                patient_name: item.patientName,
-                cartao_sus: item.cartaoSus,
-                origin: item.origin,
-                is_pediatric: item.isPediatric,
-                procedure: item.procedure,
-                doctor: item.doctor,
-                status: item.status
-            });
-        }
+        const idStr = String(item.id);
+        await db.collection('mapa_schedule').doc(idStr).set({
+            id: item.id,
+            date: item.date,
+            time: item.time,
+            patientName: item.patientName,
+            cartaoSus: item.cartaoSus,
+            origin: item.origin || "",
+            isPediatric: !!item.isPediatric,
+            procedure: item.procedure,
+            doctor: item.doctor,
+            status: item.status || 'SCHEDULED'
+        }, { merge: true });
+        console.log(`✓ Agendamento de ${item.patientName} salvo no Firebase`);
     } catch (err) {
         console.error('Error saving schedule:', err);
     }
@@ -530,7 +533,7 @@ async function db_saveMember(username, user) {
 async function db_deleteSchedule(id) {
     if (!db) return;
     try {
-        await db.collection('mapa_schedule').doc(id).delete();
+        await db.collection('mapa_schedule').doc(String(id)).delete();
     } catch (err) {
         console.error('Error deleting schedule:', err);
     }
