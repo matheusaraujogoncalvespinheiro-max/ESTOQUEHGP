@@ -2260,16 +2260,31 @@ function approveRequest(id) {
     const request = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(id));
     if (!request || request.status !== 'PENDING_APPROVAL') return;
 
-    // Deduct stock from origin
+    // Deduct stock from origin and record specific batches
+    const fulfilledItems = [];
     for (let item of request.items) {
         const product = findProductByBarcodeAndSetor(item.barcode, request.fromSetor);
         if (product) {
             let remainingToRemove = item.quantity;
-            const batches = [...product.lotes].sort((a, b) => new Date(a.validade) - new Date(b.validade));
+            const batches = [...product.lotes].sort((a, b) => {
+                if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
+                if (a.validade === 'N/A') return 1;
+                if (b.validade === 'N/A') return -1;
+                return new Date(a.validade) - new Date(b.validade);
+            });
             
             for (let batch of batches) {
                 if (remainingToRemove <= 0) break;
                 const qtyToRemove = Math.min(batch.quantidade, remainingToRemove);
+                
+                fulfilledItems.push({
+                    ...item,
+                    quantity: qtyToRemove,
+                    lote: batch.lote,
+                    validade: batch.validade,
+                    remessa: batch.remessa || ''
+                });
+
                 removeFromBatch(request.fromSetor, product.id, batch.id, qtyToRemove);
                 remainingToRemove -= qtyToRemove;
             }
@@ -2278,6 +2293,9 @@ function approveRequest(id) {
             return;
         }
     }
+
+    // Update request items with the specific batches that were actually sent
+    request.items = fulfilledItems;
 
     // Limpar progresso de bipagem
     if (state.transferScans) {
@@ -2322,14 +2340,16 @@ function handleRequestResponse(requestId, action) {
     const transfer = MOCK_DATA.REQUESTS[requestIndex];
 
     if (action === 'REJECT') {
-        // Return items to sender stock
+        // Return items to sender stock with their precise batches
         for (let item of transfer.items) {
-             const destList = MOCK_DATA[transfer.fromSetor];
-             // Simple refund to a generic lot
-             const product = destList.find(p => p.barcode === item.barcode);
-             if (product) {
-                 product.lotes[0].quantidade += item.quantity;
-             }
+             addProductWithBatch(transfer.fromSetor, {
+                 barcode: item.barcode,
+                 lote: item.lote || 'N/A',
+                 validade: item.validade || 'N/A',
+                 remessa: item.remessa || '',
+                 quantidade: item.quantity,
+                 descricao: item.descricao
+             });
         }
         // Limpar progresso de bipagem
         if (state.transferScans) {
@@ -2345,20 +2365,21 @@ function handleRequestResponse(requestId, action) {
     }
 
     if (action === 'APPROVE') {
-        // Add items to destination stock
+        // Add items to destination stock using the Captured Batch Info
         for (let item of transfer.items) {
             const destProduct = findProductByBarcodeAndSetor(item.barcode, transfer.toSetor);
-            const sourceProduct = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor); // to get details if new
+            const sourceProduct = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor); // can be used for extra metadata
             
             if (destProduct) {
                 addProductWithBatch(transfer.toSetor, {
                     barcode: item.barcode,
-                    lote: `TRANSF-${transfer.id}`,
+                    lote: item.lote || `TRANSF-${transfer.id}`,
                     quantidade: item.quantity,
-                    validade: '2099-12-31', // genérico para transferência sem lote especificado
-                    empresa: sourceProduct ? (sourceProduct.empresa || sourceProduct.fornecedor) : '',
-                    marca: sourceProduct ? sourceProduct.marca : '',
-                    material: sourceProduct ? sourceProduct.material : '',
+                    validade: item.validade || '2099-12-31',
+                    remessa: item.remessa || '',
+                    empresa: sourceProduct ? (sourceProduct.empresa || sourceProduct.fornecedor) : (item.empresa || ''),
+                    marca: sourceProduct ? sourceProduct.marca : (item.marca || ''),
+                    material: sourceProduct ? sourceProduct.material : (item.material || ''),
                     descricao: item.descricao
                 });
             } else {
@@ -2377,12 +2398,22 @@ function handleRequestResponse(requestId, action) {
                     qtd: item.quantity,
                     lotes: [{
                         id: Date.now() + Math.random(),
-                        lote: `TRANSF-${transfer.id}`,
-                        validade: '2099-12-31',
+                        lote: item.lote || `TRANSF-${transfer.id}`,
+                        validade: item.validade || '2099-12-31',
+                        remessa: item.remessa || '',
                         quantidade: item.quantity,
                         data_entrada: new Date().toISOString().split('T')[0]
                     }]
                 });
+                
+                // Sync new product and batch to Firebase
+                if (typeof db_saveProduct === 'function') {
+                    db_saveProduct(MOCK_DATA[transfer.toSetor].slice(-1)[0], transfer.toSetor).then(saved => {
+                        if (saved && typeof db_saveBatch === 'function') {
+                            db_saveBatch(saved.id, MOCK_DATA[transfer.toSetor].slice(-1)[0].lotes[0]);
+                        }
+                    });
+                }
             }
         }
 
