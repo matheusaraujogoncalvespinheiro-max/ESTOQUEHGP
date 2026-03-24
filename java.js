@@ -1166,20 +1166,6 @@ function gerarPDFLaudo(laudoOrId) {
                     <div class="label">Paciente:</div>
                     <div class="value">${laudo.paciente}</div>
                 </div>
-                <div class="form-group">
-                    <div class="label">Fornecedor:</div>
-                    <div class="value">
-                        ${laudo.itens_opme && laudo.itens_opme.length > 0 ?
-            laudo.itens_opme[0].empresa || '-' : '-'}
-                    </div>
-                </div>
-                <div class="form-group">
-                    <div class="label">REMESSA:</div>
-                    <div class="value">
-                         ${laudo.itens_opme && laudo.itens_opme.length > 0 ?
-            laudo.itens_opme[0].remessa || '-' : '-'}
-                    </div>
-                </div>
             </div>
             
             <div class="form-row">
@@ -1195,10 +1181,6 @@ function gerarPDFLaudo(laudoOrId) {
             
             <div class="form-row">
                 <div class="form-group">
-                    <div class="label">DN:</div>
-                    <div class="value">${laudo.dn}</div>
-                </div>
-                <div class="form-group">
                     <div class="label">MEDICO SOLICITANTE:</div>
                     <div class="value">-</div>
                 </div>
@@ -1211,7 +1193,7 @@ function gerarPDFLaudo(laudoOrId) {
                 <thead>
                     <tr>
                         <th>Descrição</th>
-                        <th>Remessa</th>
+                        <th>Processo</th>
                         <th>Lote</th>
                         <th>Quantidade</th>
                         <th>Fornecedor</th>
@@ -1236,18 +1218,6 @@ function gerarPDFLaudo(laudoOrId) {
                 <div class="form-group">
                     <div class="label">Data:</div>
                     <div class="value">${laudo.data}</div>
-                </div>
-                <div class="form-group">
-                    <div class="label">Responsável por laudar:</div>
-                    <div class="value" style="color: transparent;">.</div>
-                </div>
-                <div class="form-group">
-                    <div class="label">Auditor:</div>
-                    <div class="value" style="min-width: 250px;"></div>
-                </div>
-                <div class="form-group">
-                    <div class="label">Assinatura do Médico:</div>
-                    <div class="value" style="min-width: 250px;"></div>
                 </div>
             </div>
             
