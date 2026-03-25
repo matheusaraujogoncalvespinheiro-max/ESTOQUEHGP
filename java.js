@@ -3160,12 +3160,14 @@ function renderProductList(data, setor) {
                                 <span class="text-sm font-bold ${lote.quantidade <= 10 ? 'text-red-600' : 'text-slate-700'}">${lote.quantidade} un</span>
                                 ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
                                 <div class="flex gap-1">
-                                    <button onclick="removeFromSpecificBatch('${setor}', ${item.id}, ${lote.id}, 1)" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 1 unidade">
+                                    <button onclick="removeFromSpecificBatch('${setor}', '${item.id}', '${lote.id}', 1)" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 1 unidade">
                                         <i data-lucide="minus" class="w-3 h-3 text-red-600"></i>
                                     </button>
-                                    <button onclick="updateQuantity('${setor}', ${item.id}, -5, ${lote.id})" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 5 unidades">
-                                        <span class="text-xs font-bold text-red-600">5</span>
+                                    ${state.currentUser.role === 'ADMIN' ? `
+                                    <button onclick="deleteSpecificBatch('${setor}', '${item.id}', '${lote.id}', '${lote.lote}')" class="w-6 h-6 rounded bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-sm" title="REMOVER LOTE PERMANENTEMENTE">
+                                        <i data-lucide="trash-2" class="w-3 h-3 text-white"></i>
                                     </button>
+                                    ` : ''}
                                 </div>
                                 ` : ''}
                             </div>
