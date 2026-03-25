@@ -107,8 +107,9 @@ let state = {
     },
     transferScans: {},
     selectedDischargePatient: null,
+    selectedDischargePatient: null,
     isOffline: !navigator.onLine,
-    expandedGroups: ['PACIENTES']
+    expandedGroups: ['PACIENTES', 'LAUDOS', 'TRANSFERENCIA']
 };
 
 // ======================
@@ -5436,77 +5437,111 @@ function renderDashboardLayout() {
                 ` : ''}
 
                     <!-- Administração -->
-                    <div>
-                        <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Administração</p>
-                        ${hasPermission('register', 'OPME') ? `
-                    <button onclick="state.activeModule='REGISTER'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'REGISTER' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Produto
-                    </button>
-                    ` : ''}
-                        ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'HEMODINAMICA') || hasPermission('update_stock', 'OPME')) ? `
-                    <button onclick="state.activeModule='ADD_EXISTING'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="package-plus" class="w-4 h-4"></i> Adicionar Estoque
-                    </button>
-                    ` : ''}
-                        ${hasPermission('view_history') ? `
-                    <button onclick="state.activeModule='HISTORY'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORY' ? 'bg-purple-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="clock" class="w-4 h-4"></i> Histórico
-                    </button>
-                    ` : ''
-        }
-                        ${hasPermission('view_notifications') ? `
-                    <button onclick="state.activeModule='NOTIFICATIONS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'NOTIFICATIONS' ? 'bg-red-600' : 'hover:bg-slate-800 text-slate-400'} relative">
-                        <i data-lucide="bell" class="w-4 h-4"></i> Notificações
-                        ${unreadCount > 0 ? `
-                        <span id="notification-badge" class="absolute top-2 right-2 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                            ${unreadCount}
-                        </span>
-                        ` : ''}
-                    </button>
-                    ` : ''
-        }
-                        ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'OPME') ? `
-                    <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
-                    </button>
-                    ` : ''
-        }
-                        ${hasPermission('view_laudos') ? `
-                    <button onclick="state.activeModule='HISTORICO_LAUDOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORICO_LAUDOS' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="history" class="w-4 h-4"></i> Histórico Laudos
-                    </button>
-                    ` : ''
-        }
-                        ${hasPermission('transfer') ? `
-                    <button onclick="state.activeModule='REQUEST'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'REQUEST' ? 'bg-teal-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="arrow-right-left" class="w-4 h-4"></i> Solicitar Material
-                    </button>
-                    <button onclick="state.activeModule='MY_REQUESTS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MY_REQUESTS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Minhas Solicitações
-                    </button>
-                    ` : ''
-        }
-                        ${(role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
-                    <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="check-square" class="w-4 h-4"></i> Confirmação
-                    </button>
-                    ` : ''
-        }
-                        ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
-                    <button onclick="state.activeModule='MEMBERS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="users" class="w-4 h-4"></i> Gerenciar Membros
-                    </button>
-                    <button onclick="state.activeModule='BACKUP'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'BACKUP' ? 'bg-slate-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="hard-drive" class="w-4 h-4"></i> Backup
-                    </button>
-                    ` : ''
-        }
-                        ${(role === 'ADMIN' || role === 'FUNC_HEMODINAMICA') ? `
-                    <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-pink-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
-                    </button>
-                    ` : ''
-        }
+                    <div class="space-y-4">
+                        <div class="space-y-1">
+                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Administração</p>
+                            ${hasPermission('register', 'OPME') ? `
+                            <button onclick="state.activeModule='REGISTER'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REGISTER' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Produto
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'HEMODINAMICA') || hasPermission('update_stock', 'OPME')) ? `
+                            <button onclick="state.activeModule='ADD_EXISTING'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="package-plus" class="w-4 h-4"></i> Adicionar Estoque
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            ${hasPermission('view_history') ? `
+                            <button onclick="state.activeModule='HISTORY'; state.historyTab='GENERAL'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab !== 'TRANSFERS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="clock" class="w-4 h-4"></i> Histórico Geral
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            ${hasPermission('view_notifications') ? `
+                            <button onclick="state.activeModule='NOTIFICATIONS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'NOTIFICATIONS' ? 'bg-red-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'} relative group">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="bell" class="w-4 h-4"></i> Notificações
+                                </div>
+                                ${unreadCount > 0 ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">${unreadCount}</span>` : ''}
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                        </div>
+
+                        <!-- Laudos Group -->
+                        <div class="space-y-1">
+                            <button onclick="toggleGroup('LAUDOS')" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 group">
+                                <span class="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-blue-400">Laudos</span>
+                                <i data-lucide="${state.expandedGroups.includes('LAUDOS') ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-slate-500 group-hover:text-blue-400"></i>
+                            </button>
+                            ${state.expandedGroups.includes('LAUDOS') ? `
+                                <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    ${hasPermission('create_laudo') ? `
+                                    <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
+                                    </button>
+                                    ` : ''}
+                                    ${hasPermission('view_laudos') ? `
+                                    <button onclick="state.activeModule='HISTORICO_LAUDOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_LAUDOS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="history" class="w-4 h-4"></i> Histórico Laudos
+                                    </button>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Transferência Group -->
+                        <div class="space-y-1">
+                            <button onclick="toggleGroup('TRANSFERENCIA')" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 group">
+                                <span class="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-teal-400">Transferência</span>
+                                <i data-lucide="${state.expandedGroups.includes('TRANSFERENCIA') ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-slate-500 group-hover:text-teal-400"></i>
+                            </button>
+                            ${state.expandedGroups.includes('TRANSFERENCIA') ? `
+                                <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    ${hasPermission('transfer') ? `
+                                    <button onclick="state.activeModule='REQUEST'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REQUEST' ? 'bg-teal-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="arrow-right-left" class="w-4 h-4"></i> Solicitar Material
+                                    </button>
+                                    <button onclick="state.activeModule='MY_REQUESTS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MY_REQUESTS' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Minhas Solicitações
+                                    </button>
+                                    ` : ''}
+                                    ${(role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
+                                    <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="check-square" class="w-4 h-4"></i> Confirmação
+                                    </button>
+                                    ` : ''}
+                                    <button onclick="state.activeModule='HISTORY'; state.historyTab='TRANSFERS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab === 'TRANSFERS' ? 'bg-cyan-700 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="history" class="w-4 h-4"></i> Histórico de Transferências
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Configurações Group -->
+                        <div class="space-y-1">
+                            ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
+                            <button onclick="state.activeModule='MEMBERS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="users" class="w-4 h-4"></i> Gerenciar Membros
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            <button onclick="state.activeModule='BACKUP'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'BACKUP' ? 'bg-slate-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="hard-drive" class="w-4 h-4"></i> Backup
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                        </div>
                     </div>
                 </nav>
 
