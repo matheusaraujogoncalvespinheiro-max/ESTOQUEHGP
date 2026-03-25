@@ -109,7 +109,8 @@ let state = {
     selectedDischargePatient: null,
     selectedDischargePatient: null,
     isOffline: !navigator.onLine,
-    expandedGroups: ['PACIENTES', 'LAUDOS', 'TRANSFERENCIA']
+    expandedGroups: ['PACIENTES', 'LAUDOS', 'TRANSFERENCIA'],
+    isMobileMenuOpen: false
 };
 
 // ======================
@@ -1450,7 +1451,7 @@ function searchProductByBarcode() {
         produtoInfoDiv.innerHTML = `
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <h4 class="font-bold text-blue-800 mb-2">Produto Encontrado</h4>
-                <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm mb-3">
                     <div class="text-slate-600">Material:</div>
                     <div class="font-medium">${produto.material}</div>
                     
@@ -5257,9 +5258,7 @@ function renderLogin() {
             ` : ''}
         </div>
         
-        <!--Logo do Estado no Canto Superior Esquerdo-->
-    <img src="logo_estado.png" alt="Governo do Tocantins" class="absolute top-6 left-6 h-32 w-auto object-contain fade-in z-0 pointer-events-none">
-
+        <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-200 fade-in relative z-50">
         <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-200 fade-in relative z-50">
             <div class="text-center mb-8">
                 <div class="flex justify-center mx-auto mb-6">
@@ -5279,16 +5278,36 @@ function renderLogin() {
         </div>`;
 }
 
+function toggleMobileMenu() {
+    state.isMobileMenuOpen = !state.isMobileMenuOpen;
+    render();
+}
+
+function navigateTo(module) {
+    state.activeModule = module;
+    state.currentPage = 1;
+    state.isMobileMenuOpen = false;
+    render();
+}
+
 function renderDashboardLayout() {
     const role = state.currentUser.role;
     const unreadCount = getUnreadNotificationsCount();
 
     return `
-        <div class="flex h-screen overflow-hidden">
+        <div class="flex h-screen overflow-hidden relative">
+            <!-- Mobile Overlay -->
+            ${state.isMobileMenuOpen ? `
+                <div onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-300"></div>
+            ` : ''}
+
             <!-- Sidebar -->
-            <aside class="w-64 bg-slate-900 text-white flex flex-col shrink-0">
-                <div class="p-8">
+            <aside class="fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 text-white flex flex-col shrink-0 transform ${state.isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none">
+                <div class="p-8 flex items-center justify-between">
                     <h2 class="text-xl font-black tracking-tighter text-blue-400">GESTAO DE ESTOQUE</h2>
+                    <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-400 hover:text-white transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
                 </div>
 
                 <nav class="flex-1 px-4 space-y-6 overflow-y-auto custom-scrollbar">
@@ -5296,7 +5315,7 @@ function renderDashboardLayout() {
                     ${role !== 'FUNC_OPME' && role !== 'CHEFE_HEMODINAMICA' ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Geral</p>
-                    <button onclick="state.activeModule='DASHBOARD'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DASHBOARD' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('DASHBOARD')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DASHBOARD' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
                     </button>
                 </div>
@@ -5309,37 +5328,37 @@ function renderDashboardLayout() {
 
                     <!-- OPME (OPME) -->
                     ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA' || role === 'FUNC_OPME') ? `
-                    <button onclick="state.activeModule='OPME'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('OPME')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'OPME' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="activity" class="w-4 h-4"></i> OPME
                     </button>
                     ` : ''}
 
                     <!-- HEMODINAMICA (Hemodinâmica) -->
                     ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_HEMODINAMICA') ? `
-                    <button onclick="state.activeModule='HEMODINAMICA'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HEMODINAMICA' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('HEMODINAMICA')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HEMODINAMICA' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="files" class="w-4 h-4"></i> Hemodinâmica
                     </button>
                     ` : ''}
                     
                     ${(role === 'CHEFE_HEMODINAMICA' || role === 'ADMIN') ? `
-                    <button onclick="state.activeModule='MAPA'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MAPA' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('MAPA')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'MAPA' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="calendar" class="w-4 h-4"></i> Mapa
                     </button>
                     ` : ''}
 
                     <!-- CENTRO_CIRURGICO (Centro Cirúrgico) -->
                     ${(role === 'ADMIN' || role === 'CHEFE_OPME' || role === 'FUNC_CENTRO_CIRURGICO') ? `
-                    <button onclick="state.activeModule='CENTRO_CIRURGICO'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'CENTRO_CIRURGICO' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('CENTRO_CIRURGICO')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'CENTRO_CIRURGICO' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="stethoscope" class="w-4 h-4"></i> Centro Cirúrgico
                     </button>
                     ` : ''}
 
                     <!-- SALAS (Salas) -->
                     ${(role === 'ADMIN' || role === 'FUNC_CENTRO_CIRURGICO') ? `
-                    <button onclick="state.activeModule='SALAS'; state.activeSala=null; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'SALAS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="state.activeSala=null; navigateTo('SALAS')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'SALAS' ? 'bg-emerald-600' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="door-open" class="w-4 h-4"></i> Salas
                     </button>
-                    <button onclick="state.activeModule='HISTORICO_SALAS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORICO_SALAS' ? 'bg-emerald-700' : 'hover:bg-slate-800 text-slate-400'}">
+                    <button onclick="navigateTo('HISTORICO_SALAS')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORICO_SALAS' ? 'bg-emerald-700' : 'hover:bg-slate-800 text-slate-400'}">
                         <i data-lucide="history" class="w-4 h-4"></i> Histórico de Salas
                     </button>
                     ` : ''}
@@ -5359,16 +5378,16 @@ function renderDashboardLayout() {
                             ${state.expandedGroups.includes('PACIENTES') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
                                     ${hasPermission('register_patient') ? `
-                                    <button onclick="state.activeModule='ENFERMAGEM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('ENFERMAGEM')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Paciente
                                     </button>
                                     ` : ''}
                                     ${hasPermission('view_patients') ? `
-                                    <button onclick="state.activeModule='PACIENTES_REGISTRADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('PACIENTES_REGISTRADOS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="users" class="w-4 h-4"></i> Pacientes Registrados
                                     </button>
                                     ` : ''}
-                                    <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('STATUS_PACIENTES')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
                                     </button>
                                 </div>
@@ -5384,11 +5403,11 @@ function renderDashboardLayout() {
                             ${state.expandedGroups.includes('ALTAS') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
                                     ${hasPermission('register_patient') ? `
-                                    <button onclick="state.activeModule='DISCHARGE'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('DISCHARGE')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="log-out" class="w-4 h-4"></i> Dar Alta
                                     </button>
                                     ` : ''}
-                                    <button onclick="state.activeModule='HISTORICO_ALTAS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('HISTORICO_ALTAS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="clipboard-list" class="w-4 h-4"></i> Histórico de Altas
                                     </button>
                                 </div>
@@ -5403,7 +5422,7 @@ function renderDashboardLayout() {
                             </button>
                             ${state.expandedGroups.includes('PROCEDIMENTOS') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
-                                    <button onclick="state.activeModule='PROCEDIMENTOS_NAO_REALIZADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('PROCEDIMENTOS_NAO_REALIZADOS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="file-x" class="w-4 h-4"></i> Não Realizados
                                     </button>
                                 </div>
@@ -5417,7 +5436,7 @@ function renderDashboardLayout() {
                         <div class="space-y-1">
                             <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Administração</p>
                             ${hasPermission('register', 'OPME') ? `
-                            <button onclick="state.activeModule='REGISTER'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REGISTER' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                            <button onclick="navigateTo('REGISTER')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REGISTER' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="plus-circle" class="w-4 h-4"></i> Novo Produto
                                 </div>
@@ -5425,7 +5444,7 @@ function renderDashboardLayout() {
                             </button>
                             ` : ''}
                             ${(hasPermission('update_stock', 'OPME') || hasPermission('update_stock', 'HEMODINAMICA') || hasPermission('update_stock', 'OPME')) ? `
-                            <button onclick="state.activeModule='ADD_EXISTING'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                            <button onclick="navigateTo('ADD_EXISTING')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ADD_EXISTING' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="package-plus" class="w-4 h-4"></i> Adicionar Estoque
                                 </div>
@@ -5433,7 +5452,7 @@ function renderDashboardLayout() {
                             </button>
                             ` : ''}
                             ${hasPermission('view_history') ? `
-                            <button onclick="state.activeModule='HISTORY'; state.historyTab='GENERAL'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab !== 'TRANSFERS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                            <button onclick="state.historyTab='GENERAL'; navigateTo('HISTORY')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab !== 'TRANSFERS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="clock" class="w-4 h-4"></i> Histórico Geral
                                 </div>
@@ -5441,7 +5460,7 @@ function renderDashboardLayout() {
                             </button>
                             ` : ''}
                             ${hasPermission('view_notifications') ? `
-                            <button onclick="state.activeModule='NOTIFICATIONS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'NOTIFICATIONS' ? 'bg-red-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'} relative group">
+                            <button onclick="navigateTo('NOTIFICATIONS')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'NOTIFICATIONS' ? 'bg-red-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'} relative group">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="bell" class="w-4 h-4"></i> Notificações
                                 </div>
@@ -5460,12 +5479,12 @@ function renderDashboardLayout() {
                             ${state.expandedGroups.includes('LAUDOS') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
                                     ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'CENTRO_CIRURGICO') ? `
-                                    <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="state.laudoSetor=null; state.laudoOPMEItems=[]; navigateTo('LAUDO')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
                                     </button>
                                     ` : ''}
                                     ${hasPermission('view_laudos') ? `
-                                    <button onclick="state.activeModule='HISTORICO_LAUDOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_LAUDOS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('HISTORICO_LAUDOS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_LAUDOS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="history" class="w-4 h-4"></i> Histórico Laudos
                                     </button>
                                     ` : ''}
@@ -5482,19 +5501,19 @@ function renderDashboardLayout() {
                             ${state.expandedGroups.includes('TRANSFERENCIA') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
                                     ${hasPermission('transfer') ? `
-                                    <button onclick="state.activeModule='REQUEST'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REQUEST' ? 'bg-teal-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('REQUEST')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'REQUEST' ? 'bg-teal-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="arrow-right-left" class="w-4 h-4"></i> Solicitar Material
                                     </button>
-                                    <button onclick="state.activeModule='MY_REQUESTS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MY_REQUESTS' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('MY_REQUESTS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MY_REQUESTS' ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="clipboard-list" class="w-4 h-4"></i> Minhas Solicitações
                                     </button>
                                     ` : ''}
                                     ${(role === 'CHEFE_OPME' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_OPME' || role === 'ADMIN') ? `
-                                    <button onclick="state.activeModule='TRANSFER_CONFIRMATION'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="navigateTo('TRANSFER_CONFIRMATION')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'TRANSFER_CONFIRMATION' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="check-square" class="w-4 h-4"></i> Confirmação
                                     </button>
                                     ` : ''}
-                                    <button onclick="state.activeModule='HISTORY'; state.historyTab='TRANSFERS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab === 'TRANSFERS' ? 'bg-cyan-700 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                    <button onclick="state.historyTab='TRANSFERS'; navigateTo('HISTORY')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORY' && state.historyTab === 'TRANSFERS' ? 'bg-cyan-700 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="history" class="w-4 h-4"></i> Histórico de Transferências
                                     </button>
                                 </div>
@@ -5504,13 +5523,13 @@ function renderDashboardLayout() {
                         <!-- Configurações Group -->
                         <div class="space-y-1">
                             ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
-                            <button onclick="state.activeModule='MEMBERS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                            <button onclick="navigateTo('MEMBERS')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MEMBERS' ? 'bg-cyan-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="users" class="w-4 h-4"></i> Gerenciar Membros
                                 </div>
                                 <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
                             </button>
-                            <button onclick="state.activeModule='BACKUP'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'BACKUP' ? 'bg-slate-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                            <button onclick="navigateTo('BACKUP')" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'BACKUP' ? 'bg-slate-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                 <div class="flex items-center gap-3">
                                     <i data-lucide="hard-drive" class="w-4 h-4"></i> Backup
                                 </div>
@@ -5546,17 +5565,22 @@ function renderDashboardLayout() {
                     ` : ''}
                 </div>
 
-                <header class="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between">
-                    <h3 class="font-black text-slate-800 uppercase tracking-wider">${getModuleTitle()}</h3>
+                <header class="h-20 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between shrink-0">
+                    <div class="flex items-center gap-4">
+                        <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                            <i data-lucide="menu" class="w-6 h-6"></i>
+                        </button>
+                        <h3 class="font-black text-slate-800 uppercase tracking-wider text-sm md:text-base truncate max-w-[150px] md:max-w-none">${getModuleTitle()}</h3>
+                    </div>
 
                     ${['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
-                <div class="relative w-80">
-                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar por nome, cartão SUS, leito ou exame...' : state.activeModule === 'HISTORICO_LAUDOS' ? 'Buscar por paciente, cartão SUS, tipo de laudo ou procedimento...' : 'Buscar por material, código, marca ou empresa...'}" class="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
+                <div class="relative w-40 md:w-80">
+                    <i data-lucide="search" class="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-3 h-3 md:w-4 md:h-4 text-slate-400"></i>
+                    <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar...' : 'Buscar...'}" class="w-full pl-9 md:pl-12 pr-4 py-2 md:py-3 bg-slate-100 border-none rounded-xl md:rounded-2xl text-xs md:text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
                 </div>` : ''}
                 </header>
 
-                <div class="p-8 flex-1 overflow-auto custom-scrollbar">
+                <div class="p-4 md:p-8 flex-1 overflow-auto custom-scrollbar">
                     ${renderContent()}
                 </div>
             </main>
