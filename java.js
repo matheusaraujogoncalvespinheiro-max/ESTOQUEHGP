@@ -5369,37 +5369,66 @@ function renderDashboardLayout() {
                 ` : ''}
 
                     <!-- Enfermagem (não para chefe opme) -->
+                    <!-- Enfermagem (não para chefe opme) -->
                     ${(role === 'ADMIN' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_ENFERMAGEM') ? `
-                <div>
-                    <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Enfermagem</p>
-                    
-                    ${hasPermission('register_patient') ? `
-                    <button onclick="state.activeModule='ENFERMAGEM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Paciente
-                    </button>
-                    <button onclick="state.activeModule='DISCHARGE'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="log-out" class="w-4 h-4"></i> Dar Alta
-                    </button>
-                    <button onclick="state.activeModule='PROCEDIMENTOS_NAO_REALIZADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="file-x" class="w-4 h-4"></i> Procedimentos Não Realizados
-                    </button>
-                    ` : ''}
-                    
-                    ${hasPermission('view_patients') ? `
-                    <button onclick="state.activeModule='PACIENTES_REGISTRADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="users" class="w-4 h-4"></i> Pacientes Registrados
-                    </button>
-                    ` : ''}
+                    <div class="space-y-4">
+                        <!-- Pacientes Group -->
+                        <div class="space-y-1">
+                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-2">Pacientes</p>
+                            ${hasPermission('register_patient') ? `
+                            <button onclick="state.activeModule='ENFERMAGEM'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Paciente
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            ${hasPermission('view_patients') ? `
+                            <button onclick="state.activeModule='PACIENTES_REGISTRADOS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="users" class="w-4 h-4"></i> Pacientes Registrados
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                        </div>
 
-                    ${(role === 'ADMIN' || role === 'CHEFE_HEMODINAMICA' || role === 'FUNC_ENFERMAGEM') ? `
-                    <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
-                    </button>
-                    <button onclick="state.activeModule='HISTORICO_ALTAS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600' : 'hover:bg-slate-800 text-slate-400'}">
-                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Histórico de Altas
-                    </button>
-                    ` : ''}
-                </div>
+                        <!-- Altas Group -->
+                        <div class="space-y-1">
+                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Altas</p>
+                            ${hasPermission('register_patient') ? `
+                            <button onclick="state.activeModule='DISCHARGE'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="log-out" class="w-4 h-4"></i> Dar Alta
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                            ` : ''}
+                            <button onclick="state.activeModule='HISTORICO_ALTAS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="clipboard-list" class="w-4 h-4"></i> Histórico de Altas
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                        </div>
+
+                        <!-- Procedimentos Group -->
+                        <div class="space-y-1">
+                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Procedimentos</p>
+                            <button onclick="state.activeModule='PROCEDIMENTOS_NAO_REALIZADOS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                <div class="flex items-center gap-3">
+                                    <i data-lucide="file-x" class="w-4 h-4"></i> Não Realizados
+                                </div>
+                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            </button>
+                        </div>
+                    </div>
                 ` : ''}
 
                     <!-- Administração -->
