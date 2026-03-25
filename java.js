@@ -1187,6 +1187,14 @@ function gerarPDFLaudo(laudoOrId) {
                 </div>
             </div>
             
+            <!-- Informações adicionais -->
+            <div class="form-row" style="margin-top: 20px;">
+                <div class="form-group">
+                    <div class="label">Data:</div>
+                    <div class="value">${laudo.data}</div>
+                </div>
+            </div>
+
             <!-- Tabela de itens OPME -->
             ${laudo.itens_opme && laudo.itens_opme.length > 0 ? `
             <div class="section-title">ITENS OPME UTILIZADOS:</div>
@@ -1214,13 +1222,7 @@ function gerarPDFLaudo(laudoOrId) {
             </table>
             ` : ''}
             
-            <!-- Informações adicionais -->
-            <div class="form-row" style="margin-top: 30px;">
-                <div class="form-group">
-                    <div class="label">Data:</div>
-                    <div class="value">${laudo.data}</div>
-                </div>
-            </div>
+
             
             <!-- Assinatura -->
             <div class="signature-area">
