@@ -5483,7 +5483,7 @@ function renderDashboardLayout() {
                             </button>
                             ${state.expandedGroups.includes('LAUDOS') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
-                                    ${hasPermission('create_laudo') ? `
+                                    ${hasPermission('create_laudo', 'OPME') || hasPermission('create_laudo', 'HEMODINAMICA') || hasPermission('create_laudo', 'CENTRO_CIRURGICO') ? `
                                     <button onclick="state.activeModule='LAUDO'; state.laudoSetor=null; state.laudoOPMEItems=[]; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'LAUDO' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="file-text" class="w-4 h-4"></i> Criar Laudo
                                     </button>
