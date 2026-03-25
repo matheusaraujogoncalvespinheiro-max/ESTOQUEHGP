@@ -1585,14 +1585,6 @@ function handleRegisterPatient(e) {
         return;
     }
 
-    const dataEntrada = form.data_entrada.value;
-    const dataValidada = validateDataEntrada(dataEntrada);
-    if (!dataValidada.valid) {
-        showMsg(dataValidada.message, "error");
-        form.data_entrada.focus();
-        return;
-    }
-
     const dataNascimento = new Date(form.data_nascimento.value);
     const hoje = new Date();
     let idade = hoje.getFullYear() - dataNascimento.getFullYear();
@@ -1604,12 +1596,14 @@ function handleRegisterPatient(e) {
     const novoPaciente = {
         id: Date.now(),
         nome: form.nome_paciente.value.toUpperCase(),
+        nome_mae: form.nome_mae.value.toUpperCase(),
         cartao_sus: cartaoValidado.value,
         data_entrada: new Date().toISOString().split('T')[0],
         hora_admitido: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
         idade: idade,
         data_nascimento: form.data_nascimento.value,
         sexo: form.sexo.value,
+        acompanhante: form.acompanhante.checked,
         status: 'INTERNADO',
         data_registro: new Date().toISOString()
     };
@@ -3483,6 +3477,16 @@ function renderEnfermagem() {
             <label class="block text-sm font-medium text-slate-700 mb-2">Cartão SUS *</label>
             <input type="text" name="cartao_sus" required maxlength="15" pattern="\\d*" title="Apenas números, 15 dígitos" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="15 dígitos numéricos" oninput="this.value = this.value.replace(/\\D/g, '').slice(0, 15)">
             <p class="text-xs text-slate-500 mt-1">Apenas números, 15 dígitos</p>
+            </div>
+            
+            <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Nome da Mãe *</label>
+            <input type="text" name="nome_mae" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            </div>
+
+            <div class="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+            <input type="checkbox" name="acompanhante" id="acompanhante" class="w-6 h-6 rounded-md border-slate-300 text-pink-600 focus:ring-pink-500">
+            <label for="acompanhante" class="text-sm font-bold text-slate-700 cursor-pointer select-none">Tem Acompanhante?</label>
             </div>
             </div>
 

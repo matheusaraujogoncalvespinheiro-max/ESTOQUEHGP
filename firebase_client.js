@@ -409,20 +409,16 @@ async function db_savePatient(patient) {
 
         await db.collection('patients').doc(docId).set({
             nome: patient.nome || "",
+            nome_mae: patient.nome_mae || "",
             cartao_sus: patient.cartao_sus,
             data_nascimento: patient.data_nascimento || null,
             sexo: patient.sexo || "",
+            acompanhante: !!patient.acompanhante,
             data_entrada: patient.data_entrada || null,
             hora_admitido: patient.hora_admitido || null,
             origem: patient.origem || "",
             destino: patient.destino || "",
             leito: patient.leito || "",
-            procedimento: patient.procedimento || "",
-            exame_realizado: patient.exame_realizado || "",
-            outro_exame: patient.outro_exame || "",
-            medico: patient.medico || "",
-            enfermeiro_admissao: patient.enfermeiro_admissao || "",
-            tecnico_enfermagem: patient.tecnico_enfermagem || "",
             status: patient.status || 'INTERNADO',
             data_alta: patient.data_alta || null,
             usuario_alta: patient.usuario_alta || ""
