@@ -686,6 +686,12 @@ function processarLaudo(e) {
         return;
     }
 
+    // NEW: O laudo não pode ficar sem nenhum material
+    if (state.laudoOPMEItems.length === 0) {
+        showMsg("Erro: O laudo não pode ficar sem nenhum material! Escaneie ao menos um item.", "error");
+        return;
+    }
+
     // Validate Cartão SUS
     const susValidation = validateCartaoSUS(cartaoSUS);
     if (!susValidation.valid) {
@@ -1119,46 +1125,14 @@ function gerarPDFLaudo(laudoOrId) {
                 <h2 style="margin: 0;">LAUDO MÉDICO PARA SOLICITAÇÃO DE:</h2>
             </div>
             
-            <!-- Checkboxes do tipo de laudo -->
-            <div class="form-row">
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Mudança de Procedimento' ? 'checked' : ''}"></div>
-                    <span>Mudança de Procedimento</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Uso de Prótese, Ortese' ? 'checked' : ''}"></div>
-                    <span>Uso de Prótese, Ortese</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Diaria UTI' ? 'checked' : ''}"></div>
-                    <span>Diaria UTI</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Uso de Fatores de Coagulação' ? 'checked' : ''}"></div>
-                    <span>Uso de Fatores de Coagulação</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Diaria Acompanhante' ? 'checked' : ''}"></div>
-                    <span>Diaria Acompanhante</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Uso de Oxigenadores' ? 'checked' : ''}"></div>
-                    <span>Uso de Oxigenadores</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Vacina Anti RH' ? 'checked' : ''}"></div>
-                    <span>Vacina Anti RH</span>
-                </div>
-                <div class="checkbox-group">
-                    <div class="checkbox ${laudo.tipo_laudo === 'Nutrição Parenteral' ? 'checked' : ''}"></div>
-                    <span>Nutrição Parenteral</span>
-                </div>
-                ${laudo.outro_laudo ? `
-                <div class="checkbox-group">
+            <!-- Apenas o tipo de laudo selecionado -->
+            <div class="form-row" style="margin-bottom: 25px; padding: 10px; background-color: #f9f9f9; border: 1px solid #eee; border-radius: 4px;">
+                <div class="checkbox-group" style="margin: 0;">
                     <div class="checkbox checked"></div>
-                    <span>Outro: ${laudo.outro_laudo}</span>
+                    <span style="font-size: 16px; font-weight: bold;">
+                        ${laudo.tipo_laudo === 'Outro' ? `OUTRO: ${laudo.outro_laudo}` : laudo.tipo_laudo.toUpperCase()}
+                    </span>
                 </div>
-                ` : ''}
             </div>
             
             <!-- Dados do paciente -->
