@@ -5259,7 +5259,6 @@ function renderLogin() {
         </div>
         
         <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-200 fade-in relative z-50">
-        <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border border-slate-200 fade-in relative z-50">
             <div class="text-center mb-8">
                 <div class="flex justify-center mx-auto mb-6">
                     <img src="logo_hgp.jpg" alt="Hospital Geral de Palmas" class="h-40 object-contain">
