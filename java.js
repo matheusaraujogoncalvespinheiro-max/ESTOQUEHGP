@@ -107,7 +107,8 @@ let state = {
     },
     transferScans: {},
     selectedDischargePatient: null,
-    isOffline: !navigator.onLine
+    isOffline: !navigator.onLine,
+    expandedGroups: ['PACIENTES']
 };
 
 // ======================
@@ -5374,59 +5375,62 @@ function renderDashboardLayout() {
                     <div class="space-y-4">
                         <!-- Pacientes Group -->
                         <div class="space-y-1">
-                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-2">Pacientes</p>
-                            ${hasPermission('register_patient') ? `
-                            <button onclick="state.activeModule='ENFERMAGEM'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Paciente
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            <button onclick="toggleGroup('PACIENTES')" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 group">
+                                <span class="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-blue-400">Pacientes</span>
+                                <i data-lucide="${state.expandedGroups.includes('PACIENTES') ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-slate-500 group-hover:text-blue-400"></i>
                             </button>
+                            ${state.expandedGroups.includes('PACIENTES') ? `
+                                <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    ${hasPermission('register_patient') ? `
+                                    <button onclick="state.activeModule='ENFERMAGEM'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'ENFERMAGEM' ? 'bg-pink-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="user-plus" class="w-4 h-4"></i> Registrar Paciente
+                                    </button>
+                                    ` : ''}
+                                    ${hasPermission('view_patients') ? `
+                                    <button onclick="state.activeModule='PACIENTES_REGISTRADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="users" class="w-4 h-4"></i> Pacientes Registrados
+                                    </button>
+                                    ` : ''}
+                                    <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
+                                    </button>
+                                </div>
                             ` : ''}
-                            ${hasPermission('view_patients') ? `
-                            <button onclick="state.activeModule='PACIENTES_REGISTRADOS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'bg-purple-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="users" class="w-4 h-4"></i> Pacientes Registrados
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
-                            </button>
-                            ` : ''}
-                            <button onclick="state.activeModule='STATUS_PACIENTES'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'STATUS_PACIENTES' ? 'bg-rose-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="activity" class="w-4 h-4"></i> Status Pacientes
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
-                            </button>
                         </div>
 
                         <!-- Altas Group -->
                         <div class="space-y-1">
-                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Altas</p>
-                            ${hasPermission('register_patient') ? `
-                            <button onclick="state.activeModule='DISCHARGE'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="log-out" class="w-4 h-4"></i> Dar Alta
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            <button onclick="toggleGroup('ALTAS')" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 group">
+                                <span class="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-orange-400">Altas</span>
+                                <i data-lucide="${state.expandedGroups.includes('ALTAS') ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-slate-500 group-hover:text-orange-400"></i>
                             </button>
+                            ${state.expandedGroups.includes('ALTAS') ? `
+                                <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    ${hasPermission('register_patient') ? `
+                                    <button onclick="state.activeModule='DISCHARGE'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'DISCHARGE' ? 'bg-orange-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="log-out" class="w-4 h-4"></i> Dar Alta
+                                    </button>
+                                    ` : ''}
+                                    <button onclick="state.activeModule='HISTORICO_ALTAS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="clipboard-list" class="w-4 h-4"></i> Histórico de Altas
+                                    </button>
+                                </div>
                             ` : ''}
-                            <button onclick="state.activeModule='HISTORICO_ALTAS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'HISTORICO_ALTAS' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="clipboard-list" class="w-4 h-4"></i> Histórico de Altas
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
-                            </button>
                         </div>
 
                         <!-- Procedimentos Group -->
                         <div class="space-y-1">
-                            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Procedimentos</p>
-                            <button onclick="state.activeModule='PROCEDIMENTOS_NAO_REALIZADOS'; state.currentPage=1; render()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
-                                <div class="flex items-center gap-3">
-                                    <i data-lucide="file-x" class="w-4 h-4"></i> Não Realizados
-                                </div>
-                                <i data-lucide="chevron-right" class="w-3 h-3 opacity-30"></i>
+                            <button onclick="toggleGroup('PROCEDIMENTOS')" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 group">
+                                <span class="text-[10px] uppercase tracking-widest text-slate-500 group-hover:text-amber-400">Procedimentos</span>
+                                <i data-lucide="${state.expandedGroups.includes('PROCEDIMENTOS') ? 'chevron-down' : 'chevron-right'}" class="w-4 h-4 text-slate-500 group-hover:text-amber-400"></i>
                             </button>
+                            ${state.expandedGroups.includes('PROCEDIMENTOS') ? `
+                                <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button onclick="state.activeModule='PROCEDIMENTOS_NAO_REALIZADOS'; state.currentPage=1; render()" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS_NAO_REALIZADOS' ? 'bg-amber-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="file-x" class="w-4 h-4"></i> Não Realizados
+                                    </button>
+                                </div>
+                            ` : ''}
                         </div>
                     </div>
                 ` : ''}
@@ -6550,5 +6554,18 @@ window.addEventListener('offline', () => {
     state.isOffline = true;
     render();
 });
+
+function toggleGroup(groupName) {
+    if (!state.expandedGroups) state.expandedGroups = [];
+    const index = state.expandedGroups.indexOf(groupName);
+    if (index > -1) {
+        state.expandedGroups.splice(index, 1);
+    } else {
+        state.expandedGroups.push(groupName);
+    }
+    render();
+}
+
+window.toggleGroup = toggleGroup;
 
 
