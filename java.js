@@ -6693,7 +6693,7 @@ function renderProcedimentosNaoRealizados() {
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Nº Cartão SUS *</label>
-                        <input type="text" name="cartao_sus" required oninput="handleSusLookup(this)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50" placeholder="000 0000 0000 0000">
+                        <input type="text" name="cartao_sus" required maxlength="15" oninput="handleSusLookup(this)" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50" placeholder="000 0000 0000 0000">
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-slate-700 mb-2">Nome do Paciente</label>
