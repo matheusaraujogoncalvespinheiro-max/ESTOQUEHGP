@@ -2709,7 +2709,9 @@ function getModuleTitle() {
         'TRANSFER_CONFIRMATION': 'Confirmação de Transferência',
         'APPROVE_TRANSFER': 'Aprovar Envio de Transferência',
         'RECEIVE_TRANSFER': 'Receber Transferência',
-        'MY_REQUESTS': 'Minhas Solicitações'
+        'MY_REQUESTS': 'Minhas Solicitações',
+        'REQUEST': 'Solicitar Material',
+        'PROCEDIMENTOS_NAO_REALIZADOS': 'Procedimentos Não Realizados'
     };
     return titles[state.activeModule] || 'Módulo Desconhecido';
 }
