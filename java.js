@@ -5412,7 +5412,8 @@ function renderDashboardLayout() {
                     </div>
                 ` : ''}
 
-                    <!-- Administração -->
+                    <!-- Administração, Laudos e Transferência (oculto para Enfermeiro) -->
+                    ${role !== 'FUNC_ENFERMAGEM' ? `
                     <div class="space-y-4">
                         <div class="space-y-1">
                             <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">Administração</p>
@@ -5519,6 +5520,7 @@ function renderDashboardLayout() {
                             ` : ''}
                         </div>
                     </div>
+                    ` : ''}
                 </nav>
 
                 <div class="p-6 border-t border-slate-800">
