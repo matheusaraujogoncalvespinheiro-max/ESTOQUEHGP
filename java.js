@@ -6722,8 +6722,16 @@ function renderProcedimentosNaoRealizados() {
 
         <!-- Histórico -->
         <div class="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-             <div class="p-8 border-b border-slate-100 bg-slate-50/50">
+             <div class="p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <h3 class="text-xl font-bold text-slate-900">Histórico de Procedimentos Não Realizados</h3>
+                <div class="relative w-full md:w-96">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                    <input type="text"
+                           placeholder="Buscar por Paciente ou Cartão SUS..."
+                           class="w-full pl-12 pr-4 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500 transition-all text-sm"
+                           oninput="state.searchTerm = this.value; render()"
+                           value="${state.searchTerm || ''}">
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-left">
@@ -6803,7 +6811,16 @@ function handleSaveProcedimentoNaoRealizado(e) {
 }
 
 function renderProcedimentosNaoRealizadosRows() {
-    const data = MOCK_DATA.PROCEDIMENTOS_NAO_REALIZADOS || [];
+    let data = MOCK_DATA.PROCEDIMENTOS_NAO_REALIZADOS || [];
+    
+    if (state.searchTerm) {
+        const term = state.searchTerm.toLowerCase();
+        data = data.filter(item => 
+            (item.nome_paciente && item.nome_paciente.toLowerCase().includes(term)) ||
+            (item.cartao_sus && item.cartao_sus.includes(term))
+        );
+    }
+
     if (data.length === 0) {
         return `<tr><td colspan="7" class="px-8 py-10 text-center text-slate-400 italic">Nenhum registro encontrado.</td></tr>`;
     }
