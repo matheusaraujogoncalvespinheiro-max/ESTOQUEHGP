@@ -4823,7 +4823,7 @@ function renderHistoricoLaudos() {
             <div class="mb-6">
                 <div class="relative">
                     <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text"
+                    <input id="globalSearchInput" oninput="handleSearchInput(this.value)" type="text"
                         placeholder="Buscar por paciente, cartão SUS, tipo de laudo ou procedimento..."
                         class="w-full pl-12 pr-4 py-3 bg-slate-100 border-none rounded-2xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none"
                         value="${state.searchTerm}">
@@ -5557,7 +5557,7 @@ function renderDashboardLayout() {
                     ${['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS', 'HISTORICO_LAUDOS'].includes(state.activeModule) ? `
                 <div class="relative w-40 md:w-80">
                     <i data-lucide="search" class="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-3 h-3 md:w-4 md:h-4 text-slate-400"></i>
-                    <input oninput="state.searchTerm = this.value; state.currentPage=1; render()" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar...' : 'Buscar...'}" class="w-full pl-9 md:pl-12 pr-4 py-2 md:py-3 bg-slate-100 border-none rounded-xl md:rounded-2xl text-xs md:text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
+                    <input id="globalSearchInput" oninput="handleSearchInput(this.value)" type="text" placeholder="${state.activeModule === 'PACIENTES_REGISTRADOS' ? 'Buscar...' : 'Buscar...'}" class="w-full pl-9 md:pl-12 pr-4 py-2 md:py-3 bg-slate-100 border-none rounded-xl md:rounded-2xl text-xs md:text-sm focus:bg-white focus:ring-2 focus:ring-blue-400 transition-all outline-none" value="${state.searchTerm}">
                 </div>` : ''}
                 </header>
 
@@ -5661,6 +5661,26 @@ function resetInactivityTimer() {
 // ======================
 // RENDERIZAÇÃO PRINCIPAL
 // ======================
+
+let searchTimeout;
+function handleSearchInput(value) {
+    state.searchTerm = value;
+    state.currentPage = 1;
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        render();
+        setTimeout(() => {
+            const el = document.getElementById('globalSearchInput');
+            if(el) {
+                el.focus();
+                // move cursor to end of text
+                if (el.value.length > 0) {
+                    el.setSelectionRange(el.value.length, el.value.length);
+                }
+            }
+        }, 10);
+    }, 400); // 400ms debounce allows barcode scanners to finish "typing" before render
+}
 
 function render() {
     const root = document.getElementById("app");
