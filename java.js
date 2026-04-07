@@ -1928,7 +1928,7 @@ function handleSearchStockRequest(e) {
     resultsContainer.innerHTML = results.map(item => `
         <div onclick="selectRequestSearchResult('${item.barcode}')" class="p-3 hover:bg-slate-50 border border-transparent hover:border-slate-200 rounded-lg cursor-pointer transition-all flex justify-between items-center group">
             <div>
-                <p class="text-sm font-bold text-slate-900 group-hover:text-blue-600">${item.descricao}</p>
+                <p class="text-sm font-bold text-slate-900 group-hover:text-blue-600">${item.material || item.descricao}</p>
                 <div class="flex gap-3 text-xs text-slate-500 mt-1">
                     <span>Cod: <span class="font-mono text-slate-600">${item.barcode}</span></span>
                     <span>Qtd Disponível: <span class="font-bold text-emerald-600">${item.qtd}</span></span>
@@ -2003,6 +2003,7 @@ function handleAddToCart(e) {
     state.transferCart.push({
         id: Date.now() + Math.random(),
         barcode: barcode,
+        material: product.material,
         descricao: product.descricao,
         quantity: quantity,
         toSetor: toSetor,
@@ -2043,7 +2044,7 @@ function generateTransferReportMulti(transfer, items) {
         return `
         <tr>
             <td style="border: 1px solid #ccc; padding: 5px;">${item.barcode}</td>
-            <td style="border: 1px solid #ccc; padding: 5px;">${item.descricao}</td>
+            <td style="border: 1px solid #ccc; padding: 5px;">${item.material || item.descricao}</td>
             <td style="border: 1px solid #ccc; padding: 5px;">${empresa} <br> <small>${marca}</small></td>
             <td style="border: 1px solid #ccc; padding: 5px;">${lote}</td>
             <td style="border: 1px solid #ccc; padding: 5px;">${validade}</td>
@@ -3948,7 +3949,7 @@ function renderRequestForm() {
                         ${cart.map(item => `
                         <tr>
                             <td class="px-4 py-3">
-                                <div class="font-bold text-slate-900">${item.descricao}</div>
+                                <div class="font-bold text-slate-900">${item.material || item.descricao}</div>
                                 <div class="text-xs text-slate-500">${item.barcode}</div>
                             </td>
                             <td class="px-4 py-3">${item.fromSetor}</td>
@@ -4121,7 +4122,7 @@ function handleScanToReceive(e) {
     } else {
         const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         sound.play().catch(e => {}); // subtle confirmation beep
-        showMsg(`Registrado 1x ${item.descricao}`, "success");
+        showMsg(`Registrado 1x ${item.material || item.descricao}`, "success");
     }
     
     render();
@@ -4141,7 +4142,7 @@ function renderReceiveTransferScreen() {
         return `
         <tr class="${isComplete ? 'bg-emerald-50' : 'hover:bg-slate-50'}">
             <td class="px-4 py-3">
-                <div class="font-bold text-slate-900">${item.descricao}</div>
+                <div class="font-bold text-slate-900">${item.material || item.descricao}</div>
                 <div class="text-xs text-slate-500">${item.barcode}</div>
             </td>
             <td class="px-4 py-3 font-medium text-center text-lg">${required}</td>
@@ -4242,7 +4243,7 @@ function handleScanToApprove(e) {
     } else {
         const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         sound.play().catch(e => {});
-        showMsg(`Separado 1x ${item.descricao}`, "success");
+        showMsg(`Separado 1x ${item.material || item.descricao}`, "success");
     }
     
     render();
@@ -4262,7 +4263,7 @@ function renderApproveTransferScreen() {
         return `
         <tr class="${isComplete ? 'bg-emerald-50' : 'hover:bg-slate-50'}">
             <td class="px-4 py-3">
-                <div class="font-bold text-slate-900">${item.descricao}</div>
+                <div class="font-bold text-slate-900">${item.material || item.descricao}</div>
                 <div class="text-xs text-slate-500">${item.barcode}</div>
             </td>
             <td class="px-4 py-3 font-medium text-center text-lg">${required}</td>
