@@ -934,7 +934,7 @@ function renderLaudoOPMEList() {
                 <div class="font-medium">${item.material}</div>
                 <div class="text-sm text-slate-500">${item.descricao}</div>
                 <div class="text-xs text-slate-400 mt-1">
-                    Remessa: ${item.remessa || 'N/A'} | Código: ${item.barcode} | Lote: ${item.lote} | Empresa: ${item.empresa}
+                    Processo: ${item.remessa || 'N/A'} | Código: ${item.barcode} | Lote: ${item.lote} | Empresa: ${item.empresa}
                 </div>
             </div>
             <div class="flex items-center gap-3">
@@ -3124,7 +3124,7 @@ function renderProductList(data, setor) {
                         <span>${item.marca || 'NÃO ESPECIFICADA'}</span>
                     </div>
                     <div class="flex justify-between text-sm">
-                        <span class="text-slate-500">Remessa:</span>
+                        <span class="text-slate-500">Processo:</span>
                         <span>${item.remessa || 'N/A'}</span>
                     </div>
                     <div class="flex justify-between text-sm">
@@ -3276,7 +3276,7 @@ function renderRegisterForm() {
             </div>
 
             <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Remessa *</label>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Processo *</label>
             <input type="text" name="remessa" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Obrigatório">
             </div>
 
@@ -3367,7 +3367,7 @@ function renderAddExistingForm() {
             </div>
 
             <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Remessa *</label>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Processo *</label>
             <input type="text" id="remessaExisting" name="remessaExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Obrigatório">
             </div>
             </div>
@@ -4897,7 +4897,7 @@ function renderHistoricoLaudos() {
                                         <span class="font-medium">${laudo.dn}</span>
                                     </div>
                                     <div class="flex">
-                                        <span class="text-slate-500 w-32">Remessa:</span>
+                                        <span class="text-slate-500 w-32">Processo:</span>
                                         <span class="font-medium">
                                             ${laudo.itens_opme && laudo.itens_opme.length > 0 ?
             (laudo.itens_opme[0].remessa || '-') : '-'}
