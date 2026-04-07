@@ -4120,17 +4120,21 @@ function handleScanToReceive(e) {
     const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.receivingTransferId));
     if (!transfer) return;
 
-    const item = transfer.items.find(i => i.barcode === barcode);
+    let item = transfer.items.find(i => i.barcode === barcode && (state.receivedItemsCount[i.id] || 0) < i.quantity);
+    if (!item) {
+        item = transfer.items.find(i => i.barcode === barcode);
+    }
+
     if (!item) {
         showMsg("Este código de barras não pertence a esta transferência!", "error");
         return;
     }
 
-    state.receivedItemsCount[barcode] = (state.receivedItemsCount[barcode] || 0) + 1;
+    state.receivedItemsCount[item.id] = (state.receivedItemsCount[item.id] || 0) + 1;
     
-    if (state.receivedItemsCount[barcode] > item.quantity) {
-        state.receivedItemsCount[barcode] = item.quantity;
-        showMsg(`Quantidade máxima (${item.quantity}) já bipada para este item!`, "warning");
+    if (state.receivedItemsCount[item.id] > item.quantity) {
+        state.receivedItemsCount[item.id] = item.quantity;
+        showMsg(`Quantidade máxima já bipada para todas as categorias deste item!`, "warning");
     } else {
         const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         sound.play().catch(e => {}); // subtle confirmation beep
@@ -4146,7 +4150,7 @@ function renderReceiveTransferScreen() {
 
     let allFullyScanned = true;
     const itemsHtml = transfer.items.map(item => {
-        const scanned = state.receivedItemsCount[item.barcode] || 0;
+        const scanned = state.receivedItemsCount[item.id] || 0;
         const required = item.quantity;
         const isComplete = scanned >= required;
         if (!isComplete) allFullyScanned = false;
@@ -4241,17 +4245,21 @@ function handleScanToApprove(e) {
     const transfer = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(state.approvingTransferId));
     if (!transfer) return;
 
-    const item = transfer.items.find(i => i.barcode === barcode);
+    let item = transfer.items.find(i => i.barcode === barcode && (state.approvedItemsCount[i.id] || 0) < i.quantity);
+    if (!item) {
+        item = transfer.items.find(i => i.barcode === barcode);
+    }
+
     if (!item) {
         showMsg("Este código de barras não pertence a esta solicitação!", "error");
         return;
     }
 
-    state.approvedItemsCount[barcode] = (state.approvedItemsCount[barcode] || 0) + 1;
+    state.approvedItemsCount[item.id] = (state.approvedItemsCount[item.id] || 0) + 1;
     
-    if (state.approvedItemsCount[barcode] > item.quantity) {
-        state.approvedItemsCount[barcode] = item.quantity;
-        showMsg(`Quantidade máxima (${item.quantity}) já bipada para este item!`, "warning");
+    if (state.approvedItemsCount[item.id] > item.quantity) {
+        state.approvedItemsCount[item.id] = item.quantity;
+        showMsg(`Quantidade máxima já separada para todas as categorias deste item!`, "warning");
     } else {
         const sound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
         sound.play().catch(e => {});
@@ -4267,7 +4275,7 @@ function renderApproveTransferScreen() {
 
     let allFullyScanned = true;
     const itemsHtml = transfer.items.map(item => {
-        const scanned = state.approvedItemsCount[item.barcode] || 0;
+        const scanned = state.approvedItemsCount[item.id] || 0;
         const required = item.quantity;
         const isComplete = scanned >= required;
         if (!isComplete) allFullyScanned = false;
