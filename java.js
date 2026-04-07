@@ -6362,10 +6362,13 @@ function renderHistoricoAltas() {
                             <td class="px-6 py-4">
                                 <div class="text-sm text-slate-700">${p.usuario_alta || 'N/A'}</div>
                             </td>
-                            <td class="px-6 py-4 text-right">
+                            <td class="px-6 py-4 text-right flex justify-end gap-3 items-center">
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600">
                                     <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Alta
                                 </span>
+                                <button onclick="printDischarge(${p.id})" class="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors" title="Imprimir Comprovante de Alta">
+                                    <i data-lucide="printer" class="w-4 h-4"></i>
+                                </button>
                             </td>
                         </tr>
                         `).join('')}
@@ -6391,6 +6394,67 @@ function renderHistoricoAltas() {
             </div>
         </div >
         `;
+}
+
+function printDischarge(id) {
+    const p = MOCK_DATA.PATIENTS_HISTORY.find(pat => pat.id === id);
+    if (!p) return;
+
+    const html = `
+        <html>
+        <head>
+            <title>Comprovante de Alta - ${p.nome}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; font-size: 14px; }
+                h2 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 30px; text-transform: uppercase; }
+                .info-group { margin-bottom: 15px; }
+                .label { font-weight: bold; width: 250px; display: inline-block; }
+                .signature { margin-top: 80px; text-align: center; }
+                .signature-line { border-top: 1px solid #000; display: inline-block; width: 400px; margin-bottom: 10px; }
+                .print-button { margin-bottom: 20px; display: block; text-align: center; }
+                @media print { .no-print { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div class="no-print print-button">
+                <button onclick="window.print()" style="padding: 10px 20px; font-size: 16px; font-weight: bold; cursor: pointer;">Imprimir</button>
+            </div>
+            
+            <h2>Comprovante de Alta Médica</h2>
+            
+            <div class="info-group">
+                <span class="label">Paciente:</span> ${p.nome}
+            </div>
+            <div class="info-group">
+                <span class="label">Cartão SUS:</span> ${p.cartao_sus || 'N/A'}
+            </div>
+            <div class="info-group">
+                <span class="label">Data de Entrada no Sistema:</span> ${p.data_entrada || p.data_registro || 'N/A'}
+            </div>
+            <div class="info-group">
+                <span class="label">Data e Hora da Alta:</span> ${p.data_alta ? new Date(p.data_alta).toLocaleString('pt-BR') : 'N/A'}
+            </div>
+            <div class="info-group">
+                <span class="label">Exame / Agendamento:</span> ${p.exame || p.exame_a_realizar || 'N/A'}
+            </div>
+            <div class="info-group">
+                <span class="label">Exame Realizado:</span> ${p.exame_realizado || p.procedimento || 'N/A'}
+            </div>
+            <div class="info-group">
+                <span class="label">Enfermeiro(a) Responsável:</span> ${p.usuario_alta || p.enfermeiro_alta || 'N/A'}
+            </div>
+
+            <div class="signature">
+                <div class="signature-line"></div>
+                <div>Assinatura do Profissional Responsável</div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(html);
+    printWindow.document.close();
 }
 function searchPatientForProcedimento(cartaoSus) {
     const cleanCartao = cartaoSus.replace(/\D/g, '');
