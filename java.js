@@ -1564,6 +1564,13 @@ function handleRegisterPatient(e) {
     }
 
     const dataNascimento = new Date(form.data_nascimento.value);
+    const anoNascimento = dataNascimento.getFullYear();
+    if (anoNascimento < 1900) {
+        showMsg("Data de nascimento inválida! O ano deve ser 1900 ou superior.", "error");
+        form.data_nascimento.focus();
+        return;
+    }
+
     const hoje = new Date();
     let idade = hoje.getFullYear() - dataNascimento.getFullYear();
     const m = hoje.getMonth() - dataNascimento.getMonth();
@@ -3461,7 +3468,7 @@ function renderEnfermagem() {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Data de Nascimento *</label>
-            <input type="date" name="data_nascimento" required max="${new Date().toISOString().split('T')[0]}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" onchange="calculateAge(this)">
+            <input type="date" name="data_nascimento" required min="1900-01-01" max="${new Date().toISOString().split('T')[0]}" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" onchange="calculateAge(this)">
             </div>
 
             <div>
