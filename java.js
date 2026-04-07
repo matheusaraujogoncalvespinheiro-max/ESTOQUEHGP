@@ -5417,6 +5417,9 @@ function renderDashboardLayout() {
                             </button>
                             ${state.expandedGroups.includes('PROCEDIMENTOS') ? `
                                 <div class="space-y-1 animate-in slide-in-from-top-2 duration-200">
+                                    <button onclick="navigateTo('MAPA')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'MAPA' ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
+                                        <i data-lucide="calendar" class="w-4 h-4"></i> Mapa de Hemodinâmica
+                                    </button>
                                     <button onclick="state.selectedProcedimentoPatient = null; navigateTo('PROCEDIMENTOS')" class="w-full flex items-center gap-3 pl-8 pr-4 py-2.5 rounded-xl transition-all ${state.activeModule === 'PROCEDIMENTOS' ? 'bg-amber-500 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}">
                                         <i data-lucide="calendar-plus" class="w-4 h-4"></i> Agendar Procedimento
                                     </button>
@@ -5846,6 +5849,7 @@ function renderMapa() {
 
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- Form Card -->
+                ${state.currentUser.role !== 'FUNC_ENFERMAGEM' ? `
                 <div class="lg:col-span-1">
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-6">
                         <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -5891,9 +5895,10 @@ function renderMapa() {
                         </form>
                     </div>
                 </div>
+                ` : ''}
 
                 <!-- List Card -->
-                <div class="lg:col-span-2 space-y-6">
+                <div class="lg:col-span-${state.currentUser.role !== 'FUNC_ENFERMAGEM' ? '2' : '3'} space-y-6">
                     ${sortedDates.length === 0 ? `
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
                         <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -5939,11 +5944,13 @@ function renderMapa() {
                                                 ${item.procedure}
                                             </span>
                                         </td>
+                                        ${state.currentUser.role !== 'FUNC_ENFERMAGEM' ? `
                                         <td class="px-6 py-4 text-right">
                                             <button onclick="handleDeleteSchedule(${item.id})" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remover">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </td>
+                                        ` : ''}
                                     </tr>
                                     `).join('')}
                                 </tbody>
