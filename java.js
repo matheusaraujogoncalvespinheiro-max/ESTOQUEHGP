@@ -3235,12 +3235,7 @@ function renderRegisterForm() {
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor *</label>
             <select name="setor" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="">Selecione um setor</option>
-            ${(role === 'ADMIN' || role === 'CHEFE_OPME') ? `
-                <option value="OPME">OPME</option>
-                <option value="HEMODINAMICA">Hemodinâmica</option>
-                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
-            ` : ''}
+            <option value="OPME">OPME</option>
             </select>
             </div>
 
@@ -3338,20 +3333,7 @@ function renderAddExistingForm() {
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Setor Destino *</label>
             <select name="setorExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-            <option value="">Selecione o setor de destino</option>
-            ${role === 'ADMIN' ? `
-                <option value="OPME">OPME</option>
-                <option value="HEMODINAMICA">Hemodinâmica</option>
-                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
-            ` : ''}
-            ${role === 'CHEFE_OPME' ? `
-                <option value="OPME">OPME</option>
-                <option value="HEMODINAMICA">Hemodinâmica</option>
-                <option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>
-            ` : ''}
-            ${(role === 'FUNC_OPME') ? '<option value="OPME">OPME</option>' : ''}
-            ${(role === 'FUNC_HEMODINAMICA') ? '<option value="HEMODINAMICA">Hemodinâmica</option>' : ''}
-            ${(role === 'FUNC_CENTRO_CIRURGICO') ? '<option value="CENTRO_CIRURGICO">Centro Cirúrgico</option>' : ''}
+            <option value="OPME">OPME</option>
             </select>
             </div>
 
