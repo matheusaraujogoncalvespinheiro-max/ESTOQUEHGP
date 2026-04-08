@@ -2629,6 +2629,7 @@ function handleLoginAction() {
         }
 
         render();
+        resetInactivityTimer();
 
     } else {
         const errorEl = document.getElementById('login-error');
