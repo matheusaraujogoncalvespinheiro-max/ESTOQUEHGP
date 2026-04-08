@@ -4988,14 +4988,14 @@ function renderMembers() {
 
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Nome de Usuário *</label>
-            <input type="text" name="username" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <input type="text" name="username" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
             <label class="block text-sm font-medium text-slate-700 mb-2">Senha *</label>
-            <input type="password" name="password" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <input type="password" name="password" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             </div>
 
             <div>
@@ -5274,8 +5274,8 @@ function renderLogin() {
                 <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">GESTAO DE ESTOQUE</h1>
             </div>
             <div class="space-y-4">
-                <input id="login_user" type="text" placeholder="Utilizador" oninput="this.value = this.value.replace(/ /g, '')" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                <input id="login_pass" type="password" placeholder="Senha" oninput="this.value = this.value.replace(/ /g, '')" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <input id="login_user" type="text" placeholder="Utilizador" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <input id="login_pass" type="password" placeholder="Senha" oninput="this.value = this.value.replace(/[^a-zA-Z0-9]/g, '')" onkeypress="if(event.key === 'Enter') handleLoginAction()" class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
                 <button onclick="handleLoginAction()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition-all active:scale-95">Entrar no Sistema</button>
             </div>
                     <div id="login-error" class="mt-4 text-red-500 text-xs text-center font-bold hidden">Credenciais Inválidas</div>
