@@ -6,12 +6,12 @@ console.log('SISHGP Core (java.js) Loading...');
 // Configuração de Utilizadores
 const USERS_DB = {
     'admin': { password: '1234', role: 'ADMIN', name: 'Administrador Geral' },
-    'chefe opme': { password: '1234', role: 'CHEFE_OPME', name: 'Chefe OPME' },
-    'chefe hemodinamica': { password: '1234', role: 'CHEFE_HEMODINAMICA', name: 'Chefe Hemodinâmica' },
+    'chefeopme': { password: '1234', role: 'CHEFE_OPME', name: 'Chefe OPME' },
+    'chefehemodinamica': { password: '1234', role: 'CHEFE_HEMODINAMICA', name: 'Chefe Hemodinâmica' },
     'enfermeiro': { password: '1234', role: 'FUNC_ENFERMAGEM', name: 'Enfermeiro Teste' },
-    'func opme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
-    'func hemodinamica': { password: '1234', role: 'FUNC_HEMODINAMICA', name: 'Funcionário Hemodinâmica' },
-    'func centro cirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' }
+    'funcopme': { password: '1234', role: 'FUNC_OPME', name: 'Funcionário OPME' },
+    'funchemodinamica': { password: '1234', role: 'FUNC_HEMODINAMICA', name: 'Funcionário Hemodinâmica' },
+    'funccentrocirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' }
 };
 
 // Dados Iniciais
