@@ -347,6 +347,21 @@ async function db_syncMembers() {
                 };
             }
         });
+
+        // Auto-seed default Portaria users to Firestore if they don't exist
+        const defaultPortariaUsers = {
+            'chefeportaria': { password: '1234', role: 'CHEFE_PORTARIA', name: 'Chefe Portaria' },
+            'portaria': { password: '1234', role: 'FUNC_PORTARIA', name: 'Funcionário Portaria' },
+            'porteiro': { password: '1234', role: 'FUNC_PORTARIA', name: 'Porteiro' }
+        };
+        
+        for (const [username, user] of Object.entries(defaultPortariaUsers)) {
+            if (!USERS_DB[username]) {
+                console.log(`Auto-seeding default user ${username} to Firestore...`);
+                await db_saveMember(username, user);
+                USERS_DB[username] = user;
+            }
+        }
     } catch (err) {
         console.error('Error syncing members:', err);
     }

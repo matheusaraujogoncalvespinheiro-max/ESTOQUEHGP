@@ -13,7 +13,8 @@ const USERS_DB = {
     'funchemodinamica': { password: '1234', role: 'FUNC_HEMODINAMICA', name: 'Funcionário Hemodinâmica' },
     'funccentrocirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' },
     'chefeportaria': { password: '1234', role: 'CHEFE_PORTARIA', name: 'Chefe Portaria' },
-    'portaria': { password: '1234', role: 'FUNC_PORTARIA', name: 'Funcionário Portaria' }
+    'portaria': { password: '1234', role: 'FUNC_PORTARIA', name: 'Funcionário Portaria' },
+    'porteiro': { password: '1234', role: 'FUNC_PORTARIA', name: 'Porteiro' }
 };
 
 // Dados Iniciais
