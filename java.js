@@ -7852,6 +7852,9 @@ function handlePisoChange(piso) {
         if (leitoSelect) {
             leitoSelect.required = true;
             let options = '<option value="">Selecione...</option>';
+            
+            // Ala I/J (01 a 25)
+            options += '<optgroup label="Ala I/J (Leitos 01 a 25)">';
             for (let i = 1; i <= 25; i++) {
                 const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
                 options += `<option value="${roomNum}">${roomNum}</option>`;
@@ -7860,6 +7863,20 @@ function handlePisoChange(piso) {
                 const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
                 options += `<option value="${roomNum}">${roomNum}</option>`;
             }
+            options += '</optgroup>';
+            
+            // Ala K/L (26 a 49)
+            options += '<optgroup label="Ala K/L (Leitos 26 a 49)">';
+            for (let i = 26; i <= 49; i++) {
+                const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
+                options += `<option value="${roomNum}">${roomNum}</option>`;
+            }
+            for (let i = 26; i <= 49; i++) {
+                const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
+                options += `<option value="${roomNum}">${roomNum}</option>`;
+            }
+            options += '</optgroup>';
+            
             leitoSelect.innerHTML = options;
         }
     }
