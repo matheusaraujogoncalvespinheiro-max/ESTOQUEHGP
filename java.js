@@ -7829,6 +7829,43 @@ function pararCamera() {
     }
 }
 
+function getLeitoSpecialty(piso, number) {
+    if (piso === '1') {
+        if (number >= 1 && number <= 25) return 'Ala A/B (Pediatria)';
+        return '';
+    }
+    if (piso === '2') {
+        if (number >= 1 && number <= 25) return 'Ala E/F (Neuro)';
+        if (number >= 26 && number <= 49) return 'Ala G/H (Clínica Médica)';
+        return '';
+    }
+    if (piso === '3') {
+        if (number >= 1 && number <= 25) return 'Ala I/J (Ortopedia)';
+        if (number >= 26 && number <= 49) {
+            if (number >= 26 && number <= 29) return 'Ala K (1) Ortopedia';
+            if (number >= 30 && number <= 33) return 'Ala K (2) Geral Especialidades';
+            if (number >= 34 && number <= 37) return 'Ala L (1) Vascular';
+            if (number >= 38 && number <= 41) return 'Ala L (2) Infecto';
+            if (number >= 42 && number <= 45) return 'Ala L (3) End, Oft, Der, Otor';
+            if (number >= 46 && number <= 49) return 'Ala L (4) Reumato / Buco';
+        }
+        return '';
+    }
+    if (piso === '4') {
+        if (number >= 1 && number <= 25) return 'Ala M/N (Oncologia / Nefrologia)';
+        if (number >= 26 && number <= 49) {
+            if (number >= 26 && number <= 29) return 'Ala O (2) Cardiologia';
+            if (number >= 30 && number <= 33) return 'Ala O (3) Pneumologia';
+            if (number >= 34 && number <= 37) return 'Ala O (4) Cir. Torácica';
+            if (number >= 38 && number <= 41) return 'Ala P (1) Eletiva';
+            if (number >= 42 && number <= 45) return 'Ala P (2) Ritmologia';
+            if (number >= 46 && number <= 49) return 'Ala P (3) Cir. Aparelho Dig';
+        }
+        return '';
+    }
+    return '';
+}
+
 function handlePisoChange(piso) {
     const containerLeito = document.getElementById('container-leito-select');
     const containerCustom = document.getElementById('container-destino-custom');
@@ -7853,29 +7890,58 @@ function handlePisoChange(piso) {
             leitoSelect.required = true;
             let options = '<option value="">Selecione...</option>';
             
-            // Ala I/J (01 a 25)
-            options += '<optgroup label="Ala I/J (Leitos 01 a 25)">';
-            for (let i = 1; i <= 25; i++) {
-                const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
-                options += `<option value="${roomNum}">${roomNum}</option>`;
-            }
-            for (let i = 1; i <= 25; i++) {
-                const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
-                options += `<option value="${roomNum}">${roomNum}</option>`;
-            }
-            options += '</optgroup>';
+            let wing1Label = '';
+            let wing2Label = '';
             
-            // Ala K/L (26 a 49)
-            options += '<optgroup label="Ala K/L (Leitos 26 a 49)">';
-            for (let i = 26; i <= 49; i++) {
-                const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
-                options += `<option value="${roomNum}">${roomNum}</option>`;
+            if (piso === '1') {
+                wing1Label = 'Ala A/B (Pediatria)';
+                wing2Label = ''; // Piso 1 has no Wing 2 based on description
+            } else if (piso === '2') {
+                wing1Label = 'Ala E/F (Neuro)';
+                wing2Label = 'Ala G/H (Clínica Médica)';
+            } else if (piso === '3') {
+                wing1Label = 'Ala I/J (Ortopedia)';
+                wing2Label = 'Ala K/L (Especialidades / Buco)';
+            } else if (piso === '4') {
+                wing1Label = 'Ala M/N (Oncologia / Nefrologia)';
+                wing2Label = 'Ala O/P (Especialidades)';
             }
-            for (let i = 26; i <= 49; i++) {
-                const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
-                options += `<option value="${roomNum}">${roomNum}</option>`;
+            
+            // Wing 1 (Leitos 01 a 25)
+            if (wing1Label) {
+                options += `<optgroup label="${wing1Label} - Leitos 01 a 25">`;
+                for (let i = 1; i <= 25; i++) {
+                    const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
+                    const spec = getLeitoSpecialty(piso, i);
+                    const display = spec ? `${roomNum} (${spec})` : roomNum;
+                    options += `<option value="${roomNum}">${display}</option>`;
+                }
+                for (let i = 1; i <= 25; i++) {
+                    const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
+                    const spec = getLeitoSpecialty(piso, i);
+                    const display = spec ? `${roomNum} (${spec})` : roomNum;
+                    options += `<option value="${roomNum}">${display}</option>`;
+                }
+                options += '</optgroup>';
             }
-            options += '</optgroup>';
+            
+            // Wing 2 (Leitos 26 a 49)
+            if (wing2Label) {
+                options += `<optgroup label="${wing2Label} - Leitos 26 a 49">`;
+                for (let i = 26; i <= 49; i++) {
+                    const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
+                    const spec = getLeitoSpecialty(piso, i);
+                    const display = spec ? `${roomNum} (${spec})` : roomNum;
+                    options += `<option value="${roomNum}">${display}</option>`;
+                }
+                for (let i = 26; i <= 49; i++) {
+                    const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
+                    const spec = getLeitoSpecialty(piso, i);
+                    const display = spec ? `${roomNum} (${spec})` : roomNum;
+                    options += `<option value="${roomNum}">${display}</option>`;
+                }
+                options += '</optgroup>';
+            }
             
             leitoSelect.innerHTML = options;
         }
