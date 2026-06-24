@@ -2650,6 +2650,16 @@ function handleLoginAction() {
             state.activeModule = 'OPME';
         } else if (state.currentUser.role === 'CHEFE_HEMODINAMICA') {
             state.activeModule = 'HEMODINAMICA';
+        } else if (state.currentUser.role === 'FUNC_PORTARIA') {
+            state.activeModule = 'PORTARIA_PAINEL';
+            if (!state.expandedGroups) state.expandedGroups = [];
+            if (!state.expandedGroups.includes('PORTARIA')) state.expandedGroups.push('PORTARIA');
+        } else if (state.currentUser.role === 'CHEFE_PORTARIA') {
+            state.activeModule = 'PORTARIA_CONFIG';
+            if (!state.expandedGroups) state.expandedGroups = [];
+            if (!state.expandedGroups.includes('PORTARIA')) state.expandedGroups.push('PORTARIA');
+        } else {
+            state.activeModule = 'DASHBOARD';
         }
 
         render();
@@ -2746,7 +2756,9 @@ function getModuleTitle() {
         'REQUEST': 'Solicitar Material',
         'PROCEDIMENTOS_NAO_REALIZADOS': 'Procedimentos Não Realizados',
         'PROCEDIMENTOS': 'Agendar Procedimentos',
-        'CORRECAO': 'Correção de Estoque OPME'
+        'CORRECAO': 'Correção de Estoque OPME',
+        'PORTARIA_PAINEL': 'Portaria - Controle de Acesso',
+        'PORTARIA_CONFIG': 'Portaria - Configurações'
     };
     return titles[state.activeModule] || 'Módulo Desconhecido';
 }
@@ -5344,7 +5356,9 @@ function renderDashboardLayout() {
             <!-- Sidebar -->
             <aside class="fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 text-white flex flex-col shrink-0 transform ${state.isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none">
                 <div class="p-8 flex items-center justify-between">
-                    <h2 class="text-xl font-black tracking-tighter text-blue-400">GESTAO DE ESTOQUE</h2>
+                    <h2 class="text-xl font-black tracking-tighter text-blue-400">
+                        ${(role === 'FUNC_PORTARIA' || role === 'CHEFE_PORTARIA') ? 'ADMINISTRAÇÃO DE PORTARIA' : 'GESTAO DE ESTOQUE'}
+                    </h2>
                     <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-400 hover:text-white transition-colors">
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
@@ -5352,7 +5366,7 @@ function renderDashboardLayout() {
 
                 <nav class="flex-1 px-4 space-y-6 overflow-y-auto custom-scrollbar">
                     <!-- Dashboard -->
-                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_HEMODINAMICA' ? `
+                    ${role !== 'FUNC_OPME' && role !== 'CHEFE_HEMODINAMICA' && role !== 'FUNC_PORTARIA' && role !== 'CHEFE_PORTARIA' ? `
                 <div>
                     <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Geral</p>
                     <button onclick="navigateTo('DASHBOARD')" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${state.activeModule === 'DASHBOARD' ? 'bg-blue-600' : 'hover:bg-slate-800 text-slate-400'}">
