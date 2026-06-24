@@ -52,7 +52,9 @@ function db_setupSubscriptions() {
         { name: 'procedimentos_nao_realizados', sync: db_syncNotPerformed },
         { name: 'salas', sync: db_syncSalas },
         { name: 'salas_history', sync: db_syncSalasHistory },
-        { name: 'stock_transfer_history', sync: db_syncHistory }
+        { name: 'stock_transfer_history', sync: db_syncHistory },
+        { name: 'portaria_visits', sync: db_syncPortariaVisits },
+        { name: 'portaria_config', sync: db_syncPortariaConfig }
     ];
 
     tables.forEach(table => {
@@ -398,6 +400,47 @@ async function db_syncNotPerformed() {
     }
 }
 
+// 10. Sync Portaria Visits
+async function db_syncPortariaVisits() {
+    if (!db) return;
+    try {
+        const snapshot = await db.collection('portaria_visits').get();
+        let data = snapshotToArray(snapshot);
+        data.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        MOCK_DATA.PORTARIA_VISITS = data;
+    } catch (err) {
+        console.error('Error syncing portaria visits:', err);
+    }
+}
+
+// 11. Sync Portaria Config
+async function db_syncPortariaConfig() {
+    if (!db) return;
+    try {
+        const snapshot = await db.collection('portaria_config').get();
+        if (!snapshot.empty) {
+            const configDoc = snapshot.docs[0].data();
+            MOCK_DATA.PORTARIA_CONFIG = {
+                visiting_hours_start: configDoc.visiting_hours_start || '14:00',
+                visiting_hours_end: configDoc.visiting_hours_end || '16:00',
+                entry_hours_start: configDoc.entry_hours_start || '07:00',
+                entry_hours_end: configDoc.entry_hours_end || '22:00'
+            };
+        } else {
+            const defaultConfig = {
+                visiting_hours_start: '14:00',
+                visiting_hours_end: '16:00',
+                entry_hours_start: '07:00',
+                entry_hours_end: '22:00'
+            };
+            await db.collection('portaria_config').doc('active_config').set(defaultConfig);
+            MOCK_DATA.PORTARIA_CONFIG = defaultConfig;
+        }
+    } catch (err) {
+        console.error('Error syncing portaria config:', err);
+    }
+}
+
 // --- SAVE FUNCTIONS ---
 
 // Save Patient
@@ -682,6 +725,52 @@ async function db_syncSalasHistory() {
     }
 }
 
+// Save Portaria Visit
+async function db_savePortariaVisit(visit) {
+    if (!db) return;
+    try {
+        const id = visit.id || Date.now().toString();
+        const docPayload = {
+            id: id,
+            nome: visit.nome || "",
+            documento: visit.documento || "",
+            tipo: visit.tipo || "Visita",
+            setor: visit.setor || "Pronto Socorro Adulto",
+            destino: visit.destino || "",
+            status: visit.status || "DENTRO",
+            foto: visit.foto || "",
+            hora_entrada: visit.hora_entrada || new Date().toISOString(),
+            hora_saida: visit.hora_saida || null,
+            porteiro_entrada: visit.porteiro_entrada || (state.currentUser ? state.currentUser.name : ""),
+            porteiro_saida: visit.porteiro_saida || null,
+            created_at: visit.created_at || new Date().toISOString()
+        };
+        await db.collection('portaria_visits').doc(id).set(docPayload, { merge: true });
+        console.log(`✓ Visita de ${visit.nome} salva no Firebase`);
+    } catch (err) {
+        console.error('Error saving portaria visit:', err);
+    }
+}
+
+// Save Portaria Config
+async function db_savePortariaConfig(config) {
+    if (!db) return;
+    try {
+        const configPayload = {
+            visiting_hours_start: config.visiting_hours_start || '14:00',
+            visiting_hours_end: config.visiting_hours_end || '16:00',
+            entry_hours_start: config.entry_hours_start || '07:00',
+            entry_hours_end: config.entry_hours_end || '22:00',
+            updated_at: new Date().toISOString(),
+            updated_by: state.currentUser ? state.currentUser.name : "Admin"
+        };
+        await db.collection('portaria_config').doc('active_config').set(configPayload, { merge: true });
+        console.log('✓ Configuração de portaria salva no Firebase');
+    } catch (err) {
+        console.error('Error saving portaria config:', err);
+    }
+}
+
 // Global Sync
 async function db_syncAll() {
     if (!db) {
@@ -700,7 +789,9 @@ async function db_syncAll() {
         db_syncRequests(),
         db_syncNotPerformed(),
         db_syncSalas(),
-        db_syncSalasHistory()
+        db_syncSalasHistory(),
+        db_syncPortariaVisits(),
+        db_syncPortariaConfig()
     ];
 
     // Use settle or individual try-catches to ensure one failure doesn't block the UI
