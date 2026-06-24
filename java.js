@@ -7356,13 +7356,13 @@ function renderPortariaPainel() {
                     <div class="grid grid-cols-2 gap-4">
                         <div id="container-leito-select" class="col-span-2 hidden">
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Leito/Quarto *</label>
-                            <select id="leito-select" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                            <select id="leito-select" onchange="handleLeitoSelectChange(this.value)" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
                                 <!-- Populado dinamicamente -->
                             </select>
                         </div>
                         <div id="container-destino-custom" class="col-span-2">
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Destino Customizado *</label>
-                            <input type="text" id="destino-custom-input" placeholder="Ex: Box A / Administração" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                            <input type="text" id="destino-custom-input" placeholder="Ex: Box A / Administração" oninput="handleCustomDestInput(this.value)" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
                         </div>
                         <div class="relative col-span-2">
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Paciente (Opcional)</label>
@@ -7919,6 +7919,36 @@ function handleCPFInput(input) {
     }
 }
 
+function handleLeitoSelectChange(leitoValue) {
+    const nameInput = document.getElementById('paciente-nome-input');
+    if (!nameInput) return;
+    
+    if (!leitoValue) {
+        nameInput.value = '';
+        return;
+    }
+    
+    const patient = (MOCK_DATA.PACIENTES || []).find(p => p.leito && p.leito.toUpperCase().trim() === leitoValue.toUpperCase().trim());
+    if (patient) {
+        nameInput.value = patient.nome;
+        showMsg(`✓ Paciente ${patient.nome} encontrado no leito ${leitoValue}.`);
+    } else {
+        nameInput.value = '';
+    }
+}
+
+function handleCustomDestInput(val) {
+    const nameInput = document.getElementById('paciente-nome-input');
+    if (!nameInput) return;
+    const value = val.trim().toUpperCase();
+    if (!value) return;
+    
+    const patient = (MOCK_DATA.PACIENTES || []).find(p => p.leito && p.leito.toUpperCase().trim() === value);
+    if (patient) {
+        nameInput.value = patient.nome;
+    }
+}
+
 // Expose variables and functions to window
 window.renderPortariaConfig = renderPortariaConfig;
 window.handleSavePortariaConfig = handleSavePortariaConfig;
@@ -7936,6 +7966,8 @@ window.selectAutocompletePaciente = selectAutocompletePaciente;
 window.toggleVisitHoursCheck = toggleVisitHoursCheck;
 window.handlePisoChange = handlePisoChange;
 window.handleCPFInput = handleCPFInput;
+window.handleLeitoSelectChange = handleLeitoSelectChange;
+window.handleCustomDestInput = handleCustomDestInput;
 
 
 
