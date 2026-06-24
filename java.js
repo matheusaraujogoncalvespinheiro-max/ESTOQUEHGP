@@ -7329,8 +7329,8 @@ function renderPortariaPainel() {
                     </div>
 
                     <div>
-                        <label class="block text-xs font-semibold text-slate-600 mb-1">Documento (RG / CPF) *</label>
-                        <input type="text" name="documento" required placeholder="Nº do documento" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">CPF (11 dígitos, apenas números) *</label>
+                        <input type="text" name="documento" required placeholder="Digite o CPF (apenas números)" oninput="handleCPFInput(this)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
@@ -7341,9 +7341,32 @@ function renderPortariaPainel() {
                                 <option value="Acompanhante">Acompanhante</option>
                             </select>
                         </div>
-                        <div class="relative">
-                            <label class="block text-xs font-semibold text-slate-600 mb-1">Destino (Leito/Paciente) *</label>
-                            <input type="text" id="destino-input" name="destino" required placeholder="Ex: Box 1 / João" oninput="autocompletePaciente(this.value)" autocomplete="off" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Piso (Andar) *</label>
+                            <select id="piso-select" onchange="handlePisoChange(this.value)" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                                <option value="Outro">Outro / Pronto Socorro</option>
+                                <option value="1">1º Piso</option>
+                                <option value="2">2º Piso</option>
+                                <option value="3">3º Piso</option>
+                                <option value="4">4º Piso</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div id="container-leito-select" class="col-span-2 hidden">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Leito/Quarto *</label>
+                            <select id="leito-select" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                                <!-- Populado dinamicamente -->
+                            </select>
+                        </div>
+                        <div id="container-destino-custom" class="col-span-2">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Destino Customizado *</label>
+                            <input type="text" id="destino-custom-input" placeholder="Ex: Box A / Administração" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+                        </div>
+                        <div class="relative col-span-2">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">Nome do Paciente (Opcional)</label>
+                            <input type="text" id="paciente-nome-input" placeholder="Nome do paciente" oninput="autocompletePaciente(this.value)" autocomplete="off" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
                             <div id="paciente-autocomplete-list" class="absolute bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-40 overflow-y-auto hidden z-50 text-xs w-full"></div>
                         </div>
                     </div>
@@ -7567,11 +7590,43 @@ function autocompletePaciente(val) {
 }
 
 function selectAutocompletePaciente(nome, leito) {
-    const input = document.getElementById('destino-input');
+    const nameInput = document.getElementById('paciente-nome-input');
     const listDiv = document.getElementById('paciente-autocomplete-list');
-    if (input) {
-        input.value = `${nome} ${leito ? `(Leito ${leito})` : ''}`;
+    if (nameInput) {
+        nameInput.value = nome;
     }
+    
+    if (leito) {
+        const floorMatch = leito.match(/^([1-4])\d{2}[AB]$/);
+        if (floorMatch) {
+            const floor = floorMatch[1];
+            const pisoSelect = document.getElementById('piso-select');
+            if (pisoSelect) {
+                pisoSelect.value = floor;
+                handlePisoChange(floor);
+                
+                setTimeout(() => {
+                    const leitoSelect = document.getElementById('leito-select');
+                    if (leitoSelect) {
+                        leitoSelect.value = leito;
+                    }
+                }, 50);
+            }
+        } else {
+            const pisoSelect = document.getElementById('piso-select');
+            if (pisoSelect) {
+                pisoSelect.value = 'Outro';
+                handlePisoChange('Outro');
+            }
+            setTimeout(() => {
+                const customInput = document.getElementById('destino-custom-input');
+                if (customInput) {
+                    customInput.value = leito;
+                }
+            }, 50);
+        }
+    }
+    
     if (listDiv) {
         listDiv.innerHTML = '';
         listDiv.classList.add('hidden');
@@ -7607,6 +7662,12 @@ function handleRegisterPortariaVisit(event) {
     event.preventDefault();
     const form = event.target;
     const tipo = form.tipo.value;
+    const documento = form.documento.value;
+    
+    if (documento.length !== 11) {
+        alert("O CPF deve ter exatamente 11 dígitos.");
+        return;
+    }
     
     if (tipo === 'Visita') {
         const { isVisitOpen } = checkPortariaHours();
@@ -7621,13 +7682,28 @@ function handleRegisterPortariaVisit(event) {
         state.capturedPhoto = 'logo_hgp.jpg';
     }
 
+    let destLoc = '';
+    const piso = document.getElementById('piso-select').value;
+    if (piso === 'Outro') {
+        destLoc = document.getElementById('destino-custom-input').value.trim();
+    } else {
+        destLoc = document.getElementById('leito-select').value;
+        if (!destLoc) {
+            alert("Por favor, selecione o leito/quarto.");
+            return;
+        }
+    }
+    
+    const pacienteNome = document.getElementById('paciente-nome-input').value.trim();
+    const finalDestino = pacienteNome ? `${destLoc} (${pacienteNome})` : destLoc;
+
     const visit = {
         id: Date.now().toString(),
         nome: form.nome.value,
-        documento: form.documento.value,
+        documento: documento,
         tipo: tipo,
         setor: state.activePortariaSetor,
-        destino: form.destino.value,
+        destino: finalDestino,
         status: 'DENTRO',
         foto: state.capturedPhoto,
         hora_entrada: new Date().toISOString(),
@@ -7644,6 +7720,15 @@ function handleRegisterPortariaVisit(event) {
 
     state.capturedPhoto = null;
     form.reset();
+    
+    const pisoSelect = document.getElementById('piso-select');
+    if (pisoSelect) {
+        pisoSelect.value = 'Outro';
+        handlePisoChange('Outro');
+    }
+    const nameInput = document.getElementById('paciente-nome-input');
+    if (nameInput) nameInput.value = '';
+    
     showMsg("Entrada registrada com sucesso!");
     render();
 }
@@ -7744,6 +7829,79 @@ function pararCamera() {
     }
 }
 
+function handlePisoChange(piso) {
+    const containerLeito = document.getElementById('container-leito-select');
+    const containerCustom = document.getElementById('container-destino-custom');
+    const leitoSelect = document.getElementById('leito-select');
+    const customInput = document.getElementById('destino-custom-input');
+    
+    if (!containerLeito || !containerCustom) return;
+    
+    if (piso === 'Outro') {
+        containerLeito.classList.add('hidden');
+        containerCustom.classList.remove('hidden');
+        if (leitoSelect) leitoSelect.required = false;
+        if (customInput) customInput.required = true;
+    } else {
+        containerLeito.classList.remove('hidden');
+        containerCustom.classList.add('hidden');
+        if (customInput) {
+            customInput.required = false;
+            customInput.value = '';
+        }
+        if (leitoSelect) {
+            leitoSelect.required = true;
+            let options = '<option value="">Selecione...</option>';
+            for (let i = 1; i <= 25; i++) {
+                const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
+                options += `<option value="${roomNum}">${roomNum}</option>`;
+            }
+            for (let i = 1; i <= 25; i++) {
+                const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
+                options += `<option value="${roomNum}">${roomNum}</option>`;
+            }
+            leitoSelect.innerHTML = options;
+        }
+    }
+}
+
+function handleCPFInput(input) {
+    let val = input.value.replace(/\D/g, '');
+    if (val.length > 11) {
+        val = val.slice(0, 11);
+    }
+    input.value = val;
+    
+    if (val.length === 11) {
+        const visits = MOCK_DATA.PORTARIA_VISITS || [];
+        const lastVisit = visits.find(v => v.documento === val);
+        if (lastVisit) {
+            const form = document.getElementById('portaria-entry-form');
+            if (form) {
+                form.nome.value = lastVisit.nome || '';
+                form.tipo.value = lastVisit.tipo || 'Visita';
+                
+                showMsg(`✓ Cadastro de ${lastVisit.nome} preenchido automaticamente.`);
+                
+                if (lastVisit.foto) {
+                    state.capturedPhoto = lastVisit.foto;
+                    const previewImg = document.getElementById('photo-preview');
+                    if (previewImg) {
+                        previewImg.src = lastVisit.foto;
+                        previewImg.classList.remove('hidden');
+                    }
+                    const placeholder = document.getElementById('webcam-placeholder');
+                    if (placeholder) placeholder.classList.add('hidden');
+                    const btnLigar = document.getElementById('btn-ligar-camera');
+                    if (btnLigar) btnLigar.classList.add('hidden');
+                    const btnRecap = document.getElementById('btn-recapturar-foto');
+                    if (btnRecap) btnRecap.classList.remove('hidden');
+                }
+            }
+        }
+    }
+}
+
 // Expose variables and functions to window
 window.renderPortariaConfig = renderPortariaConfig;
 window.handleSavePortariaConfig = handleSavePortariaConfig;
@@ -7759,6 +7917,8 @@ window.setPortariaSetor = setPortariaSetor;
 window.autocompletePaciente = autocompletePaciente;
 window.selectAutocompletePaciente = selectAutocompletePaciente;
 window.toggleVisitHoursCheck = toggleVisitHoursCheck;
+window.handlePisoChange = handlePisoChange;
+window.handleCPFInput = handleCPFInput;
 
 
 
