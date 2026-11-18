@@ -14,7 +14,18 @@ function applyMenuState() {
     }
 }
 
+/** Recolhe todas as categorias e agrupadores (estado e tela), sem redesenhar o menu. */
+function collapseMenuGroups() {
+    state.menuPath = [];
+    document.querySelectorAll('#wm-sidebar [data-chave]').forEach(el => {
+        el.classList.remove('is-open');
+        el.querySelector(':scope > button')?.setAttribute('aria-expanded', 'false');
+    });
+}
+
 function setMenuOpen(open) {
+    // O menu sempre abre (e fecha) com tudo recolhido, sem lembrar o que ficou expandido antes
+    collapseMenuGroups();
     state.isMobileMenuOpen = Boolean(open);
     applyMenuState();
 }

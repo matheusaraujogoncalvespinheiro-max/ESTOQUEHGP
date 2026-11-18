@@ -50,6 +50,7 @@ function db_setupSubscriptions() {
         { name: 'app_users', sync: db_syncMembers },
         { name: 'material_requests', sync: db_syncRequests },
         { name: 'procedimentos_nao_realizados', sync: db_syncNotPerformed },
+        { name: 'procedimentos_agendados', sync: db_syncProcedimentosAgendados },
         { name: 'salas', sync: db_syncSalas },
         { name: 'salas_history', sync: db_syncSalasHistory },
         { name: 'stock_transfer_history', sync: db_syncHistory },
@@ -412,6 +413,47 @@ async function db_syncNotPerformed() {
         }));
     } catch (err) {
         console.error('Error syncing not performed procedures:', err);
+    }
+}
+
+// Procedimentos agendados (tela Procedimentos › Agendamento)
+async function db_syncProcedimentosAgendados() {
+    if (!db) return;
+    try {
+        const snapshot = await db.collection('procedimentos_agendados').get();
+        const data = snapshotToArray(snapshot);
+        data.sort((a, b) => new Date(b.data || 0) - new Date(a.data || 0));
+
+        MOCK_DATA.PROCEDIMENTOS_AGENDADOS = data.map(item => ({
+            id: isNaN(item.id) ? item.id : Number(item.id),
+            pacienteId: item.paciente_id || "",
+            pacienteNome: item.nome_paciente || "",
+            cartaoSus: item.cartao_sus || "",
+            exame: item.exame || "",
+            procedimento: item.procedimento || "",
+            data: item.data || ""
+        }));
+    } catch (err) {
+        console.error('Error syncing scheduled procedures:', err);
+    }
+}
+
+async function db_saveProcedimentoAgendado(item) {
+    if (!db) return;
+    try {
+        const docId = String(item.id);
+        await db.collection('procedimentos_agendados').doc(docId).set({
+            id: item.id,
+            paciente_id: item.pacienteId || "",
+            nome_paciente: item.pacienteNome || "",
+            cartao_sus: item.cartaoSus || "",
+            exame: item.exame || "",
+            procedimento: item.procedimento || "",
+            data: item.data || new Date().toISOString()
+        }, { merge: true });
+        console.log(`✓ Procedimento agendado de ${item.pacienteNome} salvo no Firebase`);
+    } catch (err) {
+        console.error('Error saving scheduled procedure:', err);
     }
 }
 
@@ -803,6 +845,7 @@ async function db_syncAll() {
         db_syncMembers(),
         db_syncRequests(),
         db_syncNotPerformed(),
+        db_syncProcedimentosAgendados(),
         db_syncSalas(),
         db_syncSalasHistory(),
         db_syncPortariaVisits(),

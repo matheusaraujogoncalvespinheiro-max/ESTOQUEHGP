@@ -52,7 +52,8 @@ function handleAgendarProcedimento(e) {
     showMsg("Procedimento agendado com sucesso!", "success");
     state.selectedProcedimentoPatient = null;
     e.target.reset();
-    saveToFirebase('MOCK_DATA', MOCK_DATA);
+    saveToLocalStorage();
+    if (typeof db_saveProcedimentoAgendado === 'function') db_saveProcedimentoAgendado(newItem);
     render();
 }
 

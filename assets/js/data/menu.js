@@ -1,20 +1,23 @@
 // Estrutura do menu lateral: SÓ DADOS. O motor que monta e filtra o menu fica em shell/menu.js.
 //
-// Cada categoria (nível 1) tem `children` (nível 2). Campos:
-//   ordem   posição entre irmãos (menor aparece primeiro). Use passos de 10 para poder inserir itens depois.
+// A árvore tem até 4 níveis:
+//   categoria (nível 1)  →  agrupador (nível 2)  →  agrupador (nível 3)  →  tela (folha)
+// Uma categoria pode ser opção única (ex.: Início): tem `module` direto, sem filhos.
+//
+// Campos de cada nó:
+//   ordem   posição entre irmãos (menor aparece primeiro; use passos de 10 para poder inserir itens depois)
 //   label   texto exibido
-//   icon    (categoria) ícone Lucide
-//   module  módulo/tela aberta (nome usado em renderContent(); a rota do sistema)
-//   access  quem vê o item: byRole(...), exceptRoles(...), byPermission(action, setor) ou anyOf(...).
-//           Sem `access`, todos os perfis veem.
-//   soon    true = ainda não existe tela: aparece desabilitado com o selo "Em breve", só para administradores
+//   icon    (categoria) ícone Lucide; as telas usam MODULE_ICONS
+//   module  módulo/tela que o item abre (nome usado em renderContent())
+//   access  quem vê a tela: byRole(...), exceptRoles(...), byPermission(action, setor) ou anyOf(...)
+//           (sem `access`, todos os perfis veem). Agrupadores não têm `access`: aparecem quando
+//           há pelo menos uma tela acessível dentro deles.
+//   soon    true = ainda não existe tela: aparece desabilitado com "Em breve", só para administradores
 //   before  (opcional) prepara o estado antes de abrir a tela
 //   active  (opcional) quando o módulo tem abas, diz se este item é o ativo
-//   badge   'alertas' mostra o contador de notificações não lidas
-// Categoria sem nenhum item liberado para o usuário não aparece.
+// Categoria ou agrupador sem nenhuma tela liberada para o usuário não aparece.
 
-const ROLES_AREA_PACIENTES = ['ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM'];
-const ROLES_ESTOQUE_OPME = ['ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME'];
+const ROLES_PEDIDOS = ['ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_OPME']; // quem aprova/separa transferências
 
 // Ícone (Lucide) de cada tela no menu. Um item pode sobrescrever com o campo `icon`.
 const MODULE_ICONS = {
@@ -28,145 +31,185 @@ const MODULE_ICONS = {
     PORTARIA_PAINEL: 'eye', PORTARIA_CONFIG: 'settings', MEMBERS: 'users', BACKUP: 'hard-drive'
 };
 
+// Atalhos para escrever a árvore
+const item = (ordem, label, module, extra = {}) => ({ ordem, label, module, ...extra });
+const soon = (ordem, label) => ({ ordem, label, soon: true });
+const group = (ordem, label, children) => ({ ordem, label, children });
+
+// Abas da tela de histórico (Movimentações › Transferência e Histórico)
 const historyTab = (tab) => ({
     before: () => { state.historyTab = tab; },
     active: () => state.activeModule === 'HISTORY' && (tab === 'TRANSFERS' ? state.historyTab === 'TRANSFERS' : state.historyTab !== 'TRANSFERS')
 });
 
 const MENU_TREE = [
+    // 1. INÍCIO (opção única)
+    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
+
+    // 2. CADASTRO
     {
-        id: 'inicio', ordem: 10, label: 'Início', icon: 'home',
+        id: 'cadastro', ordem: 20, label: 'Cadastro', icon: 'plus-circle',
         children: [
-            { ordem: 10, label: 'Dashboard', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
-            { ordem: 20, label: 'Painel de Alertas', module: 'NOTIFICATIONS', access: byPermission('view_notifications'), badge: 'alertas' }
+            group(10, 'Principal', [
+                item(10, 'Paciente', 'ENFERMAGEM', { access: byPermission('register_patient') }),
+                soon(20, 'Fornecedor'),
+                soon(30, 'Funcionário'),
+                soon(40, 'Municípios')
+            ]),
+            group(20, 'Estoque', [
+                item(10, 'Produto', 'REGISTER', { access: byPermission('register', 'OPME') }),
+                soon(20, 'Classe'),
+                soon(30, 'Grupo'),
+                soon(40, 'Sub-Grupo'),
+                soon(50, 'Fabricante'),
+                soon(60, 'Unidade'),
+                soon(70, 'Etiqueta')
+            ]),
+            group(30, 'Financeiro', [
+                soon(10, 'Centro de Custo'),
+                soon(20, 'Plano de Contas'),
+                soon(30, 'Sub-Plano de Contas'),
+                soon(40, 'Contas'),
+                soon(50, 'Metas')
+            ]),
+            group(40, 'Usuário', [
+                item(10, 'Cadastros de Usuários', 'MEMBERS', { access: byRole('ADMIN', 'CHEFE_OPME') })
+            ])
         ]
     },
-    {
-        id: 'estoque', ordem: 20, label: 'Estoque', icon: 'boxes',
-        children: [
-            { ordem: 10, label: 'OPME', module: 'OPME', access: byRole(...ROLES_ESTOQUE_OPME) },
-            { ordem: 20, label: 'Hemodinâmica', module: 'HEMODINAMICA', access: byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA') },
-            { ordem: 30, label: 'Centro Cirúrgico', module: 'CENTRO_CIRURGICO', access: byRole('ADMIN', 'CHEFE_OPME', 'FUNC_CENTRO_CIRURGICO') },
-            { ordem: 40, label: 'Produtos', module: 'REGISTER', access: byPermission('register', 'OPME') },
-            { ordem: 50, label: 'Lotes', soon: true },
-            { ordem: 60, label: 'Validades', soon: true },
-            { ordem: 70, label: 'Inventário', soon: true },
-            { ordem: 80, label: 'Ajustes', module: 'CORRECAO', access: byRole('ADMIN', 'CHEFE_OPME') }
-        ]
-    },
+
+    // 3. MOVIMENTAÇÕES
     {
         id: 'movimentacoes', ordem: 30, label: 'Movimentações', icon: 'arrow-left-right',
         children: [
-            { ordem: 10, label: 'Entrada', module: 'ADD_EXISTING', access: anyOf(byPermission('update_stock', 'OPME'), byPermission('update_stock', 'HEMODINAMICA')) },
-            { ordem: 20, label: 'Saída', soon: true },
-            { ordem: 30, label: 'Transferências', module: 'HISTORY', access: exceptRoles('FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA'), ...historyTab('TRANSFERS') },
-            { ordem: 40, label: 'Devoluções', soon: true },
-            { ordem: 50, label: 'Baixas', soon: true },
-            { ordem: 60, label: 'Histórico', module: 'HISTORY', access: byPermission('view_history'), ...historyTab('ENTRIES') }
+            soon(10, 'Saídas'),
+            item(20, 'Transferência', 'HISTORY', { access: exceptRoles('FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA'), ...historyTab('TRANSFERS') }),
+            soon(30, 'Devolução'),
+            soon(40, 'Perdas'),
+            soon(50, 'Baixas'),
+            item(60, 'Histórico', 'HISTORY', { access: byPermission('view_history'), ...historyTab('ENTRIES') }),
+            group(70, 'Solicitações', [
+                item(10, 'Solicitar Material', 'REQUEST', { access: byPermission('transfer') }),
+                item(20, 'Separação', 'TRANSFER_CONFIRMATION', { access: byRole(...ROLES_PEDIDOS) }),
+                soon(30, 'Entregas'),
+                item(40, 'Recebimentos', 'MY_REQUESTS', { access: byPermission('transfer') })
+            ])
         ]
     },
+
+    // 4. COMPRAS
     {
-        id: 'solicitacoes', ordem: 40, label: 'Solicitações', icon: 'clipboard-list',
+        id: 'compras', ordem: 40, label: 'Compras', icon: 'shopping-cart',
         children: [
-            { ordem: 10, label: 'Solicitar Material', module: 'REQUEST', access: byPermission('transfer') },
-            { ordem: 20, label: 'Aprovações', module: 'TRANSFER_CONFIRMATION', access: byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_OPME') },
-            { ordem: 30, label: 'Separação', soon: true },
-            { ordem: 40, label: 'Entregas', soon: true },
-            { ordem: 50, label: 'Recebimentos', module: 'MY_REQUESTS', access: byPermission('transfer') }
+            soon(10, 'Solicitação de Compra'),
+            soon(20, 'Cotações'),
+            soon(30, 'Pedidos'),
+            soon(40, 'Recebimentos')
         ]
     },
+
+    // 5. CONSIGNADO
     {
-        id: 'compras', ordem: 50, label: 'Compras', icon: 'shopping-cart',
+        id: 'consignado', ordem: 50, label: 'Consignado', icon: 'handshake',
         children: [
-            { ordem: 10, label: 'Solicitações de Compra', soon: true },
-            { ordem: 20, label: 'Cotações', soon: true },
-            { ordem: 30, label: 'Pedidos', soon: true },
-            { ordem: 40, label: 'Recebimentos', soon: true }
+            soon(10, 'Fornecedor'),
+            soon(20, 'Estoque Consignado'),
+            soon(30, 'Utilizações'),
+            soon(40, 'Devoluções'),
+            soon(50, 'Conferências')
         ]
     },
+
+    // 6. PROCEDIMENTOS
     {
-        id: 'consignados', ordem: 60, label: 'Consignados', icon: 'handshake',
+        id: 'procedimentos', ordem: 60, label: 'Procedimentos', icon: 'stethoscope',
         children: [
-            { ordem: 10, label: 'Fornecedores', soon: true },
-            { ordem: 20, label: 'Estoque Consignado', soon: true },
-            { ordem: 30, label: 'Utilizações', soon: true },
-            { ordem: 40, label: 'Devoluções', soon: true },
-            { ordem: 50, label: 'Conferências', soon: true }
+            item(10, 'Agenda', 'PROCEDIMENTOS', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM'), before: () => { state.selectedProcedimentoPatient = null; } }),
+            soon(20, 'Mapa Cirúrgico'),
+            item(30, 'Hemodinâmica', 'MAPA', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
+            item(40, 'Salas', 'SALAS', { access: byRole('ADMIN', 'FUNC_CENTRO_CIRURGICO'), before: () => { state.activeSala = null; } }),
+            item(50, 'Cancelamentos', 'PROCEDIMENTOS_NAO_REALIZADOS', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
+            item(60, 'Histórico', 'HISTORICO_SALAS', { access: byRole('ADMIN', 'FUNC_CENTRO_CIRURGICO') })
         ]
     },
+
+    // 7. LAUDOS
     {
-        id: 'pacientes', ordem: 70, label: 'Pacientes', icon: 'users',
+        id: 'laudos', ordem: 70, label: 'Laudos', icon: 'file-text',
         children: [
-            { ordem: 10, label: 'Cadastro', module: 'ENFERMAGEM', access: byPermission('register_patient') },
-            { ordem: 20, label: 'Registrados', module: 'PACIENTES_REGISTRADOS', access: byPermission('view_patients') },
-            { ordem: 30, label: 'Status', module: 'STATUS_PACIENTES', access: byRole(...ROLES_AREA_PACIENTES) },
-            { ordem: 40, label: 'Altas', module: 'DISCHARGE', access: byPermission('register_patient') },
-            { ordem: 50, label: 'Histórico', module: 'HISTORICO_ALTAS', access: byRole(...ROLES_AREA_PACIENTES) }
-        ]
-    },
-    {
-        id: 'procedimentos', ordem: 80, label: 'Procedimentos', icon: 'stethoscope',
-        children: [
-            { ordem: 10, label: 'Agendamento', module: 'PROCEDIMENTOS', access: byRole(...ROLES_AREA_PACIENTES), before: () => { state.selectedProcedimentoPatient = null; } },
-            { ordem: 20, label: 'Mapa Cirúrgico', soon: true },
-            { ordem: 30, label: 'Hemodinâmica', module: 'MAPA', access: byRole(...ROLES_AREA_PACIENTES) },
-            { ordem: 40, label: 'Salas', module: 'SALAS', access: byRole('ADMIN', 'FUNC_CENTRO_CIRURGICO'), before: () => { state.activeSala = null; } },
-            { ordem: 50, label: 'Cancelamentos', module: 'PROCEDIMENTOS_NAO_REALIZADOS', access: byRole(...ROLES_AREA_PACIENTES) },
-            { ordem: 60, label: 'Histórico', module: 'HISTORICO_SALAS', access: byRole('ADMIN', 'FUNC_CENTRO_CIRURGICO') }
-        ]
-    },
-    {
-        id: 'laudos', ordem: 90, label: 'Laudos', icon: 'file-text',
-        children: [
-            {
-                ordem: 10, label: 'Criar Laudo', module: 'LAUDO',
+            item(10, 'Criar Laudo', 'LAUDO', {
                 access: anyOf(byPermission('create_laudo', 'OPME'), byPermission('create_laudo', 'HEMODINAMICA'), byPermission('create_laudo', 'CENTRO_CIRURGICO')),
                 before: () => { state.laudoSetor = null; state.laudoOPMEItems = []; }
-            },
-            { ordem: 20, label: 'Histórico', module: 'HISTORICO_LAUDOS', access: byPermission('view_laudos') },
-            { ordem: 30, label: 'Materiais Utilizados', soon: true }
+            }),
+            item(20, 'Histórico', 'HISTORICO_LAUDOS', { access: byPermission('view_laudos') })
         ]
     },
+
+    // 8. PORTARIA
     {
-        id: 'portaria', ordem: 100, label: 'Portaria', icon: 'door-open',
+        id: 'portaria', ordem: 80, label: 'Portaria', icon: 'door-open',
         children: [
-            { ordem: 10, label: 'Controle de Acesso', module: 'PORTARIA_PAINEL', access: byRole('ADMIN', 'FUNC_PORTARIA') },
-            { ordem: 20, label: 'Visitantes', soon: true },
-            { ordem: 30, label: 'Acompanhantes', soon: true },
-            { ordem: 40, label: 'Histórico', soon: true }
+            item(10, 'Controle de Acesso', 'PORTARIA_PAINEL', { access: byRole('ADMIN', 'FUNC_PORTARIA') }),
+            soon(20, 'Visitantes'),
+            soon(30, 'Acompanhantes'),
+            soon(40, 'Histórico')
         ]
     },
+
+    // 9. RELATÓRIOS
     {
-        id: 'fornecedores', ordem: 110, label: 'Fornecedores', icon: 'truck',
+        id: 'relatorios', ordem: 90, label: 'Relatórios', icon: 'bar-chart-3',
         children: [
-            { ordem: 10, label: 'Cadastro', soon: true },
-            { ordem: 20, label: 'Contratos', soon: true },
-            { ordem: 30, label: 'Produtos', soon: true },
-            { ordem: 40, label: 'Histórico', soon: true }
+            soon(10, 'Estoque'),
+            soon(20, 'OPME'),
+            soon(30, 'Consumo'),
+            soon(40, 'Compras'),
+            soon(50, 'Procedimentos'),
+            soon(60, 'Perdas'),
+            soon(70, 'Auditoria')
         ]
     },
+
+    // 10. SISTEMA
     {
-        id: 'relatorios', ordem: 120, label: 'Relatórios', icon: 'bar-chart-3',
+        id: 'sistema', ordem: 100, label: 'Sistema', icon: 'settings',
         children: [
-            { ordem: 10, label: 'Estoque', soon: true },
-            { ordem: 20, label: 'OPME', soon: true },
-            { ordem: 30, label: 'Consumo', soon: true },
-            { ordem: 40, label: 'Compras', soon: true },
-            { ordem: 50, label: 'Procedimentos', soon: true },
-            { ordem: 60, label: 'Perdas', soon: true },
-            { ordem: 70, label: 'Auditoria', soon: true }
-        ]
-    },
-    {
-        id: 'administracao', ordem: 130, label: 'Administração', icon: 'settings',
-        children: [
-            { ordem: 10, label: 'Usuários', module: 'MEMBERS', access: byRole('ADMIN', 'CHEFE_OPME') },
-            { ordem: 20, label: 'Perfis', soon: true },
-            { ordem: 30, label: 'Permissões', soon: true },
-            { ordem: 40, label: 'Setores', soon: true },
-            { ordem: 50, label: 'Configurações', module: 'PORTARIA_CONFIG', access: byRole('ADMIN', 'CHEFE_PORTARIA') },
-            { ordem: 60, label: 'Backup', module: 'BACKUP', access: byRole('ADMIN', 'CHEFE_OPME') },
-            { ordem: 70, label: 'Logs', soon: true }
+            group(10, 'Configuração', [
+                group(10, 'Empresa', [soon(10, 'Dados')]),
+                group(20, 'Financeiro', [soon(10, 'Contas a Pagar / Receber')]),
+                group(30, 'Cadastro', [soon(10, 'Permissões de Usuário'), soon(20, 'Setores')]),
+                group(40, 'Dashboard', [soon(10, 'Configuração')])
+            ]),
+            group(20, 'Outras opções', [
+                item(10, 'Backup', 'BACKUP', { access: byRole('ADMIN', 'CHEFE_OPME') })
+            ]),
+
+            // Telas que já existem no sistema e não têm lugar na estrutura acima. Ficam aqui para continuarem
+            // acessíveis (cada perfil só vê as suas) até serem encaixadas na estrutura definitiva.
+            group(90, 'Telas atuais', [
+                group(10, 'Estoque', [
+                    item(10, 'OPME', 'OPME', { access: byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME') }),
+                    item(20, 'Hemodinâmica', 'HEMODINAMICA', { access: byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA') }),
+                    item(30, 'Centro Cirúrgico', 'CENTRO_CIRURGICO', { access: byRole('ADMIN', 'CHEFE_OPME', 'FUNC_CENTRO_CIRURGICO') }),
+                    item(40, 'Adicionar Estoque', 'ADD_EXISTING', { access: anyOf(byPermission('update_stock', 'OPME'), byPermission('update_stock', 'HEMODINAMICA')) }),
+                    item(50, 'Correção OPME', 'CORRECAO', { access: byRole('CHEFE_OPME') })
+                ]),
+                group(20, 'Pacientes', [
+                    item(10, 'Registrados', 'PACIENTES_REGISTRADOS', { access: byPermission('view_patients') }),
+                    item(20, 'Status', 'STATUS_PACIENTES', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
+                    item(30, 'Dar Alta', 'DISCHARGE', { access: byPermission('register_patient') }),
+                    item(40, 'Histórico de Altas', 'HISTORICO_ALTAS', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') })
+                ]),
+                group(30, 'Portaria', [
+                    item(10, 'Configurações da Portaria', 'PORTARIA_CONFIG', { access: byRole('ADMIN', 'CHEFE_PORTARIA') })
+                ])
+            ])
         ]
     }
 ];
+
+// Telas que são abertas por dentro de outra (sem item no menu): herdam o acesso da tela de origem.
+const MODULE_ACCESS_ALIASES = {
+    APPROVE_TRANSFER: 'TRANSFER_CONFIRMATION',
+    RECEIVE_TRANSFER: 'MY_REQUESTS'
+};

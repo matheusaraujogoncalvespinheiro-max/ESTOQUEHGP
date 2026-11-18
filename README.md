@@ -48,9 +48,9 @@ assets/
     data/                  Configurações editáveis
       app-info.js          Nome, hospital, versão e logo
       support.js           Contatos e horários da janela de Suporte
-      menu.js              Árvore do menu lateral (só dados: ordem, categorias, telas, acesso)
+      menu.js              Árvore do menu lateral, até 4 níveis (só dados: ordem, categorias, agrupadores, telas, acesso)
     shell/                 Estrutura da página autenticada
-      menu.js              Motor do menu: ordena por `ordem`, filtra por acesso, registra as telas
+      menu.js              Motor do menu: ordena por `ordem`, filtra por acesso, registra as telas e valida o acesso por módulo (`canOpenModule`)
       layout.js            Menu lateral, cabeçalho, faixa de título
       sidebar.js           Abrir/fechar menu e acordeão
       search.js            Pesquisa de telas do cabeçalho
@@ -84,6 +84,24 @@ Atalhos: `Alt+M` menu, `Alt+I` início, `Alt+U` menu do usuário, `Esc` fecha.
 
 Para trocar os contatos do Suporte, edite só `assets/js/data/support.js`
 (os números e e-mail atuais são fictícios).
+
+## Padrão do banco de dados (Firestore)
+
+Toda tela segue o mesmo caminho, definido em `assets/js/services/firebase.js`:
+
+1. **Leitura:** cada coleção tem um `db_sync*()` que hidrata `MOCK_DATA.*` e um listener em tempo real em
+   `db_setupSubscriptions()`; a tela só lê `MOCK_DATA`.
+2. **Escrita:** a tela altera o dado em memória, chama `saveToLocalStorage()` e grava com `db_save*()` /
+   `db_delete*()`. Nunca acessa `db.collection(...)` direto nas telas.
+3. **Convenções:** campos em `snake_case`; id do documento = chave natural (ex.: `cartao_sus`,
+   `barcode_setor`) ou `String(id)`; `set(..., { merge: true })`; funções com `if (!db) return` e `try/catch`.
+
+Coleções: `patients`, `products`, `product_batches`, `laudos`, `mapa_schedule`, `notifications`, `app_users`,
+`material_requests`, `procedimentos_nao_realizados`, `procedimentos_agendados`, `salas`, `salas_history`,
+`stock_transfer_history`, `product_entry_history`, `portaria_visits`, `portaria_config`.
+
+Para uma tela nova que grava dados: crie a coleção com `db_sync<Nome>` + `db_save<Nome>`, registre o listener em
+`db_setupSubscriptions()` e o sync em `db_syncAll()`.
 
 ## Perfis
 

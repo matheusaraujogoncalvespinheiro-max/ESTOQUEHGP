@@ -15,40 +15,88 @@ function homeModule(role) {
 
 const byOrdem = (a, b) => (a.ordem ?? 0) - (b.ordem ?? 0);
 
-/** Monta o menu do usuário logado: [{ id, label, icon, children: [folha | { soon: true, label }] }] */
+/** Percorre a árvore inteira (para achar telas e regras de acesso por módulo). */
+function walkMenuTree(nodes, fn, trail = []) {
+    nodes.forEach(node => {
+        fn(node, trail);
+        if (node.children) walkMenuTree(node.children, fn, [...trail, node.label]);
+    });
+}
+
+/**
+ * O usuário logado pode abrir este módulo? Vale para qualquer tela com item no menu (basta uma folha liberada)
+ * e para as telas abertas por dentro de outra (MODULE_ACCESS_ALIASES). Módulos fora do menu e dos aliases
+ * (ex.: Notificações, aberto pelo menu do usuário) seguem as regras próprias de cada tela.
+ */
+function canOpenModule(module) {
+    if (!state.currentUser) return false;
+    const target = MODULE_ACCESS_ALIASES[module] || module;
+    if (target === 'NOTIFICATIONS') return hasPermission('view_notifications');
+
+    let found = false;
+    let allowed = false;
+    walkMenuTree(MENU_TREE, node => {
+        if (node.module !== target || node.soon) return;
+        found = true;
+        if (!node.access || node.access()) allowed = true;
+    });
+    return found ? allowed : true;
+}
+
+/** Monta o menu do usuário logado: [{ id, label, icon, leaf? , children? }] com agrupadores aninhados. */
 function buildMenu() {
     const isAdmin = state.currentUser.role === 'ADMIN';
     const unread = getUnreadNotificationsCount();
     leafRegistry = [];
 
-    const sections = [];
-    [...MENU_TREE].sort(byOrdem).forEach(section => {
-        const children = [];
-        [...section.children].sort(byOrdem).forEach(node => {
-            // Sem tela ainda: só administradores veem, desabilitado
+    // Cria a folha navegável de uma tela e a registra (menu, pesquisa de telas e breadcrumb)
+    const makeLeaf = (node, trail) => {
+        const leaf = {
+            label: node.label,
+            module: node.module,
+            icon: node.icon || MODULE_ICONS[node.module] || 'circle',
+            badge: node.badge === 'alertas' ? unread : 0,
+            run: () => {
+                if (node.before) node.before();
+                navigateTo(node.module);
+            },
+            active: node.active || (() => state.activeModule === node.module),
+            trail
+        };
+        leaf.id = leafRegistry.length;
+        leafRegistry.push(leaf);
+        return leaf;
+    };
+
+    // Filhos visíveis de um nível: telas liberadas, "em breve" (só admin) e agrupadores com algo dentro
+    const visibleChildren = (nodes, trail) => {
+        const out = [];
+        [...nodes].sort(byOrdem).forEach(node => {
             if (node.soon) {
-                if (isAdmin) children.push({ soon: true, label: node.label });
+                if (isAdmin) out.push({ soon: true, label: node.label });
+                return;
+            }
+            if (node.children) {
+                const kids = visibleChildren(node.children, [...trail, node.label]);
+                if (kids.length) out.push({ label: node.label, children: kids });
                 return;
             }
             if (node.access && !node.access()) return;
-
-            const leaf = {
-                label: node.label,
-                module: node.module,
-                icon: node.icon || MODULE_ICONS[node.module] || 'circle',
-                badge: node.badge === 'alertas' ? unread : 0,
-                run: () => {
-                    if (node.before) node.before();
-                    navigateTo(node.module);
-                },
-                active: node.active || (() => state.activeModule === node.module),
-                trail: [section.label]
-            };
-            leaf.id = leafRegistry.length;
-            leafRegistry.push(leaf);
-            children.push(leaf);
+            out.push(makeLeaf(node, trail));
         });
+        return out;
+    };
 
+    const sections = [];
+    [...MENU_TREE].sort(byOrdem).forEach(section => {
+        // Opção única (sem submenu), como o Início
+        if (section.module) {
+            if (!section.access || section.access()) {
+                sections.push({ id: section.id, label: section.label, icon: section.icon, leaf: makeLeaf(section, []) });
+            }
+            return;
+        }
+        const children = visibleChildren(section.children, [section.label]);
         // Categoria sem nenhuma tela liberada (nem "em breve") não aparece
         if (children.length) sections.push({ id: section.id, label: section.label, icon: section.icon, children });
     });

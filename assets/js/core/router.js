@@ -1,6 +1,16 @@
 // Renderização principal e navegação entre módulos
 
+/** Tela exibida quando o perfil não tem acesso ao módulo (a verificação não depende só do menu). */
+function renderAccessDenied() {
+    return `<div class="p-8 text-center text-red-600 font-bold text-xl">Acesso Negado</div>`;
+}
+
 function renderContent() {
+    // Valida o acesso na entrada da tela, também quando ela é aberta por atalho, botão ou código
+    if (typeof canOpenModule === 'function' && !canOpenModule(state.activeModule)) {
+        return renderAccessDenied();
+    }
+
     switch (state.activeModule) {
         case 'DASHBOARD':
             return renderDashboard();

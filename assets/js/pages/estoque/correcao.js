@@ -3,17 +3,18 @@
 // Correção de estoque OPME
 
 function renderCorrecao() {
-    if (state.currentUser.role !== 'CHEFE_OPME') {
+    if (!canUseCorrecao()) {
         return `<div class="p-8 text-center text-red-600 font-bold text-xl">Acesso Negado</div>`;
     }
 
-    const data = MOCK_DATA.ESTOQUE_OPME || [];
+    const data = getCorrecaoRows();
     let filteredData = data;
     if (state.correcaoSearch) {
         const term = state.correcaoSearch.toLowerCase();
         filteredData = data.filter(item => 
             (item.material && item.material.toLowerCase().includes(term)) ||
-            (item.codigo && String(item.codigo).toLowerCase().includes(term))
+            (item.codigo && String(item.codigo).toLowerCase().includes(term)) ||
+            (item.lote && String(item.lote).toLowerCase().includes(term))
         );
     }
 
@@ -46,12 +47,12 @@ function renderCorrecao() {
                     <tbody class="divide-y divide-slate-100">
                         ${filteredData.map(item => `
                         <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4 font-mono text-xs text-slate-500">${item.codigo || '-'}</td>
-                            <td class="px-6 py-4 font-bold text-slate-800">${item.material}</td>
-                            <td class="px-6 py-4 text-slate-600 text-sm">${item.lote || '-'}</td>
-                            <td class="px-6 py-4 text-slate-600 text-sm">${item.validade ? new Date(item.validade).toLocaleDateString('pt-BR') : '-'}</td>
+                            <td class="px-6 py-4 font-mono text-xs text-slate-500">${escapeHtml(item.codigo || '-')}</td>
+                            <td class="px-6 py-4 font-bold text-slate-800">${escapeHtml(item.material)}</td>
+                            <td class="px-6 py-4 text-slate-600 text-sm">${escapeHtml(item.lote || '-')}</td>
+                            <td class="px-6 py-4 text-slate-600 text-sm">${formatValidadeBR(item.validade)}</td>
                             <td class="px-6 py-4 text-right">
-                                <button onclick="promptDeleteCorrecao(${item.id})" class="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg text-xs transition-colors ml-auto border border-red-200">
+                                <button onclick="promptDeleteCorrecao(${escapeHtml(JSON.stringify(item.productId))}, ${escapeHtml(JSON.stringify(item.batchId))})" class="flex items-center gap-2 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg text-xs transition-colors ml-auto border border-red-200">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i> Excluir
                                 </button>
                             </td>
@@ -89,33 +90,71 @@ function renderCorrecao() {
     `;
 }
 
-function promptDeleteCorrecao(id) {
-    state.itemToDeleteCorrecao = id;
+/** Quem pode usar a tela: só o Chefe OPME (mesmo critério do menu). */
+function canUseCorrecao() {
+    return state.currentUser.role === 'CHEFE_OPME';
+}
+
+/** Validade para exibição (datas ausentes ou "N/A" viram "-"). */
+function formatValidadeBR(validade) {
+    if (!validade || validade === 'N/A') return '-';
+    const d = new Date(validade);
+    return Number.isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR');
+}
+
+/** Uma linha por lote do estoque OPME (a fonte é MOCK_DATA.OPME, mantida pelo db_syncProducts). */
+function getCorrecaoRows() {
+    const rows = [];
+    (MOCK_DATA.OPME || []).forEach(produto => {
+        (produto.lotes || []).forEach(lote => {
+            rows.push({
+                productId: produto.id,
+                batchId: lote.id,
+                codigo: produto.barcode,
+                material: produto.material,
+                lote: lote.lote,
+                validade: lote.validade
+            });
+        });
+    });
+    return rows;
+}
+
+function promptDeleteCorrecao(productId, batchId) {
+    state.itemToDeleteCorrecao = { productId, batchId };
     render();
 }
 
 function handleDeleteCorrecao(e) {
     e.preventDefault();
+    if (!canUseCorrecao()) {
+        showMsg("Acesso negado.", "error");
+        return;
+    }
+
     const password = e.target.password.value;
     const username = state.currentUser.username;
-    
-    // Check password
-    if (USERS_DB[username] && USERS_DB[username].password === password) {
-        const idToDelete = state.itemToDeleteCorrecao;
-        const index = MOCK_DATA.ESTOQUE_OPME.findIndex(item => item.id === idToDelete);
-        
-        if (index > -1) {
-            MOCK_DATA.ESTOQUE_OPME.splice(index, 1);
-            saveToLocalStorage();
-            if (typeof db_saveEstoque === 'function') db_saveEstoque('OPME', MOCK_DATA.ESTOQUE_OPME);
-            
-            showMsg("Item apagado com sucesso do estoque OPME!", "success");
-            state.itemToDeleteCorrecao = null;
-            render();
-        } else {
-            showMsg("Item não encontrado no estoque OPME.", "error");
-        }
-    } else {
+
+    // Confere a senha do usuário logado
+    if (!(USERS_DB[username] && USERS_DB[username].password === password)) {
         showMsg("Senha incorreta. Acesso negado.", "error");
+        return;
+    }
+
+    const target = state.itemToDeleteCorrecao;
+    const produto = target && (MOCK_DATA.OPME || []).find(p => String(p.id) === String(target.productId));
+    const lote = produto && produto.lotes.find(l => String(l.id) === String(target.batchId));
+    if (!lote) {
+        showMsg("Item não encontrado no estoque OPME.", "error");
+        return;
+    }
+
+    // removeFromBatch remove o lote (e o produto, se for o último) no estoque local e no Firebase
+    if (removeFromBatch('OPME', produto.id, lote.id, Math.max(lote.quantidade, 0))) {
+        showMsg("Item apagado com sucesso do estoque OPME!", "success");
+        state.itemToDeleteCorrecao = null;
+        render();
+    } else {
+        showMsg("Não foi possível apagar o item.", "error");
     }
 }

@@ -254,3 +254,25 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
     }
     return { success: true, produto: produto, lote: lote, quantidadeRemovida: quantidade };
 }
+
+/**
+ * Remove um lote inteiro do estoque (ação de administrador/chefe): apaga o lote no Firebase e, se era o último,
+ * o produto também. Reaproveita removeFromBatch para manter a mesma regra de sincronização.
+ */
+function deleteSpecificBatch(setor, productId, batchId, loteCode = '') {
+    const produto = (MOCK_DATA[setor] || []).find(p => String(p.id) === String(productId));
+    const lote = produto && produto.lotes.find(l => String(l.id) === String(batchId));
+    if (!lote) {
+        showMsg('Lote não encontrado.', 'error');
+        return false;
+    }
+
+    if (!confirm(`Remover o lote "${loteCode || lote.lote}" permanentemente? Esta ação não pode ser desfeita.`)) return false;
+
+    const removed = removeFromBatch(setor, produto.id, lote.id, Math.max(lote.quantidade, 0));
+    if (removed) {
+        showMsg('Lote removido do estoque.');
+        render();
+    }
+    return removed;
+}

@@ -221,9 +221,20 @@
 }
 
 .shell-root .wm-sub--grupo > ul {
-    margin-left: 10px;
-    padding-left: 8px;
+    margin-left: 6px;
+    padding-left: 6px;
 }
+
+/* Níveis mais fundos (Sistema › Configuração › Empresa › Dados): menos recuo para o texto não apertar */
+.shell-root .wm-sub--grupo .wm-sub--grupo > ul {
+    margin-left: 4px;
+    padding-left: 6px;
+}
+
+.shell-root .wm-sub--grupo .wm-sub--grupo .wm-link {
+    padding-right: 8px;
+}
+
 
 .shell-root .wm-secao.is-open > .wm-sub > ul,
 .shell-root .wm-grupo.is-open > .wm-sub > ul {
@@ -715,9 +726,15 @@
     }
 }
 
-/* ---------- Itens do menu sem tela ainda ("Em breve", só administradores) ---------- */
+/* ---------- Itens do menu sem tela ainda ("Em breve", só administradores) ----------
+   Ícone + nome + selo. O nome ocupa o que precisa (sem encolher até sobrepor o selo); se não couber na
+   mesma linha, o selo desce para a linha de baixo, alinhado à direita. */
 
 .shell-root .wm-link--soon {
+    flex-wrap: wrap;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 6px 8px 6px 10px;
     cursor: default;
     opacity: 0.55;
 }
@@ -727,14 +744,22 @@
     color: var(--sh-muted);
 }
 
+.shell-root .wm-link--soon > span {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .shell-root .wm-soon {
     flex: none;
-    padding: 1px 8px;
+    margin-left: auto;
+    padding: 0 6px;
     border: 1px solid var(--sh-line);
     border-radius: 999px;
-    font-size: 10.5px;
+    font-size: 9px;
     font-style: normal;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
+    line-height: 16px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
