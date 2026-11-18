@@ -2,7 +2,7 @@
 
 function renderProcedimentosNaoRealizados() {
     return `
-    <div class="space-y-8 max-w-6xl mx-auto">
+    <div class="space-y-8">
         <!-- Título e Feedback -->
         <div class="flex flex-col gap-2">
             <h2 class="text-3xl font-black text-slate-900 tracking-tight">Procedimentos Não Realizados</h2>

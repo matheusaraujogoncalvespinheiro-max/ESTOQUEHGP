@@ -85,7 +85,7 @@ function renderTransferConfirmation() {
     const pendingRequests = (MOCK_DATA.REQUESTS || []).filter(r => r.toSetor === mySetor && r.status === 'PENDING_RECEIPT').sort((a, b) => new Date(a.date) - new Date(b.date));
 
     return `
-    <div class="max-w-6xl mx-auto space-y-6" >
+    <div class=" space-y-6" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex items-center gap-3 mb-6">
                 <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-xl flex items-center justify-center">

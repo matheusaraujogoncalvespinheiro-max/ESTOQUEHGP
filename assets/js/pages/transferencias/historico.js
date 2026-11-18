@@ -5,7 +5,7 @@ function renderHistory() {
 
     if (role === 'FUNC_ENFERMAGEM') {
         return `
-    <div class="max-w-3xl mx-auto" >
+    <div class="" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
             <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
             <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
@@ -22,7 +22,7 @@ function renderHistory() {
         : renderEntryHistoryTable();
 
     return `
-    <div class="max-w-7xl mx-auto space-y-6" >
+    <div class=" space-y-6" >
         <div class="flex gap-2 sm:gap-4 overflow-x-auto border-b border-slate-200">
             <button onclick="state.historyTab='TRANSFERS'; render()" class="px-4 sm:px-6 py-3 font-bold text-sm whitespace-nowrap transition-all border-b-2 ${state.historyTab === 'TRANSFERS' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}">
                 Transferências / Saídas

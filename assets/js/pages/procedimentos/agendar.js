@@ -62,7 +62,7 @@ function renderProcedimentosForm() {
     const agendados = MOCK_DATA.PROCEDIMENTOS_AGENDADOS;
 
     return `
-    <div class="space-y-8 max-w-5xl mx-auto">
+    <div class="space-y-8">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Agendar Novo Procedimento</h2>
 

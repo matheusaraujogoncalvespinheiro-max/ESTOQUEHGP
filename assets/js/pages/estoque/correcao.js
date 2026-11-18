@@ -19,7 +19,7 @@ function renderCorrecao() {
     }
 
     return `
-    <div class="max-w-6xl mx-auto space-y-6">
+    <div class=" space-y-6">
         <div class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
             <div>
                 <h2 class="text-xl font-black text-slate-800 tracking-tight flex items-center gap-2"><i data-lucide="shield-alert" class="w-6 h-6 text-red-600"></i> Correção de Estoque OPME</h2>

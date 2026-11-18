@@ -1,6 +1,6 @@
 /* Telas de CONSULTA e CADASTRO do menu Cadastro (pages/cadastros/engine.js). Reaproveita os componentes .at-* e os tokens do tema. */
 
-.cd-page { max-width: 1280px; margin: 0 auto; width: 100%; }
+.cd-page { width: 100%; }
 
 .cd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 18px 22px; border-radius: 20px; border: 1px solid var(--sh-line); background: var(--sh-surface); }
 .cd-head__ico { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--tone-soft); color: var(--tone); flex: none; }

@@ -74,7 +74,7 @@ function renderApproveTransferScreen() {
     }).join('');
 
     return `
-    <div class="max-w-4xl mx-auto space-y-6">
+    <div class=" space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-slate-900">Separar Pedido #${transfer.id} (Envio para ${transfer.toSetor})</h2>

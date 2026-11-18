@@ -230,7 +230,7 @@ function renderRequestForm() {
     const cart = state.transferCart || [];
     
     return `
-    <div class="max-w-4xl mx-auto space-y-6">
+    <div class=" space-y-6">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Nova Solicitação de Transferência</h2>
             

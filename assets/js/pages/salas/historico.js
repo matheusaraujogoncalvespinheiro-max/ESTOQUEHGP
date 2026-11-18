@@ -14,7 +14,7 @@ function renderHistoricoSalas() {
     const paginatedItems = historico.slice(startIndex, startIndex + itemsPerPage);
 
     return `
-    <div class="max-w-6xl mx-auto space-y-6">
+    <div class=" space-y-6">
         <div class="flex flex-col md:flex-row items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
             <div>
                 <h2 class="text-xl font-bold text-slate-800">Histórico de Salas</h2>

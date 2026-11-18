@@ -485,7 +485,7 @@ function renderLaudoForm() {
     // Se não tiver setor definido, mostrar seleção
     if (!setor) {
         return `
-    <div class="max-w-3xl mx-auto" >
+    <div class="" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Criar Novo Laudo</h2>
             <p class="text-slate-600 mb-6">Selecione o setor para o qual deseja criar o laudo:</p>
@@ -521,7 +521,7 @@ function renderLaudoForm() {
     }
 
     return `
-    <div class="max-w-4xl mx-auto" >
+    <div class="" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-slate-900">Criar Laudo - ${setor === 'OPME' ? 'OPME' : setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</h2>

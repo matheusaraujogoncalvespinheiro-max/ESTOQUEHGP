@@ -120,7 +120,7 @@ function handleRequestResponse(requestId, action) {
 
 function renderMyRequests() {
     return `
-    <div class="max-w-4xl mx-auto">
+    <div class="">
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
              <div class="flex items-center justify-between mb-6">
                 <h2 class="text-2xl font-bold text-slate-900">Minhas Solicitações Recentes</h2>

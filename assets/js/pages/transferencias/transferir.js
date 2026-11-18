@@ -168,7 +168,7 @@ function renderTransferForm() {
 
     if (role === 'FUNC_ENFERMAGEM') {
         return `
-    <div class="max-w-3xl mx-auto" >
+    <div class="" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center">
             <i data-lucide="shield-alert" class="w-16 h-16 text-red-400 mx-auto mb-6"></i>
             <h3 class="text-2xl font-bold text-slate-900 mb-4">Acesso Restrito</h3>
@@ -217,7 +217,7 @@ function renderTransferForm() {
     }
 
     return `
-    <div class="max-w-3xl mx-auto" >
+    <div class="" >
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
             <h2 class="text-2xl font-bold text-slate-900 mb-6">Transferência de Materiais</h2>
 

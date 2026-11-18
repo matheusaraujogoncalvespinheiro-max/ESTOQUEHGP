@@ -51,7 +51,7 @@ function renderSalaDetail(salaIndex) {
     const sala = MOCK_DATA.SALAS[salaIndex];
 
     return `
-    <div class="max-w-6xl mx-auto p-8">
+    <div class=" p-8">
         <button onclick="state.activeSala=null; render()" class="mb-6 flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold transition-all">
             <i data-lucide="arrow-left" class="w-4 h-4"></i> Voltar para Salas
         </button>
