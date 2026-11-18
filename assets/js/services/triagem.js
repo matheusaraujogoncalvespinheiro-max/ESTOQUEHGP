@@ -100,7 +100,8 @@ function validateFuncionarioForm(form, { editando = false } = {}) {
     return erros;
 }
 
-const CAMPOS_FUNCIONARIO = ['nome', 'cargo', 'categoria', 'situacao'];
+const EXTRAS_FUNCIONARIO = ['setor', 'telefone', 'email', 'admissao', 'usuario_acesso'];
+const CAMPOS_FUNCIONARIO = ['nome', 'cargo', 'categoria', 'situacao', ...EXTRAS_FUNCIONARIO];
 
 /** Cria (editandoId vazio) ou atualiza um funcionário. A matrícula identifica o funcionário e não muda depois. */
 async function salvarFuncionario(form, editandoId = null) {
@@ -112,6 +113,7 @@ async function salvarFuncionario(form, editandoId = null) {
     const agora = nowISO();
     const nome = String(form.nome).trim().replace(/\s+/g, ' ');
     const base = { nome, nome_busca: searchKey(nome), cargo: String(form.cargo).trim(), categoria: form.categoria, situacao: form.situacao };
+    EXTRAS_FUNCIONARIO.forEach(k => { if (form[k] !== undefined) base[k] = String(form[k]).trim(); });
 
     if (!editandoId) {
         const matricula = String(form.matricula).trim().toUpperCase();

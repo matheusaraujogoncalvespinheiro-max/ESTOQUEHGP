@@ -27,6 +27,12 @@ function handleAddExistingProduct(e) {
         return;
     }
 
+    const existente = findProductByBarcodeAndSetor(barcode, setor);
+    if (existente && !produtoAtivo(existente)) {
+        showMsg("Produto inativo: reative o cadastro antes de dar entrada.", "error");
+        return;
+    }
+
     const result = addProductWithBatch(setor, {
         barcode: barcode,
         lote: lote,

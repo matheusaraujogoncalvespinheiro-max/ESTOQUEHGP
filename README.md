@@ -160,3 +160,5 @@ Cobrem as validações (CPF, telefone, datas) e as regras puras da Gestão das T
   gravadas em texto puro em `app_users`. O ideal é migrar para Firebase Authentication.
 - Configurar as regras de segurança do Firestore.
 - O Tailwind via CDN é indicado apenas para desenvolvimento; para produção, compilar o CSS.
+
+Menu Cadastro (consulta e cadastro separados para as 17 opções): [docs/cadastros.md](docs/cadastros.md).

@@ -196,6 +196,7 @@ function buscarProdutoPorBarcodeESetor(barcode, setor) {
 function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
     const produto = buscarProdutoPorBarcodeESetor(barcode, setor);
     if (!produto) return { success: false, message: "Produto não encontrado no setor" };
+    if (!produtoAtivo(produto)) return { success: false, message: `Produto ${produto.material} está inativo: a saída é bloqueada.` };
 
     if (!loteId && produto.lotes && produto.lotes.length > 0) {
         // FEFO: o lote que vence primeiro, nunca um vencido

@@ -29,6 +29,7 @@ function showMsg(text, type = 'success') {
 }
 
 function getModuleTitle() {
+    if (state.activeModule === 'CAD') { const d = state.cad && CAD_DEFS[state.cad.key]; return d ? `Cadastro de ${d.label}` : 'Cadastro'; }
     const titles = {
         'DASHBOARD': 'Dashboard Principal',
         'OPME': 'Estoque OPME',

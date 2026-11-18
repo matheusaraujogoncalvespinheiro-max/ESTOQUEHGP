@@ -91,3 +91,29 @@ function validateBirthDate(iso) {
 function newId(prefix) {
     return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
+
+// ---------- CNPJ, CEP e e-mail (cadastros) ----------
+
+function validateCNPJ(value) {
+    const n = onlyDigits(value);
+    if (n.length !== 14 || /^(\d)\1+$/.test(n)) return false;
+    const calc = (len) => {
+        let soma = 0;
+        let pos = len - 7;
+        for (let i = len; i >= 1; i--) {
+            soma += Number(n[len - i]) * pos--;
+            if (pos < 2) pos = 9;
+        }
+        const r = soma % 11;
+        return r < 2 ? 0 : 11 - r;
+    };
+    return calc(12) === Number(n[12]) && calc(13) === Number(n[13]);
+}
+
+function formatCNPJ(value) {
+    const n = onlyDigits(value).slice(0, 14);
+    return n.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+const formatCEP = (value) => onlyDigits(value).slice(0, 8).replace(/^(\d{5})(\d)/, '$1-$2');
+const validateEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value ?? '').trim());

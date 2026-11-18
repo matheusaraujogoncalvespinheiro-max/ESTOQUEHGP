@@ -11,6 +11,11 @@ function handleLoginAction() {
         return;
     }
 
+    if (USERS_DB[username] && USERS_DB[username].ativo === false && USERS_DB[username].password === password) {
+        showMsg('Usuário inativo. Procure o administrador do sistema.', 'error');
+        return;
+    }
+
     if (USERS_DB[username] && USERS_DB[username].password === password) {
         state.isAuthenticated = true;
         state.currentUser = {
@@ -54,6 +59,7 @@ function handleLoginAction() {
 function logout() {
     clearSession();
     if (typeof db_stopAtendimentoWatchers === 'function') db_stopAtendimentoWatchers();
+    if (typeof db_cadStopWatchers === 'function') db_cadStopWatchers();
     state.isAuthenticated = false;
     state.currentUser = null;
     state.activeModule = 'DASHBOARD';

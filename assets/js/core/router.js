@@ -48,6 +48,8 @@ function renderContent() {
             return renderProcedimentosNaoRealizados();
         case 'MEMBERS':
             return renderMembers();
+        case 'CAD':
+            return renderCad();
         case 'NOTIFICATIONS':
             return renderNotifications();
         case 'BACKUP':

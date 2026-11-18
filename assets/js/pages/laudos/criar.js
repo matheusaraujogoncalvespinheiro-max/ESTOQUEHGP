@@ -333,6 +333,11 @@ function escanearItemOPME() {
         return;
     }
 
+    if (!produtoAtivo(produto)) {
+        showMsg("Produto inativo no cadastro: não pode ser usado em laudo.", "error");
+        return;
+    }
+
     // Validar se o produto tem lotes
     if (!produto.lotes || produto.lotes.length === 0) {
         showMsg("Erro: Produto sem lote/estoque cadastrado!", "error");

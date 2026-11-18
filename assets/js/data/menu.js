@@ -36,6 +36,14 @@ const item = (ordem, label, module, extra = {}) => ({ ordem, label, module, ...e
 const soon = (ordem, label) => ({ ordem, label, soon: true });
 const group = (ordem, label, children) => ({ ordem, label, children });
 
+// Item do menu Cadastro: abre a CONSULTA da entidade (a tela de cadastro abre a partir dela)
+const cadItem = (ordem, label, key) => item(ordem, label, 'CAD', {
+    icon: CAD_DEFS[key].icon,
+    access: () => cadCan(CAD_DEFS[key], 'ver'),
+    before: () => cadAbrir(key),
+    active: () => state.activeModule === 'CAD' && Boolean(state.cad) && state.cad.key === key
+});
+
 // Abas da tela de histórico (Movimentações › Transferência e Histórico)
 const historyTab = (tab) => ({
     before: () => { state.historyTab = tab; },
@@ -46,35 +54,16 @@ const MENU_TREE = [
     // 1. INÍCIO (opção única)
     { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
 
-    // 2. CADASTRO
+    // 2. CADASTRO: cada opção tem tela de CONSULTA e tela de CADASTRO (pages/cadastros/engine.js; campos em data/cadastros.js)
     {
         id: 'cadastro', ordem: 20, label: 'Cadastro', icon: 'plus-circle',
         children: [
-            group(10, 'Principal', [
-                item(10, 'Paciente', 'ENFERMAGEM', { access: byPermission('register_patient') }),
-                soon(20, 'Fornecedor'),
-                soon(30, 'Funcionário'),
-                soon(40, 'Municípios')
-            ]),
-            group(20, 'Estoque', [
-                item(10, 'Produto', 'REGISTER', { access: byPermission('register', 'OPME') }),
-                soon(20, 'Classe'),
-                soon(30, 'Grupo'),
-                soon(40, 'Sub-Grupo'),
-                soon(50, 'Fabricante'),
-                soon(60, 'Unidade'),
-                soon(70, 'Etiqueta')
-            ]),
-            group(30, 'Financeiro', [
-                soon(10, 'Centro de Custo'),
-                soon(20, 'Plano de Contas'),
-                soon(30, 'Sub-Plano de Contas'),
-                soon(40, 'Contas'),
-                soon(50, 'Metas')
-            ]),
-            group(40, 'Usuário', [
-                item(10, 'Cadastros de Usuários', 'MEMBERS', { access: byRole('ADMIN', 'CHEFE_OPME') })
-            ])
+            group(10, 'Principal', [cadItem(10, 'Paciente', 'paciente'), cadItem(20, 'Fornecedor', 'fornecedor'), cadItem(30, 'Funcionário', 'funcionario'), cadItem(40, 'Municípios', 'municipio')]),
+            group(20, 'Estoque', [cadItem(10, 'Produto', 'produto'), cadItem(20, 'Classe', 'classe'), cadItem(30, 'Grupo', 'grupo'), cadItem(40, 'Sub-Grupo', 'subgrupo'),
+                cadItem(50, 'Fabricante', 'fabricante'), cadItem(60, 'Unidade', 'unidade'), cadItem(70, 'Etiqueta', 'etiqueta')]),
+            group(30, 'Financeiro', [cadItem(10, 'Centro de Custo', 'centrocusto'), cadItem(20, 'Plano de Contas', 'plano'), cadItem(30, 'Sub-Plano de Contas', 'subplano'),
+                cadItem(40, 'Contas', 'conta'), cadItem(50, 'Metas', 'metas')]),
+            group(40, 'Usuário', [cadItem(10, 'Cadastros de Usuários', 'usuario')])
         ]
     },
 
@@ -198,6 +187,7 @@ const MENU_TREE = [
                     item(50, 'Correção OPME', 'CORRECAO', { access: byRole('CHEFE_OPME') })
                 ]),
                 group(20, 'Pacientes', [
+                    item(5, 'Registrar Internação', 'ENFERMAGEM', { access: byPermission('register_patient') }),
                     item(10, 'Registrados', 'PACIENTES_REGISTRADOS', { access: byPermission('view_patients') }),
                     item(20, 'Status', 'STATUS_PACIENTES', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
                     item(30, 'Dar Alta', 'DISCHARGE', { access: byPermission('register_patient') }),

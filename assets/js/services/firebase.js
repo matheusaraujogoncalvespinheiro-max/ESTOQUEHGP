@@ -75,6 +75,7 @@ function db_setupSubscriptions() {
 
     // Módulos de atendimento já abertos antes de o banco ficar pronto (recarga da página)
     if (typeof db_startWantedWatchers === 'function') db_startWantedWatchers();
+    if (typeof db_cadStartWantedWatchers === 'function') db_cadStartWantedWatchers();
 }
 
 // ==========================================
@@ -134,6 +135,8 @@ async function db_syncProducts() {
                 descricao: p.descricao,
                 empresa: p.empresa,
                 marca: p.marca,
+                remessa: p.remessa || '',
+                cadastro: p.cadastro || {},
                 min: p.min_quantity,
                 qtd: totalQty,
                 lotes: productBatches.map(b => ({
@@ -215,6 +218,8 @@ async function db_saveProduct(product, sector) {
             min_quantity: product.min || 0,
             sector: sector
         };
+        // Dados do cadastro completo (Cadastro › Estoque › Produto). O saldo NUNCA é gravado aqui: vem dos lotes.
+        if (product.cadastro) prodData.cadastro = JSON.parse(JSON.stringify(product.cadastro));
 
         await db.collection('products').doc(docId).set(prodData, { merge: true });
         console.log(`✓ Produto ${product.barcode} salvo no Firebase (${sector})`);
@@ -347,7 +352,10 @@ async function db_syncMembers() {
                 USERS_DB[user.username] = {
                     password: user.password,
                     role: user.role,
-                    name: user.name
+                    name: user.name,
+                    ativo: user.ativo !== false,
+                    setor: user.setor || '',
+                    email: user.email || ''
                 };
             }
         });
@@ -570,8 +578,8 @@ async function db_saveProductHistory(item) {
             sector: item.sector,
             barcode: item.barcode,
             product_desc: item.product,
-            quantity: item.qty,
-            batch_code: item.lote,
+            quantity: item.quantity ?? item.qty ?? 0,
+            batch_code: item.batch ?? item.lote ?? '',
             created_at: new Date().toISOString()
         });
     } catch (err) {
@@ -624,7 +632,10 @@ async function db_saveMember(username, user) {
             username: username,
             password: user.password,
             role: user.role,
-            name: user.name
+            name: user.name,
+            ativo: user.ativo !== false,
+            setor: user.setor || '',
+            email: user.email || ''
         }, { merge: true });
     } catch (err) {
         console.error('Error saving member:', err);
