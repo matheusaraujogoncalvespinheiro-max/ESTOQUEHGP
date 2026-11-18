@@ -46,11 +46,6 @@ const MENU_TREE = [
     // 1. INÍCIO (opção única)
     { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
 
-    // Módulos de atendimento (opção única, cada um com sua cor). Recepção e Emergência abrem em tela cheia da janela.
-    { id: 'recepcao', ordem: 12, label: 'Recepção', icon: 'user-round-plus', tone: 'blue', module: 'RECEPCAO', access: byPermission('recepcao_acessar') },
-    { id: 'emergencia', ordem: 14, label: 'Emergência', icon: 'siren', tone: 'red', module: 'EMERGENCIA', access: byPermission('emergencia_acessar') },
-    { id: 'triagens', ordem: 16, label: 'Gestão das Triagens', icon: 'users-round', tone: 'teal', module: 'TRIAGEM', access: byPermission('triagem_ver') },
-
     // 2. CADASTRO
     {
         id: 'cadastro', ordem: 20, label: 'Cadastro', icon: 'plus-circle',
@@ -150,14 +145,17 @@ const MENU_TREE = [
         ]
     },
 
-    // 8. PORTARIA
+    // 8. PORTARIA (inclui os módulos de atendimento: Recepção e Emergência abrem em tela cheia da janela)
     {
         id: 'portaria', ordem: 80, label: 'Portaria', icon: 'door-open',
         children: [
             item(10, 'Controle de Acesso', 'PORTARIA_PAINEL', { access: byRole('ADMIN', 'FUNC_PORTARIA') }),
-            soon(20, 'Visitantes'),
-            soon(30, 'Acompanhantes'),
-            soon(40, 'Histórico')
+            item(20, 'Recepção', 'RECEPCAO', { icon: 'user-round-plus', tone: 'blue', access: byPermission('recepcao_acessar') }),
+            item(30, 'Emergência', 'EMERGENCIA', { icon: 'siren', tone: 'red', access: byPermission('emergencia_acessar') }),
+            item(40, 'Gestão das Triagens', 'TRIAGEM', { icon: 'users-round', tone: 'teal', access: byPermission('triagem_ver') }),
+            soon(50, 'Visitantes'),
+            soon(60, 'Acompanhantes'),
+            soon(70, 'Histórico')
         ]
     },
 

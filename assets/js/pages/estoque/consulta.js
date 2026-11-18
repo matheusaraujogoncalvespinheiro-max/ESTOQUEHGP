@@ -182,6 +182,7 @@ function renderProductList(data, setor) {
                             <div class="text-xs min-w-[8rem] flex-1">
                                 <div class="font-medium break-all">Lote: ${lote.lote}</div>
                                 <div class="text-slate-500">Validade: ${lote.validade !== 'N/A' ? new Date(lote.validade).toLocaleDateString('pt-PT') : 'N/A'}</div>
+                                ${rotuloValidade(lote.validade) ? `<div class="font-bold ${statusValidade(lote.validade) === 'VENCIDO' ? 'text-red-600' : 'text-amber-600'}">${rotuloValidade(lote.validade)}</div>` : ''}
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="text-sm font-bold whitespace-nowrap ${lote.quantidade <= 10 ? 'text-red-600' : 'text-slate-700'}">${lote.quantidade} un</span>

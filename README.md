@@ -30,6 +30,7 @@ assets/
     core/                  Base do sistema
       utils.js             escapeHtml, normalizeText, byId
       validators.js        CPF, telefone, datas, máscaras e newId
+      regras.js            Regras hospitalares puras: Manchester, validade e FEFO
       icons.js             Ícones SVG do cabeçalho e das janelas
       state.js             Estado global e dados em memória
       permissions.js       Permissões por perfil (hasPermission, getRoleLabel)
@@ -98,6 +99,8 @@ Para trocar os contatos do Suporte, edite só `assets/js/data/support.js`
 
 Três módulos de atendimento no mesmo sistema. Veja [docs/atendimento.md](docs/atendimento.md) (telas, perfis,
 coleções, regras e LGPD). Novos perfis: Funcionário Recepção, Funcionário Emergência e Coordenador de Triagem.
+
+Regras de negócio hospitalares aplicadas (Manchester, FEFO, bloqueio de lote vencido, log de acesso): [docs/regras-de-negocio.md](docs/regras-de-negocio.md).
 
 ## Padrão do banco de dados (Firestore)
 

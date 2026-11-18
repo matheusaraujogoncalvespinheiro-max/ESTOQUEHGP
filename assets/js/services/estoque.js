@@ -198,18 +198,16 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
     if (!produto) return { success: false, message: "Produto não encontrado no setor" };
 
     if (!loteId && produto.lotes && produto.lotes.length > 0) {
-        // Usar o primeiro lote (mais próximo de vencer)
-        produto.lotes.sort((a, b) => {
-            if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-            if (a.validade === 'N/A') return 1;
-            if (b.validade === 'N/A') return -1;
-            return new Date(a.validade) - new Date(b.validade);
-        });
-        loteId = produto.lotes[0].id;
+        // FEFO: o lote que vence primeiro, nunca um vencido
+        const escolhido = escolherLoteFEFO(produto.lotes);
+        if (!escolhido) return { success: false, message: 'Nenhum lote válido: os lotes disponíveis estão vencidos ou sem saldo.' };
+        loteId = escolhido.id;
     }
 
     const lote = produto.lotes.find(l => l.id === loteId);
     if (!lote) return { success: false, message: "Lote não encontrado" };
+
+    if (loteVencido(lote)) return { success: false, message: `Lote ${lote.lote} vencido: a saída é bloqueada (use o descarte/perda).` };
 
     if (lote.quantidade < quantidade) {
         return { success: false, message: `Quantidade insuficiente no lote ${lote.lote}. Disponível: ${lote.quantidade}` };

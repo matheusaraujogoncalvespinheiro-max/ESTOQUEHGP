@@ -15,7 +15,7 @@ function renderLeaf(l, ativa) {
     }
     const on = l === ativa;
     const badge = l.badge > 0 ? `<span class="wm-badge">${l.badge}</span>` : '';
-    return `<li><button type="button" class="wm-link${on ? ' is-active' : ''}" onclick="runMenuLeaf(${l.id})" ${on ? 'aria-current="page"' : ''}>
+    return `<li><button type="button" class="wm-link${on ? ' is-active' : ''}${l.tone ? ' wm-link--' + l.tone : ''}" onclick="runMenuLeaf(${l.id})" ${on ? 'aria-current="page"' : ''}>
         ${lucideIcon(l.icon, 'w-4 h-4 wm-link__ico')}<span>${escapeHtml(l.label)}</span>${badge}</button></li>`;
 }
 

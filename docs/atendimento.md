@@ -1,14 +1,14 @@
 # Recepção, Emergência e Gestão das Triagens
 
-Módulos de atendimento do HGP. Fazem parte do mesmo sistema (mesma autenticação, menu, tema e banco de dados).
+Módulos de atendimento do HGP, localizados no menu **Portaria**. Fazem parte do mesmo sistema (mesma autenticação, menu, tema e banco de dados).
 
 ## Telas
 
 | Menu | Módulo | Tela | Quem acessa |
 |---|---|---|---|
-| Recepção | `RECEPCAO` | Imersiva (sem menu e cabeçalho globais), azul | Administrador, Funcionário Recepção |
-| Emergência | `EMERGENCIA` | Imersiva, vermelha | Administrador, Funcionário Emergência |
-| Gestão das Triagens | `TRIAGEM` | Painel das 4 equipes por mês (cartões/tabela) | Administrador, Coordenador de Triagem |
+| Portaria › Recepção | `RECEPCAO` | Imersiva (sem menu e cabeçalho globais), azul | Administrador, Funcionário Recepção |
+| Portaria › Emergência | `EMERGENCIA` | Imersiva, vermelha | Administrador, Funcionário Emergência |
+| Portaria › Gestão das Triagens | `TRIAGEM` | Painel das 4 equipes por mês (cartões/tabela) | Administrador, Coordenador de Triagem |
 | (botão Gerenciar equipes) | `TRIAGEM_GESTAO` | Funcionários, composição mensal e histórico | Somente Administrador |
 
 As telas imersivas usam toda a janela do navegador, sem o modo tela cheia. O botão **HOME** volta ao Dashboard e pede

@@ -42,3 +42,13 @@ function diffCampos(antes, depois, campos) {
 const nowISO = () => new Date().toISOString();
 const wordsCount = (text) => String(text ?? '').trim().split(/\s+/).filter(Boolean).length;
 
+
+/**
+ * Log de acesso a dado pessoal/de saúde (LGPD): quem abriu qual registro e quando. Nunca bloqueia a tela:
+ * se a gravação falhar, o erro só vai para o console.
+ */
+function registrarAcesso(entidade, entidade_id, contexto = '') {
+    if (!state.currentUser) return;
+    auditar({ entidade, entidade_id, acao: 'CONSULTAR', motivo: contexto })
+        .catch(err => console.warn('Não foi possível registrar o acesso:', err.message));
+}

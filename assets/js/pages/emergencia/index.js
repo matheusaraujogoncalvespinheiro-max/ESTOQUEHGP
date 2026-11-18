@@ -55,6 +55,9 @@ function emergenciaCamposHtml(p, d) {
             <p class="at-error" data-error="${p}_classificacao" role="alert"></p>
         </div>
 
+        ${PERFIS_CLASSIFICADORES.includes(state.currentUser.role) ? atField({ prefix: p, campo: 'risco_manchester', label: 'Classificação de risco (Manchester)', span2: true,
+            control: atSelect({ prefix: p, campo: 'risco_manchester', options: NIVEIS_RISCO.map(n => ({ id: n.id, rotulo: `${n.rotulo} (até ${n.minutos === 0 ? 'imediato' : n.minutos + ' min'})` })), value: d.risco_manchester || '', placeholder: 'Sem classificação' }) }) : ''}
+
         ${atField({ prefix: p, campo: 'complementares', label: 'Informações complementares', span2: true,
             control: atTextarea({ prefix: p, campo: 'complementares', value: d.complementares || '', placeholder: 'Opcional: testemunhas, providências já tomadas, observações.', rows: 3 }) })}`;
 }
@@ -136,6 +139,25 @@ function renderEmergencia() {
 
 // ---------- Listas ----------
 
+/** Selo do nível de risco e do tempo de espera (só enquanto o paciente não foi atendido). */
+function badgeEspera(o) {
+    const nivel = nivelRisco(o.risco_manchester);
+    if (!nivel) return '';
+    const cor = `style="background:${nivel.cor};color:#fff"`;
+    if (o.atendido_em) return `<span class="at-badge" ${cor}>${escapeHtml(nivel.id)}</span> <span class="at-badge at-badge--ok">Atendido</span>`;
+    const s = situacaoEspera(o.risco_manchester, o.registrado_em);
+    const texto = s.estourado ? `Tempo-alvo excedido (+${-s.restanteMin} min)` : `Meta: ${s.restanteMin} min`;
+    return `<span class="at-badge" ${cor}>${escapeHtml(nivel.id)}</span> <span class="at-badge ${s.estourado ? 'at-badge--emergencia' : (s.aviso ? 'at-badge--urgente' : 'at-badge--outros')}">${escapeHtml(texto)}</span>`;
+}
+
+async function emergenciaAtender(id) {
+    try {
+        await marcarOcorrenciaAtendida(id);
+        showMsg('Atendimento registrado.');
+        atualizarEmergenciaHistorico();
+    } catch (e) { showMsg(e.message, 'error'); }
+}
+
 function renderEmergenciaLista(lista) {
     if (!lista.length) return '<div class="at-empty">Nenhuma ocorrência encontrada.</div>';
     return `<ul class="at-list">${lista.map(o => `
@@ -143,6 +165,7 @@ function renderEmergenciaLista(lista) {
             <div class="at-item__top">
                 <span class="at-item__name">${escapeHtml(o.paciente_nome)}</span>
                 <span class="at-badge at-badge--${String(o.classificacao).toLowerCase()}">${escapeHtml(rotuloClassificacao(o.classificacao))}</span>
+                ${badgeEspera(o)}
             </div>
             <div class="at-item__meta">
                 <span>${escapeHtml(o.protocolo)}</span>
@@ -153,6 +176,7 @@ function renderEmergenciaLista(lista) {
             <div class="at-item__meta"><span>${escapeHtml(o.o_que_aconteceu)}</span></div>
             <div class="at-item__actions">
                 <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="emergenciaDetalhes(${escapeHtml(JSON.stringify(o.id))})">${lucideIcon('eye', 'w-4 h-4')} Detalhes</button>
+                ${o.risco_manchester && !o.atendido_em && hasPermission('emergencia_registrar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="emergenciaAtender(${escapeHtml(JSON.stringify(o.id))})">${lucideIcon('check', 'w-4 h-4')} Atendido</button>` : ''}
                 ${canEditOcorrencia(o) ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="emergenciaEditar(${escapeHtml(JSON.stringify(o.id))})">${lucideIcon('pencil', 'w-4 h-4')} Editar</button>` : ''}
             </div>
         </li>`).join('')}</ul>`;
@@ -241,6 +265,7 @@ function emergenciaUsarPaciente(id) {
     const st = emergenciaState();
     const p = (st.pacResults || []).find(x => x.id === id);
     if (!p) return;
+    registrarAcesso('paciente', p.id, 'Emergência: usou cadastro no registro');
     const set = (campo, valor) => { const el = document.getElementById(`${EMG}_${campo}`); if (el) el.value = valor ?? ''; };
     set('paciente_id', p.id);
     set('paciente_nome', p.nome);
@@ -322,6 +347,7 @@ const ROTULOS_ACAO = { CRIAR: 'Registro criado', EDITAR: 'Editado' };
 async function emergenciaDetalhes(id) {
     const o = MOCK_DATA.OCORRENCIAS_EMERGENCIA.find(x => x.id === id) || (await db_getOcorrencia(id));
     if (!o) { showMsg('Ocorrência não encontrada.', 'error'); return; }
+    registrarAcesso('ocorrencia', o.id, 'Emergência: abriu detalhes');
     const linha = (rotulo, valor) => `<div class="about-list"><div><dt>${escapeHtml(rotulo)}</dt><dd>${escapeHtml(valor || '—')}</dd></div></div>`;
     const dialog = openModal({
         title: `Ocorrência ${o.protocolo}`,
@@ -329,6 +355,7 @@ async function emergenciaDetalhes(id) {
         content: `<div class="modal__body">
             <p><span class="at-badge at-badge--${String(o.classificacao).toLowerCase()}">${escapeHtml(rotuloClassificacao(o.classificacao))}</span>
                ${o.status === 'EDITADA' ? '<span class="at-badge at-badge--off">Editada (versão ' + escapeHtml(o.versao) + ')</span>' : ''}</p>
+            ${o.risco_manchester ? linha('Risco (Manchester)', (nivelRisco(o.risco_manchester) || {}).rotulo) : ''}
             ${linha('Paciente', o.paciente_nome)}
             ${linha('Prontuário', o.prontuario)}
             ${linha('CPF', maskCPF(o.cpf))}

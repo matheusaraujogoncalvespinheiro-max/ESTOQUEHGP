@@ -349,18 +349,21 @@ function escanearItemOPME() {
         // Se já existe, devemos validar contra o MESMO lote que já está sendo usado
         targetLote = produto.lotes.find(l => l.id === jaExiste.loteId);
     } else {
-        // Se é novo, selecionar o primeiro lote (validade)
-        produto.lotes.sort((a, b) => {
-            if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-            if (a.validade === 'N/A') return 1;
-            if (b.validade === 'N/A') return -1;
-            return new Date(a.validade) - new Date(b.validade);
-        });
-        targetLote = produto.lotes[0];
+        // Regra FEFO: usa o lote que vence primeiro, ignorando lotes vencidos ou sem saldo
+        targetLote = escolherLoteFEFO(produto.lotes);
+        if (!targetLote && produto.lotes.some(loteVencido)) {
+            showMsg('Bloqueado: todos os lotes disponíveis deste produto estão vencidos. Não podem ser usados.', 'error');
+            return;
+        }
     }
 
     if (!targetLote) {
         showMsg("Erro: Lote não encontrado no sistema.", "error");
+        return;
+    }
+
+    if (loteVencido(targetLote)) {
+        showMsg(`Bloqueado: o lote ${targetLote.lote} está vencido e não pode ser usado.`, 'error');
         return;
     }
 

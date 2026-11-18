@@ -180,6 +180,8 @@ function validateOcorrenciaForm(form) {
     req('descricao', 'Descreva o incidente (mínimo de 10 caracteres).', 10);
     req('local', 'Informe o local onde aconteceu.', 2);
     req('setor_origem', 'Informe o setor de origem.');
+    if (form.risco_manchester && !nivelRisco(form.risco_manchester)) erros.push({ campo: 'risco_manchester', mensagem: 'Nível de risco inválido.' });
+    if (form.risco_manchester && !PERFIS_CLASSIFICADORES.includes(state.currentUser && state.currentUser.role)) erros.push({ campo: 'risco_manchester', mensagem: 'Somente o profissional habilitado (enfermagem/administrador) classifica o risco.' });
     if (!CLASSIFICACOES_OCORRENCIA.some(c => c.id === form.classificacao)) erros.push({ campo: 'classificacao', mensagem: 'Selecione a classificação da ocorrência.' });
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.data_ocorrencia ?? ''))) erros.push({ campo: 'data_ocorrencia', mensagem: 'Informe a data da ocorrência.' });
@@ -198,7 +200,7 @@ function validateOcorrenciaForm(form) {
 }
 
 const CAMPOS_OCORRENCIA = ['paciente_nome', 'prontuario', 'cpf', 'data_nascimento', 'idade', 'sexo', 'o_que_aconteceu', 'descricao', 'local',
-    'data_ocorrencia', 'hora_ocorrencia', 'setor_origem', 'classificacao', 'complementares'];
+    'data_ocorrencia', 'hora_ocorrencia', 'setor_origem', 'classificacao', 'risco_manchester', 'complementares'];
 
 function buildOcorrenciaPayload(form) {
     const nome = String(form.paciente_nome ?? '').trim().replace(/\s+/g, ' ');
@@ -218,6 +220,7 @@ function buildOcorrenciaPayload(form) {
         hora_ocorrencia: form.hora_ocorrencia,
         setor_origem: form.setor_origem,
         classificacao: form.classificacao,
+        risco_manchester: form.risco_manchester || '',
         complementares: String(form.complementares ?? '').trim()
     };
 }
@@ -247,6 +250,8 @@ async function registrarOcorrencia(form) {
         registrado_por: user.username,
         profissional_responsavel: user.name,
         perfil_registro: user.role,
+        atendido_em: '',
+        atendido_por: '',
         atualizado_em: '',
         atualizado_por: ''
     };
@@ -289,6 +294,19 @@ async function atualizarOcorrencia(id, form, motivo) {
     };
     await db_saveOcorrencia({ id, ...mudanca });
     await auditar({ entidade: 'ocorrencia', entidade_id: id, acao: 'EDITAR', antes: diff.antes, depois: diff.depois, motivo: String(motivo).trim() });
+    return { ...atual, ...mudanca };
+}
+
+/** Marca que o paciente classificado já foi atendido (encerra a contagem do tempo-alvo). Fica na auditoria. */
+async function marcarOcorrenciaAtendida(id) {
+    requirePermission('emergencia_registrar');
+    const atual = await db_getOcorrencia(id);
+    if (!atual) throw new Error('Ocorrência não encontrada.');
+    if (atual.atendido_em) throw new Error('Esta ocorrência já está marcada como atendida.');
+    const user = state.currentUser;
+    const mudanca = { atendido_em: nowISO(), atendido_por: user.username };
+    await db_saveOcorrencia({ id, ...mudanca });
+    await auditar({ entidade: 'ocorrencia', entidade_id: id, acao: 'ATENDER', depois: mudanca });
     return { ...atual, ...mudanca };
 }
 

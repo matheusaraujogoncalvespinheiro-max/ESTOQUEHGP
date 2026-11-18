@@ -61,6 +61,7 @@ function buildMenu() {
             label: node.label,
             module: node.module,
             icon: node.icon || MODULE_ICONS[node.module] || 'circle',
+            tone: node.tone || '',
             badge: node.badge === 'alertas' ? unread : 0,
             run: () => {
                 if (node.before) node.before();
@@ -98,7 +99,7 @@ function buildMenu() {
         // Opção única (sem submenu), como o Início
         if (section.module) {
             if (!section.access || section.access()) {
-                sections.push({ id: section.id, label: section.label, icon: section.icon, tone: section.tone, leaf: makeLeaf(section, []) });
+                sections.push({ id: section.id, label: section.label, icon: section.icon, leaf: makeLeaf(section, []) });
             }
             return;
         }

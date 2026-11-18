@@ -10,7 +10,7 @@ function getDashboardStats() {
         const validade = new Date(item.validade);
         const hoje = new Date();
         const diasParaVencer = Math.ceil((validade - hoje) / (1000 * 60 * 60 * 24));
-        return diasParaVencer <= 30 && diasParaVencer > 0;
+        return diasParaVencer <= DIAS_ALERTA_VALIDADE;
     });
 
     if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {

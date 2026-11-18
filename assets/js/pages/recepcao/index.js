@@ -289,6 +289,7 @@ async function recepcaoEditar(id) {
         requirePermission('recepcao_editar');
         const paciente = await db_getPaciente(id);
         if (!paciente) throw new Error('Paciente não encontrado.');
+        registrarAcesso('paciente', id, 'Recepção: abriu cadastro para edição');
         const st = recepcaoState();
         st.editingId = id;
         st.editData = paciente;

@@ -11,10 +11,10 @@ html[data-tema='escuro'] .tone-blue { --tone-soft: rgba(37, 99, 235, 0.2); --ton
 html[data-tema='escuro'] .tone-red { --tone-soft: rgba(220, 38, 38, 0.2); --tone-ink: #fca5a5; }
 html[data-tema='escuro'] .tone-teal { --tone-soft: rgba(13, 148, 136, 0.22); --tone-ink: #5eead4; }
 
-/* Ícones do menu lateral: cada módulo com sua cor */
-.shell-root .wm-secao--blue > .wm-item > svg { color: #2563eb; }
-.shell-root .wm-secao--red > .wm-item > svg { color: #dc2626; }
-.shell-root .wm-secao--teal > .wm-item > svg { color: #0d9488; }
+/* Ícones das telas de atendimento no menu lateral (Portaria): cada módulo com sua cor */
+.shell-root .wm-link--blue .wm-link__ico { color: #2563eb; opacity: 1; }
+.shell-root .wm-link--red .wm-link__ico { color: #dc2626; opacity: 1; }
+.shell-root .wm-link--teal .wm-link__ico { color: #0d9488; opacity: 1; }
 
 /* ---------- Tela imersiva: ocupa toda a janela, sem menu nem cabeçalho global ---------- */
 
