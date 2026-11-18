@@ -1,3 +1,5 @@
+// Procedimentos: mapa de agendamentos de hemodinâmica
+
 // Mapa de agendamentos de hemodinâmica
 
 function renderMapa() {
@@ -332,10 +334,8 @@ function generateMapaPDF(targetDate = null) {
     printWindow.document.close();
 }
 
+// Expor funções usadas em atributos onclick/oninput do HTML
 window.handleCreateSchedule = handleCreateSchedule;
-
 window.handleDeleteSchedule = handleDeleteSchedule;
-
 window.generateMapaPDF = generateMapaPDF;
-
 window.handleMapSearch = handleMapSearch;

@@ -1,3 +1,5 @@
+// Dashboard: métricas, ações rápidas e produtos com estoque baixo
+
 // Dashboard e métricas
 
 function getDashboardStats() {

@@ -37,13 +37,20 @@ assets/
       router.js            render(), navegação e roteamento por módulo
       backup.js            Exportar/importar backup
       offline.js           Aviso de modo offline
-    services/
+    services/              Regras de negócio e acesso a dados (sem tela)
       firebase.js          Configuração do Firebase e camada de dados (db_*)
+      estoque.js           Produtos, lotes e baixas de estoque
+      notificacoes.js      Criação de notificações e contagem de não lidas
+      pacientes.js         Validações de paciente (cartão SUS)
+      portaria.js          Horários, leitos e foto padrão da portaria
+      transferencias.js    Relatório (PDF) de transferência
+      camera.js            Câmera do navegador
     data/                  Configurações editáveis
       app-info.js          Nome, hospital, versão e logo
       support.js           Contatos e horários da janela de Suporte
-      menu.js              Menu lateral por perfil
+      menu.js              Árvore do menu lateral (só dados: ordem, categorias, telas, acesso)
     shell/                 Estrutura da página autenticada
+      menu.js              Motor do menu: ordena por `ordem`, filtra por acesso, registra as telas
       layout.js            Menu lateral, cabeçalho, faixa de título
       sidebar.js           Abrir/fechar menu e acordeão
       search.js            Pesquisa de telas do cabeçalho
@@ -52,9 +59,16 @@ assets/
       dialogs.js           Janelas: Suporte, Atalhos de teclado e Sobre
       account.js           Janelas: Meu Perfil e Trocar minha senha
       shortcuts.js         Atalhos de teclado
-    pages/                 Uma página/módulo por assunto
-      login, dashboard, estoque, correcao, laudos, pacientes, procedimentos,
-      mapa, transferencias, salas, membros, backup, notificacoes, portaria
+    pages/                 Uma tela por arquivo, agrupadas por área
+      login.js · dashboard.js · membros.js · backup.js · notificacoes.js
+      estoque/             consulta · cadastro · adicionar · correcao
+      pacientes/           registrar · registrados · status · alta · historico-altas
+      procedimentos/       agendar · nao-realizados · mapa
+      laudos/              criar · historico
+      transferencias/      transferir · solicitar · minhas-solicitacoes · confirmacao ·
+                           aprovar · receber · historico
+      salas/               salas · historico
+      portaria/            controle-acesso · configuracoes
     app.js                 Inicialização (carregado por último)
 docs/
   mcp_supabase_guide.md    Guia de uso do MCP do Supabase
@@ -81,11 +95,13 @@ depende das regras de segurança do Firestore.
 
 ## Como adicionar uma nova página
 
-1. Crie `assets/js/pages/minha-pagina.js` com a função `renderMinhaPagina()`.
-2. Inclua o `<script>` em `index.html`, junto das demais páginas.
+1. Crie `assets/js/pages/<area>/minha-tela.js` com a função `renderMinhaTela()` e os handlers
+   da tela. Regras reaproveitáveis por mais de uma tela vão em `assets/js/services/`.
+2. Inclua o `<script>` em `index.html`, no grupo da área.
 3. Registre o módulo no `switch` de `renderContent()` (`core/router.js`) e o título em
    `getModuleTitle()` (`core/ui.js`).
-4. Adicione o item ao menu em `data/menu.js`, com a permissão necessária.
+4. Adicione o item ao menu em `data/menu.js` (categoria, `ordem`, `module` e `access`). Item sem tela
+   ainda fica com `soon: true`: aparece desabilitado, com o selo "Em breve", só para administradores.
 
 ## Observações de segurança (pendentes)
 

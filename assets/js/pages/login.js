@@ -1,5 +1,7 @@
 // Tela de login
 
+// Tela de login
+
 function renderLogin() {
     return `
     <div class="min-h-screen login-bg flex items-center justify-center p-4" >

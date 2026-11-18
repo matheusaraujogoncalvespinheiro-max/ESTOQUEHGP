@@ -99,3 +99,18 @@ function getRoleLabel(role) {
     };
     return labels[role] || "Colaborador";
 }
+
+// ---------- Regras de acesso reutilizáveis (usadas pela árvore do menu em data/menu.js) ----------
+// Cada função devolve um teste `() => boolean`, avaliado para o usuário logado.
+
+/** Libera só para os perfis informados. */
+const byRole = (...roles) => () => Boolean(state.currentUser) && roles.includes(state.currentUser.role);
+
+/** Libera para todos os perfis, menos os informados. */
+const exceptRoles = (...roles) => () => Boolean(state.currentUser) && !roles.includes(state.currentUser.role);
+
+/** Libera conforme hasPermission(action, setor). */
+const byPermission = (action, setor = null) => () => hasPermission(action, setor);
+
+/** Libera se qualquer um dos testes liberar. */
+const anyOf = (...checks) => () => checks.some(check => check());

@@ -715,3 +715,26 @@
     }
 }
 
+/* ---------- Itens do menu sem tela ainda ("Em breve", só administradores) ---------- */
+
+.shell-root .wm-link--soon {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.shell-root .wm-link--soon:hover {
+    background: none;
+    color: var(--sh-muted);
+}
+
+.shell-root .wm-soon {
+    flex: none;
+    padding: 1px 8px;
+    border: 1px solid var(--sh-line);
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}

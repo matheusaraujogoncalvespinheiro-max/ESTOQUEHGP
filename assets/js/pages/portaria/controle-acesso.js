@@ -1,136 +1,5 @@
 // Portaria: controle de acesso de visitantes e acompanhantes
 
-// Foto padrão da visita. Registros antigos guardam só o nome do arquivo ("logo_hgp.jpg"), que agora fica em assets/img/.
-const FOTO_PADRAO = 'assets/img/logo_hgp.jpg';
-function fotoVisita(src) {
-    if (!src || src === 'logo_hgp.jpg') return FOTO_PADRAO;
-    return src;
-}
-
-function checkPortariaHours() {
-    const config = MOCK_DATA.PORTARIA_CONFIG || {
-        visiting_hours_start: '14:00',
-        visiting_hours_end: '16:00',
-        entry_hours_start: '07:00',
-        entry_hours_end: '22:00'
-    };
-    
-    const now = new Date();
-    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5); // "HH:MM"
-    
-    const isVisitOpen = timeStr >= config.visiting_hours_start && timeStr <= config.visiting_hours_end;
-    const isEntryOpen = timeStr >= config.entry_hours_start && timeStr <= config.entry_hours_end;
-    
-    return {
-        currentTime: timeStr,
-        isVisitOpen,
-        isEntryOpen,
-        config
-    };
-}
-
-function renderPortariaConfig() {
-    const config = MOCK_DATA.PORTARIA_CONFIG || {
-        visiting_hours_start: '14:00',
-        visiting_hours_end: '16:00',
-        entry_hours_start: '07:00',
-        entry_hours_end: '22:00'
-    };
-
-    const today = new Date().toISOString().split('T')[0];
-    const todayVisits = (MOCK_DATA.PORTARIA_VISITS || []).filter(v => v.hora_entrada.startsWith(today));
-    const activeVisitsCount = todayVisits.filter(v => v.status === 'DENTRO').length;
-    const totalVisitsCount = todayVisits.length;
-
-    return `
-    <div class="space-y-6 fade-in">
-        <div class="flex justify-between items-center bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-900">Configurações da Portaria</h1>
-                <p class="text-slate-500 text-sm">Defina os horários permitidos de visitas e entrada de acompanhantes.</p>
-            </div>
-            <div class="flex gap-4">
-                <div class="p-4 bg-emerald-50 text-emerald-700 rounded-xl text-center border border-emerald-100">
-                    <div class="text-2xl font-bold text-emerald-800">${activeVisitsCount}</div>
-                    <div class="text-xs font-semibold text-emerald-600">Ativos Agora</div>
-                </div>
-                <div class="p-4 bg-blue-50 text-blue-700 rounded-xl text-center border border-blue-100">
-                    <div class="text-2xl font-bold text-blue-800">${totalVisitsCount}</div>
-                    <div class="text-xs font-semibold text-blue-600">Total Hoje</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-            <form id="portaria-config-form" onsubmit="handleSavePortariaConfig(event)" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
-                        <div class="flex items-center gap-3 text-indigo-700 font-bold">
-                            <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
-                            <span>Horário de Visitas</span>
-                        </div>
-                        <p class="text-xs text-slate-500">Janela de horário em que visitas sociais são permitidas no hospital.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Início</label>
-                                <input type="time" name="visiting_hours_start" value="${config.visiting_hours_start}" required class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Fim</label>
-                                <input type="time" name="visiting_hours_end" value="${config.visiting_hours_end}" required class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
-                        <div class="flex items-center gap-3 text-cyan-700 font-bold">
-                            <i data-lucide="log-in" class="w-5 h-5 text-cyan-600"></i>
-                            <span>Horário Geral de Entrada</span>
-                        </div>
-                        <p class="text-xs text-slate-500">Horário máximo permitido para entrada de acompanhantes e fornecedores.</p>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Início</label>
-                                <input type="time" name="entry_hours_start" value="${config.entry_hours_start}" required class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-600 mb-1">Fim</label>
-                                <input type="time" name="entry_hours_end" value="${config.entry_hours_end}" required class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pt-4 flex justify-end">
-                    <button type="submit" class="px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2">
-                        <i data-lucide="save" class="w-5 h-5"></i>
-                        Salvar Configurações
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-    `;
-}
-
-function handleSavePortariaConfig(event) {
-    event.preventDefault();
-    const form = event.target;
-    const config = {
-        visiting_hours_start: form.visiting_hours_start.value,
-        visiting_hours_end: form.visiting_hours_end.value,
-        entry_hours_start: form.entry_hours_start.value,
-        entry_hours_end: form.entry_hours_end.value
-    };
-
-    MOCK_DATA.PORTARIA_CONFIG = config;
-    if (typeof db_savePortariaConfig === 'function') {
-        db_savePortariaConfig(config);
-    }
-    showMsg("Configurações salvas com sucesso!");
-    render();
-}
-
 function renderPortariaPainel() {
     if (!state.activePortariaSetor) {
         state.activePortariaSetor = 'Pronto Socorro Adulto';
@@ -616,120 +485,6 @@ function togglePhotoZoom(photoBase64, name) {
     }
 }
 
-async function iniciarCamera() {
-    try {
-        const video = document.getElementById('webcam-preview');
-        const placeholder = document.getElementById('webcam-placeholder');
-        if (!video) return;
-        
-        pararCamera();
-        
-        const constraints = {
-            video: {
-                width: { ideal: 320 },
-                height: { ideal: 240 },
-                facingMode: "user"
-            }
-        };
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        window.currentCameraStream = stream;
-        video.srcObject = stream;
-        video.classList.remove('hidden');
-        if (placeholder) placeholder.classList.add('hidden');
-        
-        document.getElementById('btn-ligar-camera').classList.add('hidden');
-        document.getElementById('btn-tirar-foto').classList.remove('hidden');
-        lucide.createIcons();
-    } catch (err) {
-        console.error("Erro no acesso à câmera:", err);
-        showMsg("Câmera indisponível: Registro será feito com foto padrão.", "error");
-    }
-}
-
-function tirarFoto() {
-    const video = document.getElementById('webcam-preview');
-    const canvas = document.getElementById('webcam-canvas');
-    if (!video || !canvas) return;
-    
-    const context = canvas.getContext('2d');
-    canvas.width = video.videoWidth || 320;
-    canvas.height = video.videoHeight || 240;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    const base64Photo = canvas.toDataURL('image/jpeg', 0.6);
-    state.capturedPhoto = base64Photo;
-    
-    const previewImg = document.getElementById('photo-preview');
-    if (previewImg) {
-        previewImg.src = base64Photo;
-        previewImg.classList.remove('hidden');
-    }
-    
-    pararCamera();
-    
-    video.classList.add('hidden');
-    document.getElementById('btn-tirar-foto').classList.add('hidden');
-    document.getElementById('btn-recapturar-foto').classList.remove('hidden');
-    lucide.createIcons();
-}
-
-function recapturarFoto() {
-    state.capturedPhoto = null;
-    const previewImg = document.getElementById('photo-preview');
-    if (previewImg) {
-        previewImg.classList.add('hidden');
-        previewImg.src = '';
-    }
-    iniciarCamera();
-}
-
-function pararCamera() {
-    if (window.currentCameraStream) {
-        window.currentCameraStream.getTracks().forEach(track => {
-            track.stop();
-        });
-        window.currentCameraStream = null;
-    }
-}
-
-function getLeitoSpecialty(piso, number) {
-    if (piso === '1') {
-        if (number >= 1 && number <= 25) return 'Ala A/B (Pediatria)';
-        return '';
-    }
-    if (piso === '2') {
-        if (number >= 1 && number <= 25) return 'Ala E/F (Neuro)';
-        if (number >= 26 && number <= 49) return 'Ala G/H (Clínica Médica)';
-        return '';
-    }
-    if (piso === '3') {
-        if (number >= 1 && number <= 25) return 'Ala I/J (Ortopedia)';
-        if (number >= 26 && number <= 49) {
-            if (number >= 26 && number <= 29) return 'Ala K (1) Ortopedia';
-            if (number >= 30 && number <= 33) return 'Ala K (2) Geral Especialidades';
-            if (number >= 34 && number <= 37) return 'Ala L (1) Vascular';
-            if (number >= 38 && number <= 41) return 'Ala L (2) Infecto';
-            if (number >= 42 && number <= 45) return 'Ala L (3) End, Oft, Der, Otor';
-            if (number >= 46 && number <= 49) return 'Ala L (4) Reumato / Buco';
-        }
-        return '';
-    }
-    if (piso === '4') {
-        if (number >= 1 && number <= 25) return 'Ala M/N (Oncologia / Nefrologia)';
-        if (number >= 26 && number <= 49) {
-            if (number >= 26 && number <= 29) return 'Ala O (2) Cardiologia';
-            if (number >= 30 && number <= 33) return 'Ala O (3) Pneumologia';
-            if (number >= 34 && number <= 37) return 'Ala O (4) Cir. Torácica';
-            if (number >= 38 && number <= 41) return 'Ala P (1) Eletiva';
-            if (number >= 42 && number <= 45) return 'Ala P (2) Ritmologia';
-            if (number >= 46 && number <= 49) return 'Ala P (3) Cir. Aparelho Dig';
-        }
-        return '';
-    }
-    return '';
-}
-
 function handlePisoChange(piso) {
     const containerLeito = document.getElementById('container-leito-select');
     const containerCustom = document.getElementById('container-destino-custom');
@@ -879,39 +634,16 @@ function handleCustomDestInput(val) {
     }
 }
 
-// Expose variables and functions to window
-window.renderPortariaConfig = renderPortariaConfig;
-
-window.handleSavePortariaConfig = handleSavePortariaConfig;
-
+// Expor funções usadas em atributos onclick/oninput do HTML
 window.renderPortariaPainel = renderPortariaPainel;
-
 window.handleRegisterPortariaVisit = handleRegisterPortariaVisit;
-
 window.handlePortariaCheckout = handlePortariaCheckout;
-
 window.togglePhotoZoom = togglePhotoZoom;
-
-window.iniciarCamera = iniciarCamera;
-
-window.tirarFoto = tirarFoto;
-
-window.recapturarFoto = recapturarFoto;
-
-window.pararCamera = pararCamera;
-
 window.setPortariaSetor = setPortariaSetor;
-
 window.autocompletePaciente = autocompletePaciente;
-
 window.selectAutocompletePaciente = selectAutocompletePaciente;
-
 window.toggleVisitHoursCheck = toggleVisitHoursCheck;
-
 window.handlePisoChange = handlePisoChange;
-
 window.handleCPFInput = handleCPFInput;
-
 window.handleLeitoSelectChange = handleLeitoSelectChange;
-
 window.handleCustomDestInput = handleCustomDestInput;

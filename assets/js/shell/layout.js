@@ -9,6 +9,10 @@ const abertoNo = (chave) => (state.menuPath || [])[nivelDe(chave)] === chave;
 const contemAtiva = (node, ativa) => Boolean(ativa) && (node === ativa || (node.children || []).some(c => contemAtiva(c, ativa)));
 
 function renderLeaf(l, ativa) {
+    // Item ainda sem tela: desabilitado, com selo "Em breve" (só administradores chegam aqui)
+    if (l.soon) {
+        return `<li><span class="wm-link wm-link--soon" aria-disabled="true" title="Funcionalidade em desenvolvimento">${lucideIcon('clock', 'w-4 h-4 wm-link__ico')}<span>${escapeHtml(l.label)}</span><em class="wm-soon">Em breve</em></span></li>`;
+    }
     const on = l === ativa;
     const badge = l.badge > 0 ? `<span class="wm-badge">${l.badge}</span>` : '';
     return `<li><button type="button" class="wm-link${on ? ' is-active' : ''}" onclick="runMenuLeaf(${l.id})" ${on ? 'aria-current="page"' : ''}>

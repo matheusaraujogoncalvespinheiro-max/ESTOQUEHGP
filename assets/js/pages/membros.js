@@ -1,3 +1,5 @@
+// Gerenciamento de membros (usuários e perfis)
+
 // Gerenciamento de membros
 
 function handleAddMember(e) {
@@ -165,8 +167,7 @@ function renderMembers() {
     </div> `;
 }
 
+// Expor funções usadas em atributos onclick/oninput do HTML
 window.handleAddMember = handleAddMember;
-
 window.handleEditMember = handleEditMember;
-
 window.handleRemoveMember = handleRemoveMember;
