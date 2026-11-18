@@ -33,6 +33,7 @@ assets/
       state.js             Estado global e dados em memória
       permissions.js       Permissões por perfil (hasPermission, getRoleLabel)
       auth.js              Login, logout e logout por inatividade
+      session.js           Sessão persistente: recarregar a página não desconecta
       ui.js                Mensagens, títulos e filtros
       router.js            render(), navegação e roteamento por módulo
       backup.js            Exportar/importar backup
@@ -102,6 +103,13 @@ Coleções: `patients`, `products`, `product_batches`, `laudos`, `mapa_schedule`
 
 Para uma tela nova que grava dados: crie a coleção com `db_sync<Nome>` + `db_save<Nome>`, registre o listener em
 `db_setupSubscriptions()` e o sync em `db_syncAll()`.
+
+## Sessão
+
+Recarregar a página (F5) não desconecta: `core/session.js` guarda em `sessionStorage` só o usuário, a tela
+aberta e a hora da última atividade (nunca a senha). Ao recarregar, o usuário é conferido de novo nos
+cadastros do banco e o sistema volta para a mesma tela. A sessão vale só na aba aberta (fechar a aba
+desconecta), expira com os mesmos 10 minutos de inatividade do login e é apagada no logout.
 
 ## Perfis
 

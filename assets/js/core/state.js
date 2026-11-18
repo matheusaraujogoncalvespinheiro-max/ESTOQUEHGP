@@ -119,7 +119,8 @@ let state = {
     isOffline: !navigator.onLine,
     expandedGroups: ['PACIENTES', 'LAUDOS', 'TRANSFERENCIA'],
     isMobileMenuOpen: false,
-    menuPath: []
+    menuPath: [],
+    sessionPending: false
 };
 
 // Chaves para localStorage

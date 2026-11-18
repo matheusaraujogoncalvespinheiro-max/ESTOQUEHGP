@@ -10,5 +10,8 @@ setTimeout(() => {
     }
 }, 1000);
 
+// Recarregar a página não desconecta: restaura a sessão guardada (se houver)
+initSession();
+
 // Inicializar renderização
 render();

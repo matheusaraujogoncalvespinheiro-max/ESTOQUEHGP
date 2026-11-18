@@ -363,6 +363,9 @@ async function db_syncMembers() {
                 USERS_DB[username] = user;
             }
         }
+
+        // Usuários carregados: se havia sessão guardada (recarga da página), entra de volta
+        if (typeof restoreSessionIfPending === 'function') restoreSessionIfPending();
     } catch (err) {
         console.error('Error syncing members:', err);
     }
@@ -854,6 +857,9 @@ async function db_syncAll() {
 
     // Use settle or individual try-catches to ensure one failure doesn't block the UI
     await Promise.all(syncTasks.map(t => t.catch(err => console.error('Sync task failed:', err))));
+
+    // Se a sessão guardada não pôde ser restaurada (usuário removido), mostra o login
+    if (typeof giveUpPendingSession === 'function') giveUpPendingSession();
 
     if (typeof render === 'function') render();
 }

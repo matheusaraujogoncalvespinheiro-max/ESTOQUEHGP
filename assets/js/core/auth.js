@@ -38,6 +38,7 @@ function handleLoginAction() {
             state.activeModule = 'DASHBOARD';
         }
 
+        startSession();
         render();
         resetInactivityTimer();
 
@@ -60,6 +61,7 @@ function handleLoginAction() {
 }
 
 function logout() {
+    clearSession();
     state.isAuthenticated = false;
     state.currentUser = null;
     state.activeModule = 'DASHBOARD';
@@ -76,6 +78,7 @@ const INACTIVITY_LIMIT = 10 * 60 * 1000; // 10 minutes
 
 function resetInactivityTimer() {
     if (!state.isAuthenticated) return;
+    touchSession();
 
     clearTimeout(inactivityTimer);
     inactivityTimer = setTimeout(() => {

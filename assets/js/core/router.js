@@ -126,7 +126,8 @@ function render() {
     }
 
     if (!state.isAuthenticated) {
-        root.innerHTML = renderLogin();
+        // Com sessão guardada, espera os usuários do banco em vez de piscar a tela de login
+        root.innerHTML = state.sessionPending ? renderSessionLoading() : renderLogin();
     } else {
         root.innerHTML = renderDashboardLayout();
     }
@@ -142,6 +143,7 @@ function render() {
     lucide.createIcons();
 
     if (state.isAuthenticated) {
+        saveSession();
         updateNotificationBadge();
 
         // Se estiver na criação de laudo, renderizar a lista de itens OPME
