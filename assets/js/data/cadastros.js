@@ -16,12 +16,13 @@ const R_FIN = ['ADMIN'];
 const roles = (lista, ver = lista) => ({ ver, criar: lista, editar: lista, inativar: lista });
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+const ATIVO_SEL = { k: 'ativo_sel', label: 'Ativo', type: 'select', req: true, col: 2, opts: [{ id: '1', rotulo: 'Sim' }, { id: '0', rotulo: 'Não' }] };
 const OBS = { k: 'observacoes', label: 'Observações', type: 'textarea', span2: true, maxlen: 500 };
 
 const CAD_DEFS = {
-    // ============ PRINCIPAL ============
+    // ============ PRINCIPAL (layout "ERP": bloco de identificação + abas Principal / Adicionais / Observações) ============
     paciente: {
-        key: 'paciente', store: 'paciente', sensivel: true, label: 'Pacientes', singular: 'Paciente', icon: 'users',
+        key: 'paciente', store: 'paciente', sensivel: true, layout: 'erp', semSitForm: true, label: 'Pacientes', singular: 'Paciente', icon: 'users',
         desc: 'Cadastro de identificação dos pacientes. O histórico de atendimentos e internações é preservado.',
         roles: { ver: ['ADMIN', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA'], criar: ['ADMIN', 'FUNC_RECEPCAO'], editar: ['ADMIN', 'FUNC_RECEPCAO'], inativar: ['ADMIN'] },
         rotulo: (r) => r.nome,
@@ -34,84 +35,107 @@ const CAD_DEFS = {
             { k: 'telefone', label: 'Telefone', get: (r) => r.telefone || '—' }
         ],
         filters: [{ k: 'sexo', label: 'Sexo', opts: [{ id: 'F', rotulo: 'Feminino' }, { id: 'M', rotulo: 'Masculino' }, { id: 'O', rotulo: 'Outro' }] }],
-        header: ['nome', 'prontuario', 'cpf'],
+        top: [
+            { k: 'prontuario', label: 'Prontuário', type: 'text', col: 2, maxlen: 20 },
+            { k: 'cpf', label: 'CPF', type: 'cpf', col: 3 },
+            { k: 'nome', label: 'Nome completo', type: 'text', req: true, col: 5 },
+            ATIVO_SEL
+        ],
         tabs: [
-            { id: 'dados', label: 'Identificação', fields: [
-                { k: 'nome', label: 'Nome completo', type: 'text', req: true, span2: true },
-                { k: 'prontuario', label: 'Prontuário', type: 'text', req: true },
-                { k: 'cpf', label: 'CPF', type: 'cpf' },
-                { k: 'cns', label: 'Cartão Nacional de Saúde (CNS)', type: 'text', maxlen: 15, ph: '15 dígitos' },
-                { k: 'data_nascimento', label: 'Data de nascimento', type: 'date', req: true },
-                { k: 'sexo', label: 'Sexo', type: 'select', opts: [{ id: 'F', rotulo: 'Feminino' }, { id: 'M', rotulo: 'Masculino' }, { id: 'O', rotulo: 'Outro' }, { id: 'N', rotulo: 'Não informado' }] },
-                { k: 'nome_mae', label: 'Nome da mãe', type: 'text', span2: true }
+            { id: 'principal', label: 'Principal', fields: [
+                { k: 'data_nascimento', label: 'Data de nascimento', type: 'date', req: true, col: 3 },
+                { k: 'sexo', label: 'Sexo', type: 'select', col: 3, opts: [{ id: 'F', rotulo: 'Feminino' }, { id: 'M', rotulo: 'Masculino' }, { id: 'O', rotulo: 'Outro' }, { id: 'N', rotulo: 'Não informado' }] },
+                { k: 'cns', label: 'Cartão SUS (CNS)', type: 'digits', len: 15, col: 6, maxlen: 15, ph: '15 dígitos' },
+                { k: 'nome_mae', label: 'Nome da mãe', type: 'text', col: 6 },
+                { k: 'telefone', label: 'Fone', type: 'phone', col: 3 },
+                { k: 'celular', label: 'Celular', type: 'phone', col: 3 },
+                { k: 'email', label: 'E-mail', type: 'email', col: 12 },
+                { secao: 'Endereço' },
+                { k: 'cep', label: 'CEP', type: 'cep', col: 3 },
+                { k: 'uf', label: 'Estado UF', type: 'uf', col: 3 },
+                { k: 'municipio_id', label: 'Município', type: 'municipio', dep: 'uf', col: 6 },
+                { k: 'logradouro', label: 'Endereço', type: 'text', col: 6 },
+                { k: 'bairro', label: 'Bairro', type: 'text', col: 3 },
+                { k: 'numero', label: 'Número', type: 'text', col: 3, maxlen: 10 },
+                { k: 'complemento', label: 'Complemento', type: 'text', col: 12 },
+                { secao: 'Contato (responsável)' },
+                { k: 'responsavel_nome', label: 'Contato', type: 'text', col: 6 },
+                { k: 'responsavel_parentesco', label: 'Parentesco', type: 'text', col: 3 },
+                { k: 'responsavel_telefone', label: 'Fone', type: 'phone', col: 3 }
             ] },
-            { id: 'contato', label: 'Contato e endereço', fields: [
-                { k: 'telefone', label: 'Telefone', type: 'phone', req: true },
-                { k: 'email', label: 'E-mail', type: 'email' },
-                { k: 'cep', label: 'CEP', type: 'cep' },
-                { k: 'logradouro', label: 'Logradouro', type: 'text' },
-                { k: 'numero', label: 'Número', type: 'text', maxlen: 10 },
-                { k: 'bairro', label: 'Bairro', type: 'text' },
-                { k: 'municipio_id', label: 'Município', type: 'ref', ref: 'municipio' },
-                { k: 'uf', label: 'UF', type: 'uf' }
+            { id: 'adicionais', label: 'Adicionais', fields: [
+                { k: 'estado_civil', label: 'Estado civil', type: 'select', col: 3, opts: ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)'] },
+                { k: 'nacionalidade', label: 'Nacionalidade', type: 'text', col: 3 },
+                { k: 'naturalidade', label: 'Naturalidade', type: 'text', col: 3 },
+                { k: 'profissao', label: 'Profissão', type: 'text', col: 3 }
             ] },
-            { id: 'complementar', label: 'Complementares', fields: [
-                { k: 'estado_civil', label: 'Estado civil', type: 'select', opts: ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)'] },
-                { k: 'responsavel_nome', label: 'Responsável / contato de emergência', type: 'text' },
-                { k: 'responsavel_telefone', label: 'Telefone do responsável', type: 'phone' },
-                { ...OBS }
+            { id: 'observacoes', label: 'Observações', fields: [
+                { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
+                { k: 'anotacoes', label: 'Anotações', type: 'lista', col: 12, ph: 'Anotação administrativa (não use para informações clínicas)' }
             ] }
         ]
     },
 
     fornecedor: {
-        key: 'fornecedor', label: 'Fornecedores', singular: 'Fornecedor', icon: 'truck', prefix: 'FOR',
+        key: 'fornecedor', layout: 'erp', semSitForm: true, label: 'Fornecedores', singular: 'Fornecedor', icon: 'truck', prefix: 'FOR',
         desc: 'Empresas que fornecem materiais, OPME e serviços ao hospital.',
         roles: roles(R_EST),
         rotulo: (r) => r.nome_fantasia || r.razao_social,
-        search: ['codigo', 'razao_social', 'nome_fantasia', 'cnpj', 'contato_nome'],
-        unique: ['cnpj'],
+        search: ['codigo', 'razao_social', 'nome_fantasia', 'documento', 'contato_nome'],
+        unique: ['documento'],
         columns: [
             { k: 'codigo', label: 'Código', sort: true },
-            { k: 'razao_social', label: 'Razão social', sort: true },
-            { k: 'cnpj', label: 'CNPJ', get: (r) => formatCNPJ(r.cnpj) },
+            { k: 'razao_social', label: 'Razão social / Nome', sort: true },
+            { k: 'documento', label: 'CPF/CNPJ', get: (r) => (onlyDigits(r.documento).length > 11 ? formatCNPJ(r.documento) : formatCPF(r.documento)) },
             { k: 'tipo', label: 'Tipo', sort: true },
-            { k: 'telefone', label: 'Telefone', get: (r) => r.telefone || '—' }
+            { k: 'telefone', label: 'Fone', get: (r) => (r.telefone ? formatPhone(r.telefone) : '—') }
         ],
-        filters: [{ k: 'tipo', label: 'Tipo', opts: ['Fabricante', 'Distribuidor', 'Representante', 'Prestador de serviço'] }],
-        header: ['codigo', 'razao_social', 'cnpj'],
+        filters: [{ k: 'tipo', label: 'Tipo', opts: ['Fabricante', 'Distribuidor', 'Representante', 'Prestador de serviço'] }, { k: 'pessoa', label: 'Pessoa', opts: [{ id: 'J', rotulo: 'Jurídica' }, { id: 'F', rotulo: 'Física' }] }],
+        top: [
+            { k: 'codigo', label: 'Código', type: 'text', ro: true, roVazio: '0', col: 2 },
+            { k: 'pessoa', label: 'Pessoa', type: 'select', roEdit: true, ocultoNovo: true, col: 2, opts: [{ id: 'J', rotulo: 'Jurídica' }, { id: 'F', rotulo: 'Física' }] },
+            { k: 'documento', label: 'CPF/CNPJ', labelF: 'CPF', labelJ: 'CNPJ', type: 'doc', req: true, col: 3 },
+            { k: 'razao_social', label: 'Razão social / Nome', labelF: 'Nome', labelJ: 'Razão social', type: 'upper', req: true, col: 3, colNovo: 5 },
+            ATIVO_SEL
+        ],
         tabs: [
-            { id: 'dados', label: 'Dados cadastrais', fields: [
-                { k: 'razao_social', label: 'Razão social', type: 'upper', req: true, span2: true },
-                { k: 'nome_fantasia', label: 'Nome fantasia', type: 'upper' },
-                { k: 'cnpj', label: 'CNPJ', type: 'cnpj', req: true },
-                { k: 'ie', label: 'Inscrição estadual', type: 'text', maxlen: 20 },
-                { k: 'tipo', label: 'Tipo de fornecedor', type: 'select', req: true, opts: ['Fabricante', 'Distribuidor', 'Representante', 'Prestador de serviço'] }
+            { id: 'principal', label: 'Principal', fields: [
+                { k: 'tipo', label: 'Tipo de fornecedor', type: 'select', req: true, col: 3, opts: ['Fabricante', 'Distribuidor', 'Representante', 'Prestador de serviço'] },
+                { k: 'nome_fantasia', label: 'Fantasia', labelF: 'Apelido', labelJ: 'Fantasia', type: 'upper', col: 6 },
+                { k: 'ie', label: 'IE', labelF: 'RG', labelJ: 'IE', type: 'text', col: 3, maxlen: 20 },
+                { k: 'telefone', label: 'Fone', type: 'phone', col: 3 },
+                { k: 'celular', label: 'Celular', type: 'phone', col: 3 },
+                { k: 'email', label: 'E-mail', type: 'email', col: 6 },
+                { secao: 'Endereço' },
+                { k: 'cep', label: 'CEP', type: 'cep', col: 3 },
+                { k: 'uf', label: 'Estado UF', type: 'uf', col: 3 },
+                { k: 'municipio_id', label: 'Município', type: 'municipio', dep: 'uf', col: 6 },
+                { k: 'logradouro', label: 'Endereço', type: 'text', col: 6 },
+                { k: 'bairro', label: 'Bairro', type: 'text', col: 3 },
+                { k: 'numero', label: 'Número', type: 'text', col: 3, maxlen: 10 },
+                { k: 'complemento', label: 'Descrição', type: 'text', col: 12 },
+                { secao: 'Contato' },
+                { k: 'contato_nome', label: 'Contato', type: 'text', col: 6 },
+                { k: 'contato_email', label: 'E-mail', type: 'email', col: 3 },
+                { k: 'contato_telefone', label: 'Fone', type: 'phone', col: 3 }
             ] },
-            { id: 'contato', label: 'Contato e endereço', fields: [
-                { k: 'contato_nome', label: 'Pessoa de contato', type: 'text' },
-                { k: 'telefone', label: 'Telefone', type: 'phone' },
-                { k: 'email', label: 'E-mail', type: 'email' },
-                { k: 'site', label: 'Site', type: 'text' },
-                { k: 'cep', label: 'CEP', type: 'cep' },
-                { k: 'logradouro', label: 'Logradouro', type: 'text' },
-                { k: 'numero', label: 'Número', type: 'text', maxlen: 10 },
-                { k: 'bairro', label: 'Bairro', type: 'text' },
-                { k: 'municipio_id', label: 'Município', type: 'ref', ref: 'municipio' },
-                { k: 'uf', label: 'UF', type: 'uf' }
+            { id: 'adicionais', label: 'Adicionais', fields: [
+                { k: 'condicao_pagamento', label: 'Condição de pagamento', type: 'text', col: 3, ph: 'Ex.: 30 dias' },
+                { k: 'prazo_entrega', label: 'Prazo de entrega (dias)', type: 'number', max: 365, col: 3 },
+                { k: 'contrato_numero', label: 'Nº do contrato', type: 'text', col: 3 },
+                { k: 'contrato_validade', label: 'Validade do contrato', type: 'date', col: 3 },
+                { k: 'site', label: 'Site', type: 'text', col: 6 }
             ] },
-            { id: 'comercial', label: 'Informações comerciais', fields: [
-                { k: 'condicao_pagamento', label: 'Condição de pagamento', type: 'text', ph: 'Ex.: 30 dias' },
-                { k: 'prazo_entrega', label: 'Prazo de entrega (dias)', type: 'number', max: 365 },
-                { k: 'contrato_numero', label: 'Nº do contrato', type: 'text' },
-                { k: 'contrato_validade', label: 'Validade do contrato', type: 'date' },
-                { ...OBS }
+            { id: 'observacoes', label: 'Observações', fields: [
+                { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
+                { k: 'acompanhamentos', label: 'Acompanhamentos', type: 'lista', col: 6, ph: 'Contato, cobrança, pendência...' },
+                { k: 'anotacoes', label: 'Anotações', type: 'lista', col: 6 }
             ] }
         ]
     },
 
     funcionario: {
-        key: 'funcionario', store: 'funcionario', label: 'Funcionários', singular: 'Funcionário', icon: 'id-card',
+        key: 'funcionario', store: 'funcionario', layout: 'erp', semSitForm: true, label: 'Funcionários', singular: 'Funcionário', icon: 'id-card',
         desc: 'Funcionários do hospital. A matrícula identifica a pessoa e não muda depois de cadastrada.',
         roles: { ver: ['ADMIN', 'COORD_TRIAGEM'], criar: ['ADMIN'], editar: ['ADMIN'], inativar: ['ADMIN'] },
         rotulo: (r) => r.nome,
@@ -124,26 +148,33 @@ const CAD_DEFS = {
             { k: 'setor', label: 'Setor', sort: true, get: (r) => r.setor || '—' }
         ],
         filters: [{ k: 'categoria', label: 'Categoria', opts: () => CATEGORIAS_PROFISSIONAIS }],
-        header: ['nome', 'matricula', 'cargo'],
+        top: [
+            { k: 'matricula', label: 'Matrícula', type: 'upper', req: true, roEdit: true, maxlen: 20, col: 3 },
+            { k: 'nome', label: 'Nome completo', type: 'text', req: true, col: 7 },
+            ATIVO_SEL
+        ],
         tabs: [
-            { id: 'dados', label: 'Identificação e função', fields: [
-                { k: 'nome', label: 'Nome completo', type: 'text', req: true, span2: true },
-                { k: 'matricula', label: 'Matrícula', type: 'upper', req: true, maxlen: 20, help: 'Não pode ser alterada depois de salva.' },
-                { k: 'cargo', label: 'Cargo ou função', type: 'text', req: true },
-                { k: 'categoria', label: 'Categoria profissional', type: 'select', req: true, opts: () => CATEGORIAS_PROFISSIONAIS },
-                { k: 'setor', label: 'Setor de lotação', type: 'text' }
+            { id: 'principal', label: 'Principal', fields: [
+                { k: 'cargo', label: 'Cargo ou função', type: 'text', req: true, col: 4 },
+                { k: 'categoria', label: 'Categoria profissional', type: 'select', req: true, col: 4, opts: () => CATEGORIAS_PROFISSIONAIS },
+                { k: 'setor', label: 'Setor de lotação', type: 'text', col: 4 },
+                { k: 'admissao', label: 'Data de admissão', type: 'date', col: 4 },
+                { k: 'telefone', label: 'Fone', type: 'phone', col: 4 },
+                { k: 'email', label: 'E-mail', type: 'email', col: 4 }
             ] },
-            { id: 'contato', label: 'Contato e vínculo', fields: [
-                { k: 'telefone', label: 'Telefone', type: 'phone' },
-                { k: 'email', label: 'E-mail', type: 'email' },
-                { k: 'admissao', label: 'Data de admissão', type: 'date' },
-                { k: 'usuario_acesso', label: 'Usuário de acesso ao sistema', type: 'text', help: 'Opcional: nome de usuário do cadastro de usuários.' }
+            { id: 'adicionais', label: 'Adicionais', fields: [
+                { k: 'registro_conselho', label: 'Registro no conselho (COREN, CRM...)', type: 'text', col: 4 },
+                { k: 'usuario_acesso', label: 'Usuário de acesso ao sistema', type: 'text', col: 4, help: 'Opcional: nome de usuário do cadastro de usuários.' }
+            ] },
+            { id: 'observacoes', label: 'Observações', fields: [
+                { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
+                { k: 'anotacoes', label: 'Anotações', type: 'lista', col: 12 }
             ] }
         ]
     },
 
     municipio: {
-        key: 'municipio', label: 'Municípios', singular: 'Município', icon: 'map-pin', prefix: 'MUN',
+        key: 'municipio', layout: 'erp', semSitForm: true, label: 'Municípios', singular: 'Município', icon: 'map-pin', prefix: 'MUN',
         desc: 'Municípios usados nos endereços de pacientes e fornecedores.',
         roles: roles(['ADMIN'], ['ADMIN', 'CHEFE_OPME', 'FUNC_RECEPCAO']),
         rotulo: (r) => `${r.nome}/${r.uf}`,
@@ -155,15 +186,23 @@ const CAD_DEFS = {
             { k: 'uf', label: 'UF', sort: true }
         ],
         filters: [{ k: 'uf', label: 'UF', opts: UFS }],
-        header: ['codigo_ibge', 'nome', 'uf'],
-        usedBy: [{ key: 'fornecedor', field: 'municipio_id', label: 'fornecedor(es)' }, { key: 'paciente', field: 'municipio_id', label: 'paciente(s)' }],
-        tabs: [{ id: 'dados', label: 'Dados territoriais', fields: [
-            { k: 'nome', label: 'Nome do município', type: 'text', req: true },
-            { k: 'uf', label: 'UF', type: 'uf', req: true },
-            { k: 'codigo_ibge', label: 'Código IBGE', type: 'text', req: true, maxlen: 7, ph: '7 dígitos' },
-            { k: 'regiao_saude', label: 'Região de saúde', type: 'text' },
-            { ...OBS }
-        ] }]
+        usedBy: [{ key: 'fornecedor', field: 'municipio_id', por: 'codigo_ibge', label: 'fornecedor(es)' }, { key: 'paciente', field: 'municipio_id', por: 'codigo_ibge', label: 'paciente(s)' }],
+        top: [
+            { k: 'codigo_ibge', label: 'Código IBGE', type: 'digits', len: 7, req: true, maxlen: 7, ph: '7 dígitos', col: 3 },
+            { k: 'nome', label: 'Município', type: 'text', req: true, col: 5 },
+            { k: 'uf', label: 'Estado UF', type: 'uf', req: true, col: 2 },
+            ATIVO_SEL
+        ],
+        tabs: [
+            { id: 'principal', label: 'Principal', fields: [
+                { k: 'regiao_saude', label: 'Região de saúde', type: 'text', col: 6 },
+                { k: 'ddd', label: 'DDD', type: 'digits', len: 2, col: 2, maxlen: 2 }
+            ] },
+            { id: 'observacoes', label: 'Observações', fields: [
+                { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
+                { k: 'anotacoes', label: 'Anotações', type: 'lista', col: 12 }
+            ] }
+        ]
     },
 
     // ============ ESTOQUE ============

@@ -279,7 +279,7 @@ html[data-tema='escuro'] .at-radio--outros input:checked + span { background: rg
 
 /* Linha do tempo de alterações */
 .at-timeline { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.at-timeline li { padding: 10px 14px; border-left: 4px solid var(--tone, var(--sh-accent)); border-radius: 8px; background: var(--sh-surface-2); font-size: 14px; }
+.at-timeline li { padding: 10px 14px; border: 1px solid var(--sh-line); border-radius: 8px; background: var(--sh-surface-2); font-size: 14px; }
 .at-timeline small { display: block; color: var(--sh-muted); }
 
 /* ---------- Gestão das Triagens ---------- */

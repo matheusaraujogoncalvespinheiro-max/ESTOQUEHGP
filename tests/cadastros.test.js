@@ -29,7 +29,7 @@ test('definições: referências, vínculos e campos obrigatórios apontam para 
     const problemas = call(`(function () {
         const erros = [];
         for (const d of Object.values(CAD_DEFS)) {
-            const campos = [...(d.top || []), ...(d.tabs || []).flatMap(t => t.fields || [])];
+            const campos = [...(d.top || []), ...(d.tabs || []).flatMap(t => t.fields || [])].filter(f => f.k);
             campos.filter(f => f.ref).forEach(f => { if (!CAD_DEFS[f.ref]) erros.push(d.key + ': ref ' + f.ref); });
             (d.filters || []).filter(f => f.ref).forEach(f => { if (!CAD_DEFS[f.ref]) erros.push(d.key + ': filtro ref ' + f.ref); });
             (d.usedBy || []).forEach(u => { if (!CAD_DEFS[u.key]) erros.push(d.key + ': usedBy ' + u.key); });

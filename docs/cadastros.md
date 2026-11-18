@@ -1,7 +1,7 @@
 # Menu Cadastro: consulta e cadastro separados
 
 Cada opção do menu **Cadastro** abre uma **tela de consulta** (pesquisa, filtros, ordenação, paginação, situação, ver/editar/inativar).
-A partir dela abrem as telas de **cadastro** (novo/editar) e de **visualização** (somente leitura).
+**Clicar em qualquer parte da linha da grid abre o cadastro para edição** (só para visualização, se o perfil não puder editar); a única ação na linha é Inativar/Reativar. Os seletores (combobox) usam uma lista própria no mesmo visual dos campos, com busca quando há muitas opções. A partir dela abrem as telas de **cadastro** (novo/editar) e de **visualização** (somente leitura).
 
 A experiência é padronizada; os dados não. Campos, abas, colunas e filtros de cada entidade estão em
 [`assets/js/data/cadastros.js`](../assets/js/data/cadastros.js). O motor (consulta, formulário, validação, gravação) está em
@@ -17,6 +17,16 @@ A experiência é padronizada; os dados não. Campos, abas, colunas e filtros de
 | Estoque | Classe, Grupo, Sub-Grupo, Fabricante, Unidade, Etiqueta | `cad_<entidade>` | Chefe OPME |
 | Financeiro | Centro de Custo, Plano de Contas, Sub-Plano, Contas, Metas | `cad_<entidade>` | Administrador |
 | Usuário | Cadastros de Usuários | `app_users` | Chefe OPME |
+
+## Layout das telas do grupo Principal (Paciente, Fornecedor, Funcionário, Municípios)
+
+Seguem o modelo de ERP: botão de voltar no canto, **bloco de identificação** no topo (código, pessoa, CPF/CNPJ, nome, ativo) e abas
+**Principal / Adicionais / Observações** em grade de 12 colunas. Na aba Principal há as seções **Endereço** e **Contato**, que recolhem
+pelo ícone de olho. Em Observações há um campo livre e listas (**Anotações**, **Acompanhamentos** no Fornecedor) que só acrescentam itens,
+com data e autor, para preservar o histórico. Cancelar e Salvar ficam numa barra fixa no rodapé. No Fornecedor, o campo CPF/CNPJ define o tipo de pessoa pelo tamanho (11 dígitos = física, 14 = jurídica; o campo "Pessoa" só aparece na edição, somente leitura).
+O cadastro abre como pessoa física (rótulos **CPF, Nome, Apelido, RG**); ao digitar 12 a 14 dígitos passam a **CNPJ, Razão social, Fantasia, IE**. O código aparece como **0** até o registro ser salvo.
+O seletor de **Município** traz os 5.571 municípios do IBGE (`assets/js/data/municipios-ibge.js`), filtrados pelo estado escolhido, e guarda o código IBGE.
+Quando o documento é CNPJ aparece um botão de busca que preenche razão social, fantasia, contato e endereço (BrasilAPI); ao lado do CEP há um botão que preenche endereço, bairro, UF e município (ViaCEP). Cada consulta envia somente o CNPJ ou o CEP digitado, e o município é escolhido automaticamente pelo código IBGE.
 
 ## Regras
 

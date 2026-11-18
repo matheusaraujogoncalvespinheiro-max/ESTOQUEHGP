@@ -52,6 +52,9 @@ function cadRotuloRef(key, id) {
     return r ? CAD_DEFS[key].rotulo(r) : '—';
 }
 
+/** Rótulo do campo conforme o tipo de pessoa (labelF = física, labelJ = jurídica). O cadastro abre como pessoa física. */
+const cadRotuloCampo = (f, form) => (((form && form.pessoa) || 'F') === 'J' ? (f.labelJ || f.label) : (f.labelF || f.label));
+
 const cadOptsOf = (f) => (typeof f.opts === 'function' ? f.opts() : (f.opts || []));
 const cadOptId = (o) => (typeof o === 'string' ? o : o.id);
 const cadOptRotulo = (o) => (typeof o === 'string' ? o : o.rotulo);
@@ -96,10 +99,7 @@ function renderCadList(def) {
 
     const filterSelect = (f) => {
         const opts = f.ref ? cadRowsOf(f.ref).filter(r => r.ativo).map(r => ({ id: r.id, rotulo: CAD_DEFS[f.ref].rotulo(r) })) : cadOptsOf(f);
-        return `<label class="cd-filter"><span>${escapeHtml(f.label)}</span>
-            <select class="at-select" onchange="cadFiltro('${f.k}', this.value)" data-keep="cdf_${f.k}">
-                <option value="">Todos</option>${opts.map(o => `<option value="${escapeHtml(cadOptId(o))}" ${L.filtros[f.k] === cadOptId(o) ? 'selected' : ''}>${escapeHtml(cadOptRotulo(o))}</option>`).join('')}
-            </select></label>`;
+        return `<div class="cd-filter"><span>${escapeHtml(f.label)}</span>${cadComboHtml({ id: 'cdf_' + f.k, valor: L.filtros[f.k] || '', opts, vazio: 'Todos', placeholder: 'Todos', fn: 'cadFiltro', arg: f.k })}</div>`;
     };
 
     return `
@@ -117,12 +117,7 @@ function renderCadList(def) {
                 <input class="at-input" id="cd_q" type="search" value="${escapeHtml(L.q)}" placeholder="${escapeHtml('Pesquisar por ' + def.search.map(cadNomeCampo(def)).join(', '))}" oninput="cadBusca(this.value)" data-keep="cd_q" autocomplete="off">
             </label>
             ${def.filters.map(filterSelect).join('')}
-            <label class="cd-filter"><span>Situação</span>
-                <select class="at-select" onchange="cadSituacao(this.value)" data-keep="cd_sit">
-                    <option value="ativos" ${L.situacao === 'ativos' ? 'selected' : ''}>Ativos</option>
-                    <option value="inativos" ${L.situacao === 'inativos' ? 'selected' : ''}>Inativos</option>
-                    <option value="todos" ${L.situacao === 'todos' ? 'selected' : ''}>Todos</option>
-                </select></label>
+            <div class="cd-filter"><span>Situação</span>${cadComboHtml({ id: 'cd_sit', valor: L.situacao, opts: [{ id: 'ativos', rotulo: 'Ativos' }, { id: 'inativos', rotulo: 'Inativos' }, { id: 'todos', rotulo: 'Todos' }], vazio: null, fn: 'cadSituacao' })}</div>
             <button type="button" class="at-btn at-btn--ghost at-btn--sm cd-clear" onclick="cadLimpar()" ${filtrosAtivos ? '' : 'disabled'}>${lucideIcon('eraser', 'w-4 h-4')} Limpar filtros</button>
         </section>
 
@@ -132,21 +127,19 @@ function renderCadList(def) {
                     ${def.columns.map(c => `<th ${c.sort ? `class="is-sort" onclick="cadOrdenar('${c.k}')" aria-sort="${L.sort.k === c.k ? (L.sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"` : ''}>${escapeHtml(c.label)}${L.sort.k === c.k ? (L.sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}
                     <th>Situação</th><th class="cd-actcol">Ações</th>
                 </tr></thead>
-                <tbody>${pageRows.length ? pageRows.map(r => `<tr class="${r.ativo ? '' : 'is-off'}">
+                <tbody>${pageRows.length ? pageRows.map(r => `<tr class="cd-row ${r.ativo ? '' : 'is-off'}" tabindex="0" title="Abrir cadastro" onclick="cadAbrirLinha(${cadArg(r.id)})" onkeydown="if (event.key === 'Enter') cadAbrirLinha(${cadArg(r.id)})">
                     ${def.columns.map(c => `<td data-label="${escapeHtml(c.label)}">${escapeHtml(c.get ? c.get(r) : (r[c.k] ?? '—'))}</td>`).join('')}
                     <td data-label="Situação">${cadBadge(r)}</td>
                     <td class="cd-actcol">
-                        <button type="button" class="cd-ico" title="Visualizar" aria-label="Visualizar" onclick="cadVer(${cadArg(r.id)})">${lucideIcon('eye', 'w-4 h-4')}</button>
-                        ${cadCan(def, 'editar') ? `<button type="button" class="cd-ico" title="Editar" aria-label="Editar" onclick="cadEditar(${cadArg(r.id)})">${lucideIcon('pencil', 'w-4 h-4')}</button>` : ''}
                         ${cadCan(def, 'inativar') ? (r.ativo
-                            ? `<button type="button" class="cd-ico cd-ico--warn" title="Inativar" aria-label="Inativar" onclick="cadInativar(${cadArg(r.id)})">${lucideIcon('ban', 'w-4 h-4')}</button>`
-                            : `<button type="button" class="cd-ico cd-ico--ok" title="Reativar" aria-label="Reativar" onclick="cadReativar(${cadArg(r.id)})">${lucideIcon('rotate-ccw', 'w-4 h-4')}</button>`) : ''}
+                            ? `<button type="button" class="cd-ico cd-ico--warn" title="Inativar" aria-label="Inativar" onclick="event.stopPropagation(); cadInativar(${cadArg(r.id)})">${lucideIcon('ban', 'w-4 h-4')}</button>`
+                            : `<button type="button" class="cd-ico cd-ico--ok" title="Reativar" aria-label="Reativar" onclick="event.stopPropagation(); cadReativar(${cadArg(r.id)})">${lucideIcon('rotate-ccw', 'w-4 h-4')}</button>`) : ''}
                     </td></tr>`).join('') : `<tr><td colspan="${def.columns.length + 2}" class="at-empty">${cadStoreOf(def).rows(def).length ? 'Nenhum registro encontrado com estes filtros.' : 'Nenhum registro cadastrado ainda.'}</td></tr>`}
                 </tbody></table></div>
             <footer class="cd-pager">
                 <span>${rows.length} registro(s)</span>
                 <label>Por página
-                    <select class="at-select" onchange="cadTamanho(this.value)" data-keep="cd_size">${[10, 25, 50].map(n => `<option ${L.size === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+                    ${cadComboHtml({ id: 'cd_size', valor: String(L.size), opts: ['10', '25', '50'], vazio: null, fn: 'cadTamanho' })}</label>
                 <div class="cd-pager__nav">
                     <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadPagina(${L.page - 1})" ${L.page <= 1 ? 'disabled' : ''} aria-label="Página anterior">${lucideIcon('chevron-left', 'w-4 h-4')}</button>
                     <span>Página ${L.page} de ${pages}</span>
@@ -164,7 +157,7 @@ const cadNomeCampo = (def) => (k) => {
     const c = def.columns.find(x => x.k === k);
     return ((f && f.label) || (c && c.label) || k).toLowerCase();
 };
-const cadCamposDe = (def) => [...(def.top || []), ...(def.tabs || []).flatMap(t => t.fields || [])];
+const cadCamposDe = (def) => [...(def.top || []), ...(def.tabs || []).flatMap(t => t.fields || [])].filter(f => f.k);
 
 // Ações da consulta
 function cadBusca(v) { const L = cadList(cadDef()); L.q = v; L.page = 1; clearTimeout(cadBusca.t); cadBusca.t = setTimeout(render, 180); }
@@ -182,7 +175,8 @@ function cadNovo() {
     if (!cadCan(def, 'criar')) return showMsg('Seu perfil não pode criar este cadastro.', 'error');
     const st = cadState();
     st.mode = 'form'; st.id = null; st.tab = cadAbas(def, {})[0].id; st.dirty = false; st.saving = false;
-    st.form = { ativo: true, ...((cadStoreOf(def).defaults && cadStoreOf(def).defaults(def)) || {}) };
+    st.form = { ativo: true, ativo_sel: '1', ...(def.defaults || {}), ...((cadStoreOf(def).defaults && cadStoreOf(def).defaults(def)) || {}) };
+    st.secoes = {};
     renderFresh(); window.scrollTo(0, 0);
 }
 
@@ -194,10 +188,14 @@ async function cadAbrirRegistro(id, modo) {
     if (modo === 'form' && !cadCan(def, 'editar')) return showMsg('Seu perfil não pode editar este cadastro.', 'error');
     if (def.sensivel && typeof registrarAcesso === 'function') registrarAcesso(def.key, id, `Cadastro: ${modo === 'form' ? 'abriu para edição' : 'visualizou'}`);
     st.mode = modo; st.id = id; st.tab = cadAbas(def, rec)[0].id; st.dirty = false; st.saving = false;
-    st.form = cadStoreOf(def).toForm ? cadStoreOf(def).toForm(def, rec) : { ...rec };
+    st.form = cadStoreOf(def).toForm ? cadStoreOf(def).toForm(def, rec) : cadFormatarParaForm(def, rec);
+    st.form.ativo_sel = rec.ativo === false ? '0' : '1';
+    st.secoes = {};
     renderFresh(); window.scrollTo(0, 0);
 }
 const cadEditar = (id) => cadAbrirRegistro(id, 'form');
+/** Clique em qualquer parte da linha da grid: abre o cadastro para edição (ou só para ver, sem permissão de editar). */
+function cadAbrirLinha(id) { return cadAbrirRegistro(id, cadCan(cadDef(), 'editar') ? 'form' : 'view'); }
 const cadVer = (id) => cadAbrirRegistro(id, 'view');
 
 function cadVoltar() {
@@ -216,8 +214,11 @@ function cadCampo(k, el) {
     const st = cadState();
     const f = cadCamposDe(def).find(x => x.k === k) || {};
     let v = el.type === 'checkbox' ? el.checked : el.value;
+    const antes = st.form[k];
     if (f.type === 'cnpj') v = el.value = formatCNPJ(v);
     else if (f.type === 'cpf') v = el.value = formatCPF(v);
+    else if (f.type === 'doc') { v = el.value = cadFormatarDoc(v); st.form.pessoa = cadPessoaDoDoc(v) || ''; }
+    else if (f.type === 'digits') v = el.value = onlyDigits(v).slice(0, f.maxlen || 20);
     else if (f.type === 'cep') v = el.value = formatCEP(v);
     else if (f.type === 'phone') v = el.value = formatPhone(v);
     else if (f.type === 'upper') { const pos = el.selectionStart; v = el.value = v.toUpperCase(); try { el.setSelectionRange(pos, pos); } catch (e) { /* sem seleção */ } }
@@ -225,13 +226,56 @@ function cadCampo(k, el) {
     if (k === 'ativo_sel') st.form.ativo = v !== '0';
     st.dirty = true;
     cadCamposDe(def).filter(x => x.dep === k).forEach(x => { st.form[x.k] = ''; });
-    if (f.rerender || cadCamposDe(def).some(x => x.dep === k)) render();
+    const mudouPessoa = f.type === 'doc' && cadPessoaDoDoc(v) !== cadPessoaDoDoc(antes);
+    if (f.rerender || mudouPessoa || cadCamposDe(def).some(x => x.dep === k)) render();
+}
+
+/** Até 11 dígitos é CPF; acima disso, CNPJ. */
+const cadFormatarDoc = (v) => (onlyDigits(v).length > 11 ? formatCNPJ(v) : formatCPF(v));
+/** Tipo de pessoa pelo tamanho: 11 = Física (F), 12 a 14 = Jurídica (J). */
+const cadPessoaDoDoc = (v) => { const n = onlyDigits(v).length; return n === 11 ? 'F' : (n > 11 ? 'J' : ''); };
+
+/** Registro gravado (só dígitos) -> valores formatados para o formulário. */
+function cadFormatarParaForm(def, rec) {
+    const f = { ...rec };
+    cadCamposDe(def).forEach(c => {
+        const v = rec[c.k];
+        if (!v) return;
+        if (c.type === 'cnpj') f[c.k] = formatCNPJ(v);
+        else if (c.type === 'cpf') f[c.k] = formatCPF(v);
+        else if (c.type === 'doc') f[c.k] = cadFormatarDoc(v);
+        else if (c.type === 'phone') f[c.k] = formatPhone(v);
+        else if (c.type === 'cep') f[c.k] = formatCEP(v);
+    });
+    return f;
+}
+
+// ---- Listas (Anotações, Acompanhamentos): só acrescentam itens, nunca apagam (preserva o histórico) ----
+function cadAddItem(k) {
+    const st = cadState();
+    const input = document.getElementById(`cad_novo_${k}`);
+    const texto = String(input ? input.value : '').trim();
+    if (texto.length < 3) return showMsg('Escreva ao menos 3 caracteres.', 'error');
+    st.form[k] = [...(st.form[k] || []), { texto, em: nowISO(), por: state.currentUser.name }];
+    st.dirty = true;
+    renderFresh();
+    document.getElementById(`cad_novo_${k}`)?.focus();
+}
+
+function cadListaHtml(f, st, readonly) {
+    const itens = [...(st.form[f.k] || [])].reverse();
+    return `<div class="cd-lista">
+        <div class="cd-lista__head"><span>${escapeHtml(f.label)}</span>${readonly ? '' : `<button type="button" class="cd-plus" title="Adicionar" aria-label="Adicionar ${escapeHtml(f.label)}" onclick="cadAddItem('${f.k}')">${lucideIcon('plus', 'w-5 h-5')}</button>`}</div>
+        ${readonly ? '' : `<input class="at-input cd-lista__in" id="cad_novo_${f.k}" maxlength="400" placeholder="${escapeHtml(f.ph || 'Escreva e clique em +')}" autocomplete="off" onkeydown="if (event.key === 'Enter') { event.preventDefault(); cadAddItem('${f.k}'); }" data-keep="cad_novo_${f.k}">`}
+        <div class="cd-lista__box">${itens.length ? itens.map(i => `<div class="cd-lista__item"><p>${escapeHtml(i.texto)}</p><small>${escapeHtml(formatDateTimeBR(i.em))} · ${escapeHtml(i.por)}</small></div>`).join('') : '<div class="cd-lista__vazio">Nenhum registro.</div>'}</div>
+    </div>`;
 }
 
 function cadControle(def, f, st, readonly) {
     const val = st.form[f.k] ?? '';
     const id = `cad_${f.k}`;
-    if (readonly || f.ro || (f.roEdit && st.id)) return `<div class="cd-ro" id="${id}">${escapeHtml(cadValorLegivel(def, f, val) || '—')}</div>`;
+    if (f.type === 'lista') return cadListaHtml(f, st, readonly);
+    if (readonly || f.ro || (f.roEdit && st.id)) return `<div class="cd-ro" id="${id}">${escapeHtml(cadValorLegivel(def, f, val) || f.roVazio || '—')}</div>`;
     const on = `oninput="cadCampo('${f.k}', this)"`;
     const keep = `data-keep="${id}"`;
     switch (f.type) {
@@ -244,14 +288,25 @@ function cadControle(def, f, st, readonly) {
                     .map(r => ({ id: r.id, rotulo: CAD_DEFS[f.ref].rotulo(r) })).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
             } else opts = cadOptsOf(f);
             const semOpcoes = f.type === 'ref' && !opts.length;
-            return `<select class="at-select" id="${id}" name="${f.k}" onchange="cadCampo('${f.k}', this)" ${keep}>
-                <option value="">${semOpcoes ? 'Nenhum cadastro disponível' : 'Selecione'}</option>
-                ${opts.map(o => `<option value="${escapeHtml(cadOptId(o))}" ${cadOptId(o) === val ? 'selected' : ''}>${escapeHtml(cadOptRotulo(o))}</option>`).join('')}</select>`;
+            return cadComboHtml({ id, valor: val, opts, placeholder: semOpcoes ? 'Nenhum cadastro disponível' : 'Selecione', vazio: semOpcoes ? null : 'Selecione', fn: 'cadSelecionar', arg: f.k, desabilitado: semOpcoes });
         }
         case 'check': return `<label class="cd-check"><input type="checkbox" id="${id}" name="${f.k}" ${val ? 'checked' : ''} onchange="cadCampo('${f.k}', this)" ${keep}> <span>${escapeHtml(f.checkLabel || 'Sim')}</span></label>`;
         case 'date': return `<input class="at-input" type="date" id="${id}" name="${f.k}" value="${escapeHtml(val)}" ${f.max ? `max="${f.max}"` : ''} oninput="cadCampo('${f.k}', this)" ${keep}>`;
         case 'number': case 'money':
             return `<input class="at-input" type="number" inputmode="decimal" step="${f.type === 'money' ? '0.01' : (f.step || '1')}" min="${f.min ?? 0}" ${f.max ? `max="${f.max}"` : ''} id="${id}" name="${f.k}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" ${on} ${keep}>`;
+        case 'doc': {
+            const juridica = cadPessoaDoDoc(val) === 'J';
+            return `<div class="cd-inputbtn${juridica ? ' has-btn' : ''}"><input class="at-input" type="text" inputmode="numeric" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="18" placeholder="${juridica ? '00.000.000/0000-00' : '000.000.000-00'}" autocomplete="off" ${on} ${keep}>
+                ${juridica ? `<button type="button" class="cd-searchbtn" title="Buscar dados pelo CNPJ" aria-label="Buscar dados pelo CNPJ" onclick="cadBuscarCnpj()">${lucideIcon('search', 'w-5 h-5')}</button>` : ''}</div>`;
+        }
+        case 'cep': return `<div class="cd-inputbtn has-btn"><input class="at-input" type="text" inputmode="numeric" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="9" placeholder="00000-000" autocomplete="off" ${on} ${keep}>
+            <button type="button" class="cd-searchbtn" title="Buscar endereço pelo CEP" aria-label="Buscar endereço pelo CEP" onclick="cadBuscarCep()">${lucideIcon('search', 'w-5 h-5')}</button></div>`;
+        case 'municipio': {
+            const uf = st.form[f.dep || 'uf'];
+            const lista = (IBGE_MUNICIPIOS[uf] || []).map(([cod, nome]) => ({ id: String(cod), rotulo: nome }));
+            return cadComboHtml({ id, valor: String(val || ''), opts: lista, placeholder: uf ? 'Selecione o município' : 'Selecione o estado primeiro', vazio: uf ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !uf });
+        }
+        case 'digits': return `<input class="at-input" type="text" inputmode="numeric" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="${f.maxlen || 20}" placeholder="${escapeHtml(f.ph || '')}" autocomplete="off" ${on} ${keep}>`;
         case 'password': return `<input class="at-input" type="password" id="${id}" name="${f.k}" value="${escapeHtml(val)}" autocomplete="new-password" ${on} ${keep}>`;
         case 'email': return `<input class="at-input" type="email" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="120" autocomplete="off" ${on} ${keep}>`;
         default: return `<input class="at-input" type="text" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="${f.maxlen || 120}" placeholder="${escapeHtml(f.ph || '')}" autocomplete="off" ${on} ${keep}>`;
@@ -261,6 +316,7 @@ function cadControle(def, f, st, readonly) {
 function cadValorLegivel(def, f, val) {
     if (val === '' || val === null || val === undefined) return '';
     if (f.type === 'ref') return cadRotuloRef(f.ref, val);
+    if (f.type === 'municipio') return cadNomeMunicipio(val);
     if (f.type === 'check') return val ? 'Sim' : 'Não';
     if (f.type === 'date') return formatDateBR(val);
     if (f.type === 'money') return formatMoney(val);
@@ -270,6 +326,14 @@ function cadValorLegivel(def, f, val) {
 }
 
 function cadCampoHtml(def, f, st, readonly) {
+    if (def.layout === 'erp') {
+        if (f.ocultoNovo && !st.id) return '';
+        const ctl = cadControle(def, f, st, readonly);
+        return `<div class="cd-cell" style="--col:${(!st.id && f.colNovo) || f.col || 3}">
+            ${f.type === 'lista' ? ctl : `<label class="at-label" for="cad_${f.k}">${escapeHtml(cadRotuloCampo(f, st.form))}${f.req && !readonly ? ' <span class="req">*</span>' : ''}</label>${ctl}
+            ${!readonly && f.help ? `<span class="at-hint">${escapeHtml(f.help)}</span>` : ''}<p class="at-error" data-error="cad_${f.k}" role="alert"></p>`}
+        </div>`;
+    }
     return atField({ prefix: 'cad', campo: f.k, label: f.label, required: Boolean(f.req) && !readonly, hint: readonly ? '' : (f.help || ''), span2: f.span2, control: cadControle(def, f, st, readonly) });
 }
 
@@ -286,8 +350,33 @@ function renderCadForm(def, readonly) {
     const ident = rec ? def.rotulo(rec) : '';
 
     const topHtml = def.top
-        ? `<section class="at-card cd-top"><div class="at-form cd-topgrid">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`
+        ? (def.layout === 'erp'
+            ? `<section class="at-card cd-top cd-top--erp"><div class="cd-grid12">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`
+            : `<section class="at-card cd-top"><div class="at-form cd-topgrid">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`)
         : '';
+
+    if (def.layout === 'erp') {
+        return `
+    <form id="cad-form" class="cd-page at-stack tone-blue cd-erp" onsubmit="cadSalvar(event)" novalidate>
+        <div class="cd-erpbar">
+            <button type="button" class="cd-back" onclick="cadVoltar()" title="Voltar para a consulta" aria-label="Voltar para a consulta">${lucideIcon('undo-2', 'w-5 h-5')}</button>
+            <span class="cd-erpbar__t">${escapeHtml(titulo)}${ident ? ' · <strong>' + escapeHtml(ident) + '</strong>' : ''} ${cadBadge({ ativo })}</span>
+        </div>
+        ${topHtml}
+        <section class="at-card cd-block">
+            <nav class="at-tabs cd-tabs cd-tabs--erp" role="tablist" aria-label="Seções do cadastro">
+            ${(def.tabs || []).filter(t => !t.hide || !t.hide(st.form)).map(t => `<button type="button" role="tab" class="at-tab ${t.id === st.tab ? 'is-active' : ''}" aria-selected="${t.id === st.tab}" onclick="cadAba('${t.id}')">${escapeHtml(t.label)}</button>`).join('')}
+            </nav>
+            <div role="tabpanel" class="cd-panel">${aba.render ? aba.render(def, st, readonly) : cadCorpoDaAba(def, aba, st, readonly)}</div>
+        </section>
+        <div class="cd-footbar">
+            ${readonly
+                ? (cadCan(def, 'editar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="cadEditar(${cadArg(st.id)})">${lucideIcon('pencil', 'w-4 h-4')} Editar</button>` : '')
+                : `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadCancelar()">Cancelar</button>
+                   <button type="submit" class="at-btn at-btn--primary at-btn--sm" style="flex:none" data-busy-label>${lucideIcon('check', 'w-4 h-4')} Salvar</button>`}
+        </div>
+    </form>`;
+    }
 
     return `
     <form id="cad-form" class="cd-page at-stack tone-blue" onsubmit="cadSalvar(event)" novalidate>
@@ -317,8 +406,7 @@ function renderCadForm(def, readonly) {
             }).join('')}
             </nav>
             <div role="tabpanel" class="cd-panel">
-            ${aba.render ? aba.render(def, st, readonly) : `<div class="at-form">${aba.fields.map(f => cadCampoHtml(def, f, st, readonly)).join('')}
-                ${aba.fields.length === 0 ? '<div class="at-empty">Sem campos.</div>' : ''}</div>`}
+            ${aba.render ? aba.render(def, st, readonly) : cadCorpoDaAba(def, aba, st, readonly)}
             </div>
         </section>
 
@@ -329,6 +417,24 @@ function renderCadForm(def, readonly) {
     </form>`;
 }
 
+/** Campos da aba; no layout ERP, em grade de 12 colunas com seções (Endereço, Contato...) que podem ser recolhidas. */
+function cadCorpoDaAba(def, aba, st, readonly) {
+    if (def.layout !== 'erp') return `<div class="at-form">${aba.fields.map(f => cadCampoHtml(def, f, st, readonly)).join('')}${aba.fields.length === 0 ? '<div class="at-empty">Sem campos.</div>' : ''}</div>`;
+    const blocos = [];
+    let atual = { titulo: '', campos: [] };
+    aba.fields.forEach(f => { if (f.secao) { blocos.push(atual); atual = { titulo: f.secao, campos: [] }; } else atual.campos.push(f); });
+    blocos.push(atual);
+    return blocos.filter(b => b.titulo || b.campos.length).map(b => {
+        const oculto = b.titulo && (st.secoes || {})[b.titulo];
+        return `<div class="cd-secao">
+            ${b.titulo ? `<h3 class="cd-sec" onclick="cadSecao(${escapeHtml(JSON.stringify(b.titulo))})" role="button" tabindex="0" aria-expanded="${!oculto}">${escapeHtml(b.titulo)} ${lucideIcon(oculto ? 'eye-off' : 'eye', 'w-4 h-4')}</h3>` : ''}
+            ${oculto ? '' : `<div class="cd-grid12">${b.campos.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div>`}
+        </div>`;
+    }).join('');
+}
+
+function cadSecao(titulo) { const st = cadState(); st.secoes = st.secoes || {}; st.secoes[titulo] = !st.secoes[titulo]; render(); }
+
 function cadSituacaoForm(v) { const st = cadState(); st.form.ativo = v === '1'; st.dirty = true; render(); }
 function cadCancelar() { const st = cadState(); if (st.dirty && !confirm('Descartar as alterações feitas?')) return; if (st.id) cadAbrirRegistro(st.id, 'view'); else cadVoltar(); }
 
@@ -338,12 +444,18 @@ function cadValidar(def, form, id) {
     const erros = [];
     const campos = cadCamposDe(def);
     campos.forEach(f => {
-        if (f.ro) return;
+        if (f.ro || f.type === 'lista') return;
         const v = form[f.k];
         const vazio = v === undefined || v === null || String(v).trim() === '';
-        if (f.req && vazio && !(f.type === 'password' && id)) erros.push({ campo: f.k, mensagem: `Informe ${f.label.toLowerCase()}.` });
+        if (f.req && vazio && !(f.type === 'password' && id)) erros.push({ campo: f.k, mensagem: `Informe ${cadRotuloCampo(f, form).toLowerCase()}.` });
         if (vazio) return;
         const s = String(v).trim();
+        if (f.type === 'doc') {
+            const n = onlyDigits(s).length;
+            if (n !== 11 && n !== 14) erros.push({ campo: f.k, mensagem: 'Informe um CPF (11 dígitos) ou um CNPJ (14 dígitos).' });
+            else if (n === 11 ? !validateCPF(s) : !validateCNPJ(s)) erros.push({ campo: f.k, mensagem: n === 11 ? 'CPF inválido.' : 'CNPJ inválido.' });
+        }
+        if (f.type === 'digits' && f.len && onlyDigits(s).length !== f.len) erros.push({ campo: f.k, mensagem: `${f.label}: informe ${f.len} dígitos.` });
         if (f.type === 'cnpj' && !validateCNPJ(s)) erros.push({ campo: f.k, mensagem: 'CNPJ inválido.' });
         if (f.type === 'cpf' && !validateCPF(s)) erros.push({ campo: f.k, mensagem: 'CPF inválido.' });
         if (f.type === 'phone' && !validatePhone(s)) erros.push({ campo: f.k, mensagem: 'Telefone inválido. Use DDD + número.' });
@@ -368,8 +480,10 @@ function cadValidar(def, form, id) {
 
 /** Vínculos ativos que impedem a inativação. Devolve lista de textos. */
 function cadDependencias(def, id) {
+    const rec = cadStoreOf(def).rows(def).find(r => r.id === id);
     return (def.usedBy || []).map(u => {
-        const n = cadRowsOf(u.key).filter(r => r.ativo && r[u.field] === id).length;
+        const valor = u.por && rec ? String(rec[u.por]) : id;
+        const n = cadRowsOf(u.key).filter(r => r.ativo && String(r[u.field]) === valor).length;
         return n ? `${n} ${u.label}` : null;
     }).filter(Boolean);
 }
@@ -448,10 +562,13 @@ const CAD_STORES = {
             const user = state.currentUser;
             const dados = {};
             cadCamposDe(def).forEach(f => {
+                if (f.ro || f.k === 'ativo_sel') return;
                 let v = form[f.k];
                 if (v === undefined || v === null) v = f.type === 'check' ? false : '';
+                if (f.type === 'lista') { dados[f.k] = Array.isArray(v) ? v : []; return; }
                 if (typeof v === 'string') v = v.trim();
-                if (['cnpj', 'cpf', 'cep', 'phone'].includes(f.type)) v = onlyDigits(v);
+                if (['cnpj', 'cpf', 'cep', 'phone', 'doc', 'digits'].includes(f.type)) v = onlyDigits(v);
+                if (f.type === 'doc') dados.pessoa = cadPessoaDoDoc(v);
                 if ((f.type === 'number' || f.type === 'money') && v !== '') v = Number(v);
                 dados[f.k] = v;
             });
@@ -483,7 +600,7 @@ const CAD_STORES = {
     paciente: {
         watch: () => { if (cadCan(CAD_DEFS.paciente, 'ver')) db_cadWatch('paciente', 'pacientes'); },
         rows: () => (CAD_DATA.paciente || []).map(r => ({ ...r, ativo: r.ativo !== false })),
-        toForm: (def, r) => ({ ...r, cpf: r.cpf ? formatCPF(r.cpf) : '', telefone: r.telefone ? formatPhone(r.telefone) : '', responsavel_telefone: r.responsavel_telefone ? formatPhone(r.responsavel_telefone) : '', cep: r.cep ? formatCEP(r.cep) : '' }),
+        toForm: (def, r) => cadFormatarParaForm(def, r),
         async save(def, form, id) {
             requirePermission_cad(def, id ? 'editar' : 'criar');
             const base = buildPacientePayload(form);
@@ -492,11 +609,13 @@ const CAD_STORES = {
             const dup = (await findDuplicatePacientes(base, id)).filter(d => d.bloqueia);
             if (dup.length) throw new Error(`Já existe paciente com ${dup[0].motivos.join(' / ').toLowerCase()}: ${dup[0].paciente.nome}.`);
             const extras = {};
-            ['cns', 'sexo', 'nome_mae', 'email', 'cep', 'logradouro', 'numero', 'bairro', 'municipio_id', 'uf', 'estado_civil', 'responsavel_nome', 'responsavel_telefone', 'observacoes'].forEach(k => {
+            ['cns', 'sexo', 'nome_mae', 'email', 'celular', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio_id', 'uf', 'estado_civil', 'nacionalidade', 'naturalidade', 'profissao',
+                'responsavel_nome', 'responsavel_parentesco', 'responsavel_telefone', 'observacoes'].forEach(k => {
                 let v = String(form[k] ?? '').trim();
-                if (['cep', 'responsavel_telefone', 'cns'].includes(k)) v = onlyDigits(v);
+                if (['cep', 'responsavel_telefone', 'celular', 'cns'].includes(k)) v = onlyDigits(v);
                 extras[k] = v;
             });
+            extras.anotacoes = Array.isArray(form.anotacoes) ? form.anotacoes : [];
             const agora = nowISO();
             const user = state.currentUser;
             if (!id) {
@@ -530,8 +649,9 @@ const CAD_STORES = {
             requirePermission_cad(def, id ? 'editar' : 'criar');
             const dados = { nome: form.nome, matricula: form.matricula, cargo: form.cargo, categoria: form.categoria, situacao: form.ativo === false ? 'INATIVO' : 'ATIVO' };
             const extras = {};
-            ['setor', 'telefone', 'email', 'admissao', 'usuario_acesso'].forEach(k => { extras[k] = String(form[k] ?? '').trim(); });
+            ['setor', 'telefone', 'email', 'admissao', 'usuario_acesso', 'registro_conselho', 'observacoes'].forEach(k => { extras[k] = String(form[k] ?? '').trim(); });
             if (extras.telefone) extras.telefone = onlyDigits(extras.telefone);
+            extras.anotacoes = Array.isArray(form.anotacoes) ? form.anotacoes : [];
             return salvarFuncionario({ ...dados, ...extras }, id);
         },
         async setAtivo(def, id, ativo) { return alterarSituacaoFuncionario(id, ativo ? 'ATIVO' : 'INATIVO'); },
@@ -591,6 +711,164 @@ const CAD_STORES = {
 
 function requirePermission_cad(def, acao) {
     if (!cadCan(def, acao)) throw new Error('Acesso negado: seu perfil não tem permissão para esta operação.');
+}
+
+
+// ---------------------------------------------------------------- buscas por CNPJ e CEP
+
+/** Nome do município (lista do IBGE) pelo código de 7 dígitos. */
+function cadNomeMunicipio(cod) {
+    if (!cod) return '';
+    for (const uf of Object.keys(IBGE_MUNICIPIOS)) { const m = IBGE_MUNICIPIOS[uf].find(x => String(x[0]) === String(cod)); if (m) return `${m[1]}/${uf}`; }
+    return String(cod);
+}
+
+async function cadConsultar(url) {
+    const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!resp.ok) throw new Error(resp.status === 404 ? 'Nada encontrado para o valor informado.' : 'O serviço de consulta não respondeu. Tente novamente.');
+    return resp.json();
+}
+
+function cadPreencher(st, valores) {
+    Object.entries(valores).forEach(([k, v]) => { if (v !== undefined && v !== null && String(v).trim() !== '') st.form[k] = v; });
+    st.dirty = true;
+}
+
+function cadAvisoMunicipio(st, ibge, nome, uf) {
+    if ((IBGE_MUNICIPIOS[uf] || []).some(m => String(m[0]) === String(ibge))) { st.form.municipio_id = String(ibge); return ''; }
+    return ` O município ${nome}/${uf} não foi encontrado na lista do IBGE: escolha-o manualmente.`;
+}
+
+/** Botão ao lado do CNPJ: preenche os dados da empresa pela Receita (BrasilAPI). Só envia o CNPJ digitado. */
+async function cadBuscarCnpj() {
+    const st = cadState();
+    const cnpj = onlyDigits(st.form.documento);
+    if (cnpj.length !== 14 || !validateCNPJ(cnpj)) return showMsg('Informe um CNPJ válido (14 dígitos) para buscar.', 'error');
+    if (st.buscando) return;
+    st.buscando = true;
+    showMsg('Buscando CNPJ...');
+    try {
+        const d = await cadConsultar(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+        const fone = onlyDigits(d.ddd_telefone_1);
+        cadPreencher(st, {
+            razao_social: String(d.razao_social || '').toUpperCase(),
+            nome_fantasia: String(d.nome_fantasia || '').toUpperCase(),
+            telefone: fone.length >= 10 ? formatPhone(fone) : '',
+            email: String(d.email || '').toLowerCase(),
+            cep: d.cep ? formatCEP(String(d.cep)) : '',
+            uf: d.uf, logradouro: [d.descricao_tipo_de_logradouro, d.logradouro].filter(Boolean).join(' '),
+            numero: d.numero, complemento: d.complemento, bairro: d.bairro
+        });
+        const aviso = cadAvisoMunicipio(st, d.codigo_municipio_ibge, d.municipio, d.uf);
+        st.buscando = false;
+        renderFresh();
+        showMsg(`Dados do CNPJ carregados: confira antes de salvar.${aviso}`, aviso ? 'error' : 'success');
+    } catch (err) {
+        st.buscando = false;
+        showMsg(err.message || 'Não foi possível consultar o CNPJ.', 'error');
+    }
+}
+
+/** Botão ao lado do CEP: preenche endereço, bairro, UF e município pelo ViaCEP. Só envia o CEP digitado. */
+async function cadBuscarCep() {
+    const st = cadState();
+    const cep = onlyDigits(st.form.cep);
+    if (cep.length !== 8) return showMsg('Informe o CEP completo (8 dígitos) para buscar.', 'error');
+    if (st.buscando) return;
+    st.buscando = true;
+    showMsg('Buscando CEP...');
+    try {
+        const d = await cadConsultar(`https://viacep.com.br/ws/${cep}/json/`);
+        if (d.erro) throw new Error('CEP não encontrado.');
+        cadPreencher(st, { logradouro: d.logradouro, bairro: d.bairro, uf: d.uf });
+        if (d.complemento && !st.form.complemento) st.form.complemento = d.complemento;
+        const aviso = cadAvisoMunicipio(st, d.ibge, d.localidade, d.uf);
+        st.buscando = false;
+        renderFresh();
+        showMsg(`Endereço carregado.${aviso}`, aviso ? 'error' : 'success');
+        document.getElementById('cad_numero')?.focus();
+    } catch (err) {
+        st.buscando = false;
+        showMsg(err.message || 'Não foi possível consultar o CEP.', 'error');
+    }
+}
+
+
+// ============================================================ COMBOBOX PADRONIZADO
+// Substitui o <select> nativo (cuja lista não segue o visual do sistema). A lista abre logo abaixo do campo,
+// com a mesma largura, cantos arredondados, destaque do item escolhido e busca quando há muitas opções.
+
+/**
+ * opts: [{ id, rotulo }] ou strings. fn/arg: função global chamada ao escolher: fn(valor) ou fn(arg, valor).
+ * vazio: texto do primeiro item (que limpa a escolha); null = sem item vazio.
+ */
+function cadComboHtml({ id, valor = '', opts = [], placeholder = 'Selecione', fn, arg = '', vazio = 'Selecione', desabilitado = false }) {
+    const lista = opts.map(o => ({ id: cadOptId(o), rotulo: cadOptRotulo(o) }));
+    const atual = lista.find(o => o.id === valor);
+    const itens = [...(vazio === null ? [] : [{ id: '', rotulo: vazio }]), ...lista];
+    return `<div class="cd-combo" data-fn="${fn}" data-arg="${escapeHtml(arg)}">
+        <button type="button" class="cd-combo__btn" id="${id}" aria-haspopup="listbox" aria-expanded="false" data-keep="${id}" ${desabilitado ? 'disabled' : ''}>
+            <span class="cd-combo__txt ${atual ? '' : 'is-ph'}">${escapeHtml(atual ? atual.rotulo : placeholder)}</span>${lucideIcon('chevron-down', 'w-4 h-4')}
+        </button>
+        <div class="cd-combo__pop" role="listbox">
+            ${lista.length > 8 ? '<input type="search" class="cd-combo__q" placeholder="Pesquisar..." autocomplete="off" aria-label="Pesquisar na lista">' : ''}
+            <div class="cd-combo__items">${itens.map(o => `<button type="button" role="option" class="cd-combo__opt ${o.id === valor ? 'is-sel' : ''}" data-v="${escapeHtml(o.id)}" aria-selected="${o.id === valor}"><span>${escapeHtml(o.rotulo)}</span>${o.id === valor && o.id !== '' ? lucideIcon('check', 'w-4 h-4') : ''}</button>`).join('')}</div>
+        </div>
+    </div>`;
+}
+
+function cadComboFechar() {
+    document.querySelectorAll('.cd-combo.is-open').forEach(c => { c.classList.remove('is-open', 'is-up'); c.querySelector('.cd-combo__btn')?.setAttribute('aria-expanded', 'false'); });
+}
+
+document.addEventListener('click', (e) => {
+    const opt = e.target.closest('.cd-combo__opt');
+    if (opt) {
+        const combo = opt.closest('.cd-combo');
+        const fn = window[combo.dataset.fn];
+        cadComboFechar();
+        if (typeof fn === 'function') (combo.dataset.arg ? fn(combo.dataset.arg, opt.dataset.v) : fn(opt.dataset.v));
+        return;
+    }
+    const btn = e.target.closest('.cd-combo__btn');
+    if (btn) {
+        const combo = btn.closest('.cd-combo');
+        const estavaAberto = combo.classList.contains('is-open');
+        cadComboFechar();
+        if (!estavaAberto) {
+            combo.classList.add('is-open');
+            btn.setAttribute('aria-expanded', 'true');
+            const r = btn.getBoundingClientRect();
+            if (window.innerHeight - r.bottom < 280 && r.top > 280) combo.classList.add('is-up');
+            const q = combo.querySelector('.cd-combo__q');
+            if (q) { q.value = ''; q.dispatchEvent(new Event('input')); q.focus(); }
+            else combo.querySelector('.cd-combo__opt.is-sel, .cd-combo__opt')?.focus();
+        }
+        return;
+    }
+    if (!e.target.closest('.cd-combo__pop')) cadComboFechar();
+});
+
+document.addEventListener('input', (e) => {
+    if (!e.target.classList || !e.target.classList.contains('cd-combo__q')) return;
+    const termo = searchKey(e.target.value);
+    e.target.closest('.cd-combo').querySelectorAll('.cd-combo__opt').forEach(o => { o.hidden = Boolean(termo) && !searchKey(o.textContent).includes(termo); });
+});
+
+document.addEventListener('keydown', (e) => {
+    const combo = e.target.closest && e.target.closest('.cd-combo');
+    if (e.key === 'Escape' && document.querySelector('.cd-combo.is-open')) { const b = document.querySelector('.cd-combo.is-open .cd-combo__btn'); cadComboFechar(); b?.focus(); return; }
+    if (!combo || !combo.classList.contains('is-open') || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+    e.preventDefault();
+    const itens = [...combo.querySelectorAll('.cd-combo__opt')].filter(o => !o.hidden);
+    const i = itens.indexOf(document.activeElement);
+    (itens[e.key === 'ArrowDown' ? Math.min(i + 1, itens.length - 1) : Math.max(i - 1, 0)] || itens[0])?.focus();
+});
+
+/** Escolha feita num combobox de campo do formulário. */
+function cadSelecionar(k, v) {
+    cadCampo(k, { value: v, type: 'select' });
+    render();
 }
 
 // ============================================================ ENTRADA

@@ -37,7 +37,7 @@
 .cd-pager .at-select { min-height: 38px; width: auto; padding: 0 10px; }
 .cd-pager__nav { display: inline-flex; align-items: center; gap: 10px; }
 
-.cd-top { border-left: 5px solid var(--tone); }
+.cd-top { border-left: 0; }
 .cd-topgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cd-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
 .cd-tabs .at-tab { flex: none; }
@@ -80,3 +80,102 @@
 .cd-opt:has(input:checked) { border-color: var(--tone, #2563eb); background: var(--tone-soft); }
 .cd-opt__info { flex: none; display: grid; place-items: center; width: 44px; border: 0; border-left: 1px solid var(--sh-line); background: transparent; color: #dc2626; cursor: help; }
 .cd-opt__info:hover { background: var(--sh-surface-2); }
+
+/* ---------- Layout "ERP" (Principal): grade de 12 colunas, seções recolhíveis, listas e barra de ações ---------- */
+.cd-erpbar { display: flex; align-items: center; gap: 14px; }
+.cd-back { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; border: 0; background: #334155; color: #fff; cursor: pointer; }
+.cd-back:hover { background: #1e293b; }
+.cd-erpbar__t { font-size: 15px; color: var(--sh-muted); }
+.cd-erpbar__t strong { color: var(--sh-ink); }
+
+.cd-grid12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px 14px; }
+.cd-cell { grid-column: span var(--col, 3); min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cd-cell .at-label { font-size: 13.5px; font-weight: 600; }
+.cd-cell .at-input, .cd-cell .at-select, .cd-cell .cd-ro { min-height: 44px; font-size: 15px; }
+.cd-cell .at-error:empty { display: none; }
+.cd-top--erp { padding: 14px 18px; }
+
+.cd-tabs--erp { gap: 4px; border-bottom: 1px solid var(--sh-line); padding-bottom: 0; margin-bottom: 18px; }
+.cd-tabs--erp .at-tab { border-radius: 10px 10px 0 0; border: 1px solid var(--sh-line); border-bottom: 0; background: var(--sh-surface-2); color: var(--sh-ink); min-height: 40px; padding: 0 18px; }
+.cd-tabs--erp .at-tab.is-active { background: var(--sh-surface); color: var(--tone); font-weight: 700; box-shadow: 0 2px 0 var(--sh-surface); position: relative; top: 1px; }
+
+.cd-secao { margin-bottom: 18px; }
+.cd-sec { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; font-size: 16px; font-weight: 800; color: var(--sh-ink); cursor: pointer; user-select: none; }
+.cd-sec svg { color: var(--sh-muted); }
+
+.cd-lista { display: flex; flex-direction: column; gap: 8px; }
+.cd-lista__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; min-height: 40px; border: 1px solid var(--sh-line); border-radius: 8px; background: var(--sh-surface); font-weight: 700; color: var(--sh-ink); }
+.cd-plus { display: grid; place-items: center; width: 34px; height: 34px; margin-right: -6px; border: 0; border-radius: 8px; background: #22c55e; color: #fff; cursor: pointer; }
+.cd-plus:hover { background: #16a34a; }
+.cd-lista__in { min-height: 40px; }
+.cd-lista__box { min-height: 120px; max-height: 260px; overflow-y: auto; border: 1px solid var(--sh-line); border-radius: 10px; background: var(--sh-surface); }
+.cd-lista__item { padding: 8px 14px; border-bottom: 1px solid var(--sh-line); }
+.cd-lista__item p { margin: 0; font-size: 14.5px; color: var(--sh-ink); overflow-wrap: anywhere; }
+.cd-lista__item small { color: var(--sh-muted); font-size: 12px; }
+.cd-lista__vazio { padding: 14px; color: var(--sh-muted); font-size: 14px; }
+
+.cd-footbar { position: sticky; bottom: 0; z-index: 5; display: flex; justify-content: flex-end; gap: 10px; padding: 12px 0; background: linear-gradient(to top, var(--sh-bg, var(--sh-surface-2)) 70%, transparent); }
+
+@media (max-width: 900px) { .cd-cell { grid-column: span min(var(--col, 3) * 2, 12); } }
+@media (max-width: 720px) { .cd-cell { grid-column: span 12; } }
+
+/* Campo com botão de busca ao lado (CNPJ, CEP) */
+.cd-inputbtn { display: flex; align-items: stretch; }
+.cd-inputbtn .at-input { flex: 1; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.cd-searchbtn { flex: none; display: grid; place-items: center; width: 46px; border: 1px solid #2563eb; border-radius: 0 12px 12px 0; background: #2563eb; color: #fff; cursor: pointer; }
+.cd-searchbtn:hover { background: #1d4ed8; }
+
+/* ---------- Combobox padronizado ---------- */
+.cd-combo { position: relative; width: 100%; min-width: 0; }
+.cd-combo__btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; padding: 0 14px; border: 2px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface); color: var(--sh-ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.cd-combo__btn:hover:not(:disabled) { border-color: var(--tone, #2563eb); }
+.cd-combo__btn:focus-visible, .cd-combo.is-open .cd-combo__btn { outline: none; border-color: var(--tone, #2563eb); box-shadow: 0 0 0 3px var(--tone-soft, #dbeafe); }
+.cd-combo__btn.is-invalid { border-color: #dc2626; }
+.cd-combo__btn:disabled { opacity: 0.6; cursor: not-allowed; background: var(--sh-surface-2); }
+.cd-combo__txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-combo__txt.is-ph { color: var(--sh-muted); }
+.cd-combo__btn svg { flex: none; color: var(--sh-muted); transition: transform 0.15s; }
+.cd-combo.is-open .cd-combo__btn svg { transform: rotate(180deg); }
+
+.cd-combo__pop { display: none; position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px); min-width: 180px; padding: 6px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface); box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22); }
+.cd-combo.is-open .cd-combo__pop { display: block; }
+.cd-combo.is-up .cd-combo__pop { top: auto; bottom: calc(100% + 6px); }
+.cd-combo__q { width: 100%; min-height: 38px; margin-bottom: 6px; padding: 0 12px; border: 1px solid var(--sh-line); border-radius: 10px; background: var(--sh-surface-2); color: var(--sh-ink); font: inherit; font-size: 14px; }
+.cd-combo__q:focus { outline: none; border-color: var(--tone, #2563eb); }
+.cd-combo__items { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.cd-combo__opt { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 40px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; color: var(--sh-ink); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.cd-combo__opt[hidden] { display: none; }
+.cd-combo__opt:hover, .cd-combo__opt:focus-visible { outline: none; background: var(--tone-soft, #dbeafe); color: var(--tone-ink, #1e40af); }
+.cd-combo__opt.is-sel { background: var(--tone, #2563eb); color: #fff; font-weight: 700; }
+.cd-combo__opt svg { flex: none; }
+
+/* Linha da grid clicável */
+.cd-row { cursor: pointer; }
+.cd-row:hover td { background: var(--tone-soft, #dbeafe); }
+.cd-row:focus-visible { outline: 2px solid var(--tone, #2563eb); outline-offset: -2px; }
+
+/* Campo com botão ao lado: mesma altura, sem folga entre os dois */
+.cd-cell .cd-inputbtn .at-input { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; }
+.cd-inputbtn { align-items: stretch; }
+.cd-inputbtn .cd-searchbtn { height: auto; min-height: 44px; width: 48px; border-radius: 0 14px 14px 0; }
+.cd-filter .cd-combo__btn { min-height: 48px; }
+
+/* Mesma altura, fundo e fonte em todos os controles do formulário (campo, combo, somente leitura, botão ao lado) */
+.cd-cell .at-input, .cd-cell .cd-combo__btn, .cd-cell .cd-ro { height: 46px; min-height: 46px; font-size: 15px; }
+.cd-cell .cd-inputbtn .cd-searchbtn { height: 46px; min-height: 46px; }
+.cd-combo__btn { background: var(--sh-surface-2); }
+.cd-filters .at-input, .cd-filters .cd-combo__btn, .cd-pager .cd-combo__btn { height: 48px; font-size: 15px; }
+.cd-pager .cd-combo { width: 84px; }
+.cd-pager .cd-combo__btn { height: 38px; min-height: 38px; }
+.cd-pager .cd-combo__pop { top: auto; bottom: calc(100% + 6px); }
+
+/* ---------- Campo + botão de busca: peça única, sem folga entre os dois (CEP, CNPJ) ---------- */
+.cd-inputbtn { display: flex !important; flex-wrap: nowrap; align-items: stretch; gap: 0 !important; width: 100%; }
+.cd-inputbtn > .at-input { flex: 1 1 auto; width: auto !important; min-width: 0; margin: 0; border-radius: 14px 0 0 14px !important; border-right-width: 0 !important; }
+.cd-inputbtn > .cd-searchbtn { flex: 0 0 48px; width: 48px; margin: 0; padding: 0; border-radius: 0 14px 14px 0 !important; }
+
+/* Sem botão ao lado (CPF), o campo é inteiro e arredondado; só emenda no botão quando ele existe */
+.cd-inputbtn:not(.has-btn) > .at-input { border-radius: 14px !important; border-right-width: 2px !important; }
+.cd-top, .cd-top--erp { border-left: 0 !important; }
+.cd-inputbtn:not(.has-btn) > .at-input { border-right: 2px solid var(--sh-line) !important; }
+.cd-inputbtn:not(.has-btn) > .at-input:focus { border-color: var(--tone, #2563eb) !important; }

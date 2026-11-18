@@ -30,7 +30,8 @@ function diffCampos(antes, depois, campos) {
     campos.forEach(campo => {
         const a = antes[campo] ?? '';
         const d = depois[campo] ?? '';
-        if (String(a) !== String(d)) {
+        const txt = (x) => (typeof x === 'object' ? JSON.stringify(x) : String(x));
+        if (txt(a) !== txt(d)) {
             out.campos.push(campo);
             out.antes[campo] = a;
             out.depois[campo] = d;

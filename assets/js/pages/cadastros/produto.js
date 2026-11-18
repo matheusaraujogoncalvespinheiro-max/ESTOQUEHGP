@@ -211,7 +211,7 @@ function renderProdutoMovimentacao(st) {
     if (F.lote) mov = mov.filter(m => searchKey(m.lote).includes(searchKey(F.lote)));
     const p = row._p;
     const lotes = (p.lotes || []);
-    const campo = (rot, ctl) => `<label class="cd-filter"><span>${rot}</span>${ctl}</label>`;
+    const campo = (rot, ctl) => `<div class="cd-filter"><span>${rot}</span>${ctl}</div>`;
     return `
     <div class="at-stack">
         <div>
@@ -226,8 +226,8 @@ function renderProdutoMovimentacao(st) {
         <div class="cd-filters cd-filters--inner">
             ${campo('De', `<input class="at-input" type="date" value="${F.de}" onchange="movFiltro('de', this.value)" data-keep="mv_de">`)}
             ${campo('Até', `<input class="at-input" type="date" value="${F.ate}" onchange="movFiltro('ate', this.value)" data-keep="mv_ate">`)}
-            ${campo('Tipo', `<select class="at-select" onchange="movFiltro('tipo', this.value)" data-keep="mv_tipo"><option value="">Todos</option>${[['ENTRADA', 'Entrada'], ['SAIDA', 'Saída'], ['TRANSFERENCIA', 'Transferência']].map(([v, r]) => `<option value="${v}" ${F.tipo === v ? 'selected' : ''}>${r}</option>`).join('')}</select>`)}
-            ${campo('Setor', `<select class="at-select" onchange="movFiltro('setor', this.value)" data-keep="mv_setor"><option value="">Todos</option>${SETORES_PRODUTO.map(s => `<option ${F.setor === rotuloSetor(s) ? 'selected' : ''}>${rotuloSetor(s)}</option>`).join('')}</select>`)}
+            ${campo('Tipo', cadComboHtml({ id: 'mv_tipo', valor: F.tipo, opts: [{ id: 'ENTRADA', rotulo: 'Entrada' }, { id: 'SAIDA', rotulo: 'Saída' }, { id: 'TRANSFERENCIA', rotulo: 'Transferência' }], vazio: 'Todos', placeholder: 'Todos', fn: 'movFiltro', arg: 'tipo' }))}
+            ${campo('Setor', cadComboHtml({ id: 'mv_setor', valor: F.setor, opts: SETORES_PRODUTO.map(x => ({ id: rotuloSetor(x), rotulo: rotuloSetor(x) })), vazio: 'Todos', placeholder: 'Todos', fn: 'movFiltro', arg: 'setor' }))}
             ${campo('Responsável', `<input class="at-input" type="search" value="${escapeHtml(F.resp)}" oninput="movFiltro('resp', this.value)" data-keep="mv_resp">`)}
             ${campo('Lote', `<input class="at-input" type="search" value="${escapeHtml(F.lote)}" oninput="movFiltro('lote', this.value)" data-keep="mv_lote">`)}
             <button type="button" class="at-btn at-btn--ghost at-btn--sm cd-clear" onclick="movLimpar()">${lucideIcon('eraser', 'w-4 h-4')} Limpar</button>
