@@ -82,6 +82,21 @@ function hasPermission(action, setor = null) {
         return false;
     }
 
+    // ---- Recepção, Emergência e Gestão das Triagens ----
+    // O Administrador tem tudo (retorno no início da função). Os demais perfis só recebem o que está listado.
+    if (role === 'FUNC_RECEPCAO') {
+        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar'].includes(action);
+    }
+
+    if (role === 'FUNC_EMERGENCIA') {
+        // Edita apenas as próprias ocorrências, em até 24 h (regra em canEditOcorrencia)
+        return ['emergencia_acessar', 'emergencia_registrar', 'emergencia_editar_proprio', 'pacientes_consultar'].includes(action);
+    }
+
+    if (role === 'COORD_TRIAGEM') {
+        return ['triagem_ver'].includes(action);
+    }
+
     return false;
 }
 
@@ -95,7 +110,10 @@ function getRoleLabel(role) {
         "FUNC_CENTRO_CIRURGICO": "Funcionário Centro Cirúrgico",
         "FUNC_ENFERMAGEM": "Funcionário Enfermagem",
         "CHEFE_PORTARIA": "Chefe Portaria",
-        "FUNC_PORTARIA": "Funcionário Portaria"
+        "FUNC_PORTARIA": "Funcionário Portaria",
+        "FUNC_RECEPCAO": "Funcionário Recepção",
+        "FUNC_EMERGENCIA": "Funcionário Emergência",
+        "COORD_TRIAGEM": "Coordenador de Triagem"
     };
     return labels[role] || "Colaborador";
 }
@@ -114,3 +132,14 @@ const byPermission = (action, setor = null) => () => hasPermission(action, setor
 
 /** Libera se qualquer um dos testes liberar. */
 const anyOf = (...checks) => () => checks.some(check => check());
+
+/** Perfis que podem ser atribuídos a um usuário (usado nas telas de membros). */
+const ASSIGNABLE_ROLES = [
+    'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
+    'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM'
+];
+
+/** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */
+function requirePermission(action, setor = null) {
+    if (!hasPermission(action, setor)) throw new Error('Acesso negado: seu perfil não tem permissão para esta operação.');
+}

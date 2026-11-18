@@ -4,6 +4,7 @@
   "private": true,
   "description": "Sistema de gestão de estoque do Hospital Geral de Palmas (OPME, Hemodinâmica, Centro Cirúrgico e Portaria)",
   "scripts": {
-    "start": "python -m http.server 8080"
+    "start": "python -m http.server 8080",
+    "test": "node --test tests/"
   }
 }

@@ -10,6 +10,9 @@ function homeModule(role) {
     if (role === 'CHEFE_HEMODINAMICA') return 'HEMODINAMICA';
     if (role === 'FUNC_PORTARIA') return 'PORTARIA_PAINEL';
     if (role === 'CHEFE_PORTARIA') return 'PORTARIA_CONFIG';
+    if (role === 'FUNC_RECEPCAO') return 'RECEPCAO';
+    if (role === 'FUNC_EMERGENCIA') return 'EMERGENCIA';
+    if (role === 'COORD_TRIAGEM') return 'TRIAGEM';
     return 'DASHBOARD';
 }
 
@@ -32,6 +35,9 @@ function canOpenModule(module) {
     if (!state.currentUser) return false;
     const target = MODULE_ACCESS_ALIASES[module] || module;
     if (target === 'NOTIFICATIONS') return hasPermission('view_notifications');
+
+    // Telas abertas por botões (sem item no menu) com regra própria
+    if (MODULE_ACCESS_EXTRA[target]) return MODULE_ACCESS_EXTRA[target]();
 
     let found = false;
     let allowed = false;
@@ -92,7 +98,7 @@ function buildMenu() {
         // Opção única (sem submenu), como o Início
         if (section.module) {
             if (!section.access || section.access()) {
-                sections.push({ id: section.id, label: section.label, icon: section.icon, leaf: makeLeaf(section, []) });
+                sections.push({ id: section.id, label: section.label, icon: section.icon, tone: section.tone, leaf: makeLeaf(section, []) });
             }
             return;
         }

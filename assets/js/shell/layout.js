@@ -33,7 +33,7 @@ function renderSection(s, i, ativa) {
     const atual = contemAtiva(s.leaf || s, ativa);
     if (s.leaf) {
         const on = s.leaf === ativa;
-        return `<li class="wm-secao${atual ? ' is-current' : ''}"><button type="button" class="wm-item${on ? ' is-active' : ''}" onclick="runMenuLeaf(${s.leaf.id})" ${on ? 'aria-current="page"' : ''}>${lucideIcon(s.icon)}<span class="wm-item__rotulo">${escapeHtml(s.label)}</span></button></li>`;
+        return `<li class="wm-secao${atual ? ' is-current' : ''}${s.tone ? ' wm-secao--' + s.tone : ''}"><button type="button" class="wm-item${on ? ' is-active' : ''}" onclick="runMenuLeaf(${s.leaf.id})" ${on ? 'aria-current="page"' : ''}>${lucideIcon(s.icon)}<span class="wm-item__rotulo">${escapeHtml(s.label)}</span></button></li>`;
     }
     const chave = `s${i}`;
     const aberto = abertoNo(chave);
@@ -135,6 +135,12 @@ function renderPagebar(ativa) {
 }
 
 function renderShell(contentHtml) {
+    // Recepção e Emergência ocupam toda a janela, sem menu lateral nem cabeçalho global
+    if (typeof isImmersiveModule === 'function' && isImmersiveModule(state.activeModule)) {
+        buildMenu(); // mantém o registro de telas (pesquisa, atalhos) atualizado
+        return renderImmersiveShell(contentHtml);
+    }
+
     const menu = buildMenu();
     const ativa = activeLeaf();
     const open = Boolean(state.isMobileMenuOpen);

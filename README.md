@@ -29,6 +29,7 @@ assets/
   js/
     core/                  Base do sistema
       utils.js             escapeHtml, normalizeText, byId
+      validators.js        CPF, telefone, datas, máscaras e newId
       icons.js             Ícones SVG do cabeçalho e das janelas
       state.js             Estado global e dados em memória
       permissions.js       Permissões por perfil (hasPermission, getRoleLabel)
@@ -46,6 +47,10 @@ assets/
       portaria.js          Horários, leitos e foto padrão da portaria
       transferencias.js    Relatório (PDF) de transferência
       camera.js            Câmera do navegador
+      db-atendimento.js    Firestore da Recepção, Emergência e Triagens (escutas só para quem tem acesso)
+      auditoria.js         Auditoria e utilitários de gravação
+      atendimento.js       Regras da Recepção e da Emergência
+      triagem.js           Regras da Gestão das Triagens (equipes, meses, funcionários)
     data/                  Configurações editáveis
       app-info.js          Nome, hospital, versão e logo
       support.js           Contatos e horários da janela de Suporte
@@ -60,6 +65,8 @@ assets/
       dialogs.js           Janelas: Suporte, Atalhos de teclado e Sobre
       account.js           Janelas: Meu Perfil e Trocar minha senha
       shortcuts.js         Atalhos de teclado
+      immersive.js         Telas imersivas (Recepção/Emergência), botão HOME e preservação do que foi digitado
+      components.js        Campos, erros e confirmação reutilizáveis das telas de atendimento
     pages/                 Uma tela por arquivo, agrupadas por área
       login.js · dashboard.js · membros.js · backup.js · notificacoes.js
       estoque/             consulta · cadastro · adicionar · correcao
@@ -70,6 +77,7 @@ assets/
                            aprovar · receber · historico
       salas/               salas · historico
       portaria/            controle-acesso · configuracoes
+      recepcao/ · emergencia/ · triagem/   (dashboard · gestao)
     app.js                 Inicialização (carregado por último)
 docs/
   mcp_supabase_guide.md    Guia de uso do MCP do Supabase
@@ -85,6 +93,11 @@ Atalhos: `Alt+M` menu, `Alt+I` início, `Alt+U` menu do usuário, `Esc` fecha.
 
 Para trocar os contatos do Suporte, edite só `assets/js/data/support.js`
 (os números e e-mail atuais são fictícios).
+
+## Recepção, Emergência e Gestão das Triagens
+
+Três módulos de atendimento no mesmo sistema. Veja [docs/atendimento.md](docs/atendimento.md) (telas, perfis,
+coleções, regras e LGPD). Novos perfis: Funcionário Recepção, Funcionário Emergência e Coordenador de Triagem.
 
 ## Padrão do banco de dados (Firestore)
 
@@ -114,7 +127,8 @@ desconecta), expira com os mesmos 10 minutos de inatividade do login e é apagad
 ## Perfis
 
 `ADMIN`, `CHEFE_OPME`, `CHEFE_HEMODINAMICA`, `FUNC_HEMODINAMICA`, `FUNC_OPME`,
-`FUNC_CENTRO_CIRURGICO`, `FUNC_ENFERMAGEM`, `CHEFE_PORTARIA`, `FUNC_PORTARIA`.
+`FUNC_CENTRO_CIRURGICO`, `FUNC_ENFERMAGEM`, `CHEFE_PORTARIA`, `FUNC_PORTARIA`, `FUNC_RECEPCAO`,
+`FUNC_EMERGENCIA`, `COORD_TRIAGEM`.
 As permissões ficam em `assets/js/core/permissions.js` e o menu de cada perfil em
 `assets/js/data/menu.js`. A tela só esconde ações por perfil; a proteção real
 depende das regras de segurança do Firestore.
@@ -128,6 +142,14 @@ depende das regras de segurança do Firestore.
    `getModuleTitle()` (`core/ui.js`).
 4. Adicione o item ao menu em `data/menu.js` (categoria, `ordem`, `module` e `access`). Item sem tela
    ainda fica com `soon: true`: aparece desabilitado, com o selo "Em breve", só para administradores.
+
+## Testes
+
+```powershell
+npm test
+```
+
+Cobrem as validações (CPF, telefone, datas) e as regras puras da Gestão das Triagens.
 
 ## Observações de segurança (pendentes)
 

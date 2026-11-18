@@ -72,12 +72,24 @@ function renderContent() {
             return renderPortariaPainel();
         case 'PORTARIA_CONFIG':
             return renderPortariaConfig();
+        case 'RECEPCAO':
+            return renderRecepcao();
+        case 'EMERGENCIA':
+            return renderEmergencia();
+        case 'TRIAGEM':
+            return renderTriagemDashboard();
+        case 'TRIAGEM_GESTAO':
+            return renderTriagemGestao();
         default:
             return renderDashboard();
     }
 }
 
 function navigateTo(module) {
+    // Saindo de uma tela imersiva: descarta o rascunho (edição em andamento, busca) para voltar sempre limpa
+    if (typeof isImmersiveModule === 'function' && isImmersiveModule(state.activeModule) && module !== state.activeModule) {
+        resetImmersiveState();
+    }
     if (typeof pararCamera === 'function') {
         pararCamera();
     }
@@ -125,6 +137,10 @@ function render() {
         sidebarScroll = sidebar.scrollTop;
     }
 
+    // Guarda o que o usuário está digitando (campos data-keep) para devolver depois de redesenhar
+    const keepState = captureKeepState();
+    const scrollY = window.scrollY;
+
     if (!state.isAuthenticated) {
         // Com sessão guardada, espera os usuários do banco em vez de piscar a tela de login
         root.innerHTML = state.sessionPending ? renderSessionLoading() : renderLogin();
@@ -141,6 +157,8 @@ function render() {
     }
 
     lucide.createIcons();
+    restoreKeepState(keepState);
+    if (scrollY && state.isAuthenticated) window.scrollTo(0, scrollY);
 
     if (state.isAuthenticated) {
         saveSession();

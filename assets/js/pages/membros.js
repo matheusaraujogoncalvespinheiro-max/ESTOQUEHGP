@@ -45,10 +45,10 @@ function handleEditMember(username) {
     const newName = prompt("Digite o novo nome completo:", user.name);
     if (newName === null) return;
 
-    const newRole = prompt("Digite o novo tipo de usuário (ADMIN, CHEFE_OPME, CHEFE_HEMODINAMICA, FUNC_HEMODINAMICA, FUNC_OPME, FUNC_OPME, FUNC_ENFERMAGEM):", user.role);
+    const newRole = prompt("Digite o novo tipo de usuário (" + ASSIGNABLE_ROLES.join(", ") + "):", user.role);
     if (newRole === null) return;
 
-    if (!["ADMIN", "CHEFE_OPME", "CHEFE_HEMODINAMICA", "FUNC_HEMODINAMICA", "FUNC_OPME", "FUNC_OPME", "FUNC_ENFERMAGEM"].includes(newRole)) {
+    if (!ASSIGNABLE_ROLES.includes(newRole)) {
         alert("Tipo de usuário inválido!");
         return;
     }
@@ -114,6 +114,9 @@ function renderMembers() {
             <option value="FUNC_ENFERMAGEM">Funcionário Enfermagem</option>
             <option value="CHEFE_PORTARIA">Chefe Portaria</option>
             <option value="FUNC_PORTARIA">Funcionário Portaria</option>
+            <option value="FUNC_RECEPCAO">Funcionário Recepção</option>
+            <option value="FUNC_EMERGENCIA">Funcionário Emergência</option>
+            <option value="COORD_TRIAGEM">Coordenador de Triagem</option>
             </select>
             </div>
             </div>

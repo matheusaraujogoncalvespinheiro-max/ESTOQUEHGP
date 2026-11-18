@@ -60,7 +60,11 @@ function getModuleTitle() {
         'PROCEDIMENTOS': 'Agendar Procedimentos',
         'CORRECAO': 'Correção de Estoque OPME',
         'PORTARIA_PAINEL': 'Portaria - Controle de Acesso',
-        'PORTARIA_CONFIG': 'Portaria - Configurações'
+        'PORTARIA_CONFIG': 'Portaria - Configurações',
+        'RECEPCAO': 'Recepção',
+        'EMERGENCIA': 'Emergência',
+        'TRIAGEM': 'Gestão das Triagens',
+        'TRIAGEM_GESTAO': 'Gerenciar Equipes de Triagem'
     };
     return titles[state.activeModule] || 'Módulo Desconhecido';
 }

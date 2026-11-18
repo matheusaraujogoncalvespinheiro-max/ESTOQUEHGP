@@ -46,6 +46,11 @@ const MENU_TREE = [
     // 1. INÍCIO (opção única)
     { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
 
+    // Módulos de atendimento (opção única, cada um com sua cor). Recepção e Emergência abrem em tela cheia da janela.
+    { id: 'recepcao', ordem: 12, label: 'Recepção', icon: 'user-round-plus', tone: 'blue', module: 'RECEPCAO', access: byPermission('recepcao_acessar') },
+    { id: 'emergencia', ordem: 14, label: 'Emergência', icon: 'siren', tone: 'red', module: 'EMERGENCIA', access: byPermission('emergencia_acessar') },
+    { id: 'triagens', ordem: 16, label: 'Gestão das Triagens', icon: 'users-round', tone: 'teal', module: 'TRIAGEM', access: byPermission('triagem_ver') },
+
     // 2. CADASTRO
     {
         id: 'cadastro', ordem: 20, label: 'Cadastro', icon: 'plus-circle',
@@ -212,4 +217,9 @@ const MENU_TREE = [
 const MODULE_ACCESS_ALIASES = {
     APPROVE_TRANSFER: 'TRANSFER_CONFIRMATION',
     RECEIVE_TRANSFER: 'MY_REQUESTS'
+};
+
+// Telas abertas por botões (sem item no menu) que têm regra de acesso própria.
+const MODULE_ACCESS_EXTRA = {
+    TRIAGEM_GESTAO: byPermission('triagem_gerenciar')
 };

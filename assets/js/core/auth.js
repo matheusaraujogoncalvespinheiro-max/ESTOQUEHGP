@@ -22,20 +22,11 @@ function handleLoginAction() {
             checkLowStockNotifications();
         }
 
-        if (state.currentUser.role === 'FUNC_OPME') {
-            state.activeModule = 'OPME';
-        } else if (state.currentUser.role === 'CHEFE_HEMODINAMICA') {
-            state.activeModule = 'HEMODINAMICA';
-        } else if (state.currentUser.role === 'FUNC_PORTARIA') {
-            state.activeModule = 'PORTARIA_PAINEL';
+        // Tela inicial do perfil (mesma regra de shell/menu.js)
+        state.activeModule = homeModule(state.currentUser.role);
+        if (state.activeModule.startsWith('PORTARIA')) {
             if (!state.expandedGroups) state.expandedGroups = [];
             if (!state.expandedGroups.includes('PORTARIA')) state.expandedGroups.push('PORTARIA');
-        } else if (state.currentUser.role === 'CHEFE_PORTARIA') {
-            state.activeModule = 'PORTARIA_CONFIG';
-            if (!state.expandedGroups) state.expandedGroups = [];
-            if (!state.expandedGroups.includes('PORTARIA')) state.expandedGroups.push('PORTARIA');
-        } else {
-            state.activeModule = 'DASHBOARD';
         }
 
         startSession();
@@ -62,6 +53,7 @@ function handleLoginAction() {
 
 function logout() {
     clearSession();
+    if (typeof db_stopAtendimentoWatchers === 'function') db_stopAtendimentoWatchers();
     state.isAuthenticated = false;
     state.currentUser = null;
     state.activeModule = 'DASHBOARD';

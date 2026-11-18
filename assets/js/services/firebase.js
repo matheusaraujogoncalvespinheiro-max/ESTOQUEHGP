@@ -72,6 +72,9 @@ function db_setupSubscriptions() {
         });
         subscriptions.push(unsub);
     });
+
+    // Módulos de atendimento já abertos antes de o banco ficar pronto (recarga da página)
+    if (typeof db_startWantedWatchers === 'function') db_startWantedWatchers();
 }
 
 // ==========================================
