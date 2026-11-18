@@ -1,0 +1,122 @@
+/* Padronização do conteúdo das telas (campos, textos longos) e ajustes para celular. */
+
+/* ==========================================================
+   PADRONIZAÇÃO DO CONTEÚDO DAS TELAS (campos, texto, mobile)
+   ========================================================== */
+
+/* Texto longo (códigos, lotes, nomes) quebra em vez de vazar da tela. Tabelas mantêm a quebra normal. */
+.shell-root .shell__content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.shell-root .shell__content table,
+.shell-root .shell__content th,
+.shell-root .shell__content td {
+    overflow-wrap: break-word;
+}
+
+.shell-root .shell {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.shell-root .shell__content img,
+.shell-root .shell__content video,
+.shell-root .shell__content canvas {
+    max-width: 100%;
+}
+
+/* Campos de texto: mesma altura, fonte e raio em todas as telas.
+   Campos compactos de propósito (classes py-0/py-1 ou h-*, usados em tabelas e contadores) ficam como estão. */
+.shell-root .shell__content :is(
+    input:not([type='checkbox'], [type='radio'], [type='file'], [type='range'], [type='color'], [type='hidden'], [type='button'], [type='submit']),
+    select
+):not([class*=' h-'], [class^='h-'], [class*=' py-0'], [class*=' py-1'], [class*=' py-1.5']) {
+    height: 46px;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+.shell-root .shell__content textarea:not([class*=' py-1']) {
+    min-height: 96px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.shell-root .shell__content :is(input, select, textarea) {
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* Campos com ícone à esquerda (lupa) mantêm o recuo */
+.shell-root .shell__content input[class*='pl-']:not([class*='pl-4']) {
+    padding-left: 2.5rem;
+}
+
+/* Rótulos acima dos campos */
+.shell-root .shell__content label {
+    font-size: 13.5px;
+}
+
+/* Botões: alvo de toque confortável */
+.shell-root .shell__content button[type='submit'],
+.shell-root .shell__content form > button:last-child {
+    min-height: 46px;
+}
+
+/* Cartões e blocos grandes: respiro menor no celular */
+@media (max-width: 640px) {
+    .shell-root .shell__content :is(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range'], [type='color'], [type='hidden']), select, textarea) {
+        font-size: 16px; /* evita o zoom automático do iPhone ao focar o campo */
+    }
+
+    .shell-root .shell__content :is(input:not([type='checkbox'], [type='radio'], [type='file'], [type='range'], [type='color'], [type='hidden'], [type='button'], [type='submit']), select):not([class*=' h-'], [class^='h-'], [class*=' py-0'], [class*=' py-1'], [class*=' py-1.5']) {
+        height: 48px;
+        font-size: 16px;
+    }
+
+    .shell-root .shell__content .p-12 { padding: 1.5rem; }
+    .shell-root .shell__content .p-10 { padding: 1.25rem; }
+    .shell-root .shell__content .p-8 { padding: 1.25rem; }
+    .shell-root .shell__content .p-6 { padding: 1rem; }
+    .shell-root .shell__content .px-8 { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .shell-root .shell__content .px-6 { padding-left: 1rem; padding-right: 1rem; }
+    .shell-root .shell__content .gap-6 { gap: 1rem; }
+    .shell-root .shell__content .text-3xl { font-size: 1.5rem; line-height: 2rem; }
+    .shell-root .shell__content .text-2xl { font-size: 1.25rem; line-height: 1.75rem; }
+
+    /* Tabelas rolam na horizontal dentro do próprio cartão */
+    .shell-root .shell__content .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Janelas (modais) cabem na tela e rolam por dentro */
+    .shell-root .shell__content .fixed.inset-0 > div {
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+}
+
+/* Botões, selos e etiquetas curtas não quebram letra por letra: quebram só em espaços e não encolhem. */
+.shell-root .shell__content :is(button, [class*='rounded-full'], [class*='rounded-lg'][class*='text-xs']) {
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.shell-root .shell__content button:not([class*='w-full'], [class*='flex-1']),
+.shell-root .shell__content span[class*='rounded-full'] {
+    flex-shrink: 0;
+}
+
+.shell-root .shell__content span[class*='rounded-full'] {
+    white-space: nowrap;
+}
+
+

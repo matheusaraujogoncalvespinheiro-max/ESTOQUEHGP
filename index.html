@@ -1,24 +1,80 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GESTAO DE ESTOQUE - Gestão de Acessos</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="style.css">
+    <script>
+        /* Tema (claro/escuro) lido antes de pintar para não piscar. */
+        (function () { var t = 'claro'; try { t = localStorage.getItem('hgp.tema') === 'escuro' ? 'escuro' : 'claro'; } catch (e) {} document.documentElement.dataset.tema = t; })();
+    </script>
+    <title>GESTAO DE ESTOQUE - Hospital Geral de Palmas</title>
+    <link rel="icon" href="assets/img/logo_hgp.jpg">
+
+    <!-- Bibliotecas (versões fixas) -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://unpkg.com/lucide@0.469.0"></script>
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="assets/css/base.css?v=1">
+    <link rel="stylesheet" href="assets/css/layout.css?v=1">
+    <link rel="stylesheet" href="assets/css/components.css?v=1">
+    <link rel="stylesheet" href="assets/css/responsive.css?v=1">
+    <link rel="stylesheet" href="assets/css/dark.css?v=1">
 </head>
 
 <body class="bg-slate-50 text-slate-900">
     <div id="app"></div>
-    <!-- Database Layer (Firebase) -->
+
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
-    <script src="firebase_client.js?v=3"></script>
-    <!-- Main App -->
-    <script src="java.js?v=3"></script>
-    <script src="salas_module.js?v=3"></script>
+
+    <!-- Núcleo: utilitários, estado, permissões e serviços -->
+    <script src="assets/js/core/utils.js?v=1"></script>
+    <script src="assets/js/core/icons.js?v=1"></script>
+    <script src="assets/js/core/state.js?v=1"></script>
+    <script src="assets/js/core/permissions.js?v=1"></script>
+    <script src="assets/js/services/firebase.js?v=1"></script>
+    <script src="assets/js/core/backup.js?v=1"></script>
+    <script src="assets/js/core/auth.js?v=1"></script>
+    <script src="assets/js/core/ui.js?v=1"></script>
+    <script src="assets/js/core/router.js?v=1"></script>
+    <script src="assets/js/core/offline.js?v=1"></script>
+
+    <!-- Dados de configuração -->
+    <script src="assets/js/data/app-info.js?v=1"></script>
+    <script src="assets/js/data/support.js?v=1"></script>
+    <script src="assets/js/data/menu.js?v=1"></script>
+
+    <!-- Estrutura da página: menu lateral, cabeçalho e janelas -->
+    <script src="assets/js/shell/theme.js?v=1"></script>
+    <script src="assets/js/shell/layout.js?v=1"></script>
+    <script src="assets/js/shell/sidebar.js?v=1"></script>
+    <script src="assets/js/shell/search.js?v=1"></script>
+    <script src="assets/js/shell/dialogs.js?v=1"></script>
+    <script src="assets/js/shell/account.js?v=1"></script>
+    <script src="assets/js/shell/usermenu.js?v=1"></script>
+    <script src="assets/js/shell/shortcuts.js?v=1"></script>
+
+    <!-- Páginas (uma por assunto) -->
+    <script src="assets/js/pages/login.js?v=1"></script>
+    <script src="assets/js/pages/dashboard.js?v=1"></script>
+    <script src="assets/js/pages/estoque.js?v=1"></script>
+    <script src="assets/js/pages/correcao.js?v=1"></script>
+    <script src="assets/js/pages/laudos.js?v=1"></script>
+    <script src="assets/js/pages/pacientes.js?v=1"></script>
+    <script src="assets/js/pages/procedimentos.js?v=1"></script>
+    <script src="assets/js/pages/mapa.js?v=1"></script>
+    <script src="assets/js/pages/transferencias.js?v=1"></script>
+    <script src="assets/js/pages/salas.js?v=1"></script>
+    <script src="assets/js/pages/membros.js?v=1"></script>
+    <script src="assets/js/pages/backup.js?v=1"></script>
+    <script src="assets/js/pages/notificacoes.js?v=1"></script>
+    <script src="assets/js/pages/portaria.js?v=1"></script>
+
+    <!-- Inicialização (por último) -->
+    <script src="assets/js/app.js?v=1"></script>
 </body>
 
 </html>

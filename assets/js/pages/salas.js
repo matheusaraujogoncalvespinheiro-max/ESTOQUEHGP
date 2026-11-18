@@ -1,7 +1,4 @@
-
-// ======================
-// MÓDULO DE SALAS
-// ======================
+// Salas de procedimento: ocupação, materiais e histórico
 
 function renderSalas() {
     if (state.activeSala !== null) {

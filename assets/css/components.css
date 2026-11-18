@@ -1,0 +1,664 @@
+/* Componentes do cabeçalho e das janelas: marca, chip do hospital, menu do usuário, modal, botões, campos. */
+
+/* ---------- Marca (nome em duas cores) ---------- */
+
+.brand-nome {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.brand-nome__a {
+    color: var(--sh-ink);
+}
+
+.brand-nome__b {
+    color: #1f64c8;
+}
+
+html[data-tema='escuro'] .brand-nome__b {
+    color: #27d3e6;
+}
+
+.topbar__marca .brand-nome {
+    font-size: 1.1rem;
+}
+
+.wm-marca__texto .brand-nome {
+    font-size: 1rem;
+    line-height: 1.15;
+    white-space: normal;
+}
+
+/* ---------- Chip do hospital e ponto de notificação ---------- */
+
+.empresa-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    max-width: 260px;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--sh-line);
+    border-radius: 999px;
+    background: var(--sh-surface);
+    color: var(--sh-muted);
+    font-size: 13.5px;
+}
+
+.empresa-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Menu do usuário ---------- */
+
+.usermenu {
+    position: relative;
+    flex: none;
+}
+
+.usermenu__button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 42px;
+    padding: 0 12px 0 4px;
+    border: 1px solid var(--sh-line);
+    border-radius: 999px;
+    background: var(--sh-surface);
+    color: var(--sh-ink);
+    font-size: 14.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.usermenu__button:hover,
+.usermenu__button[aria-expanded='true'] {
+    border-color: var(--sh-accent);
+}
+
+.usermenu__button[aria-expanded='true'] {
+    box-shadow: 0 0 0 3px var(--sh-accent-soft);
+}
+
+.usermenu__name {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.usermenu__chev {
+    display: grid;
+    color: var(--sh-muted);
+    transition: transform 0.2s;
+}
+
+.usermenu__button[aria-expanded='true'] .usermenu__chev {
+    transform: rotate(180deg);
+}
+
+.avatar {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5b6cff, #8a5cf5);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.avatar__dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--sh-surface);
+    border-radius: 50%;
+    background: #ef4444;
+}
+
+.usermenu__dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 80;
+    width: 256px;
+    padding-bottom: 8px;
+    overflow: hidden;
+    border: 1px solid var(--sh-line);
+    border-radius: 14px;
+    background: var(--sh-surface);
+    box-shadow: var(--sh-shadow-lg);
+    animation: dropdown-in 0.14s ease-out;
+}
+
+.usermenu__dropdown[hidden] {
+    display: none;
+}
+
+@keyframes dropdown-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+}
+
+.usermenu__title {
+    margin: 0 0 6px;
+    padding: 14px 18px 10px;
+    border-bottom: 1px solid var(--sh-line);
+    color: var(--sh-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.usermenu__item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    height: 44px;
+    padding: 0 18px;
+    border: 0;
+    background: none;
+    color: var(--sh-ink);
+    font-size: 15px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.usermenu__item span {
+    flex: 1;
+}
+
+.usermenu__item .icon {
+    color: var(--sh-muted);
+}
+
+.usermenu__item:hover,
+.usermenu__item:focus-visible {
+    background: var(--sh-hover);
+    outline: 0;
+}
+
+.usermenu__item.is-danger,
+.usermenu__item.is-danger .icon {
+    color: var(--sh-danger);
+}
+
+.usermenu__sep {
+    height: 1px;
+    margin: 6px 0;
+    background: var(--sh-line);
+}
+
+.wm-badge {
+    flex: none;
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1.5;
+    text-align: center;
+}
+
+/* ---------- Botões ---------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--sh-line);
+    border-radius: 10px;
+    background: var(--sh-surface);
+    color: var(--sh-ink);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover {
+    border-color: var(--sh-accent);
+    background: var(--sh-hover);
+}
+
+.btn--primary {
+    border-color: var(--sh-accent);
+    background: var(--sh-accent);
+    color: #fff;
+}
+
+.btn--primary:hover {
+    border-color: var(--sh-accent-ink);
+    background: var(--sh-accent-ink);
+}
+
+.btn--ghost {
+    border-color: transparent;
+    background: none;
+}
+
+.btn--icon {
+    width: 38px;
+    padding: 0;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ---------- Janela (modal) ---------- */
+
+.modal {
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--sh-ink);
+    overflow: visible;
+}
+
+.modal::backdrop {
+    background: rgba(5, 7, 12, 0.55);
+}
+
+.modal[open] {
+    animation: modal-in 0.16s ease-out;
+}
+
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+}
+
+.modal__box {
+    display: flex;
+    flex-direction: column;
+    width: min(640px, calc(100vw - 24px));
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+    border: 1px solid var(--sh-line);
+    border-radius: 16px;
+    background: var(--sh-surface);
+    box-shadow: var(--sh-shadow-lg);
+}
+
+.modal--sm .modal__box {
+    width: min(440px, calc(100vw - 24px));
+}
+
+.modal--lg .modal__box {
+    width: min(820px, calc(100vw - 24px));
+}
+
+.modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 14px 14px 22px;
+    border-bottom: 1px solid var(--sh-line);
+}
+
+.modal__header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.modal__form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.modal__body {
+    padding: 20px 22px;
+    overflow-y: auto;
+}
+
+.modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 22px;
+    border-top: 1px solid var(--sh-line);
+    background: var(--sh-surface-2);
+}
+
+/* ---------- Campos das janelas ---------- */
+
+.form-grid {
+    display: grid;
+    gap: 16px;
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.field__label {
+    color: var(--sh-ink);
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+.field__hint {
+    color: var(--sh-muted);
+    font-size: 12.5px;
+}
+
+.req {
+    color: var(--sh-danger);
+}
+
+.input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--sh-line);
+    border-radius: 10px;
+    background: var(--sh-surface-2);
+    color: var(--sh-ink);
+    font-size: 15px;
+}
+
+.input:focus {
+    border-color: var(--sh-accent);
+    outline: 0;
+    box-shadow: 0 0 0 3px var(--sh-accent-soft);
+}
+
+.input:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.senha-campo {
+    position: relative;
+    display: block;
+}
+
+.senha-campo .input {
+    padding-right: 46px;
+}
+
+.senha-olho {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    background: none;
+    color: var(--sh-muted);
+    cursor: pointer;
+}
+
+.senha-olho:hover {
+    color: var(--sh-accent-ink);
+}
+
+.form-error {
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--sh-danger);
+    font-size: 13.5px;
+    font-weight: 500;
+}
+
+/* ---------- Atalhos de teclado e Sobre ---------- */
+
+.kbd-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.kbd-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--sh-line);
+}
+
+.kbd-list li:last-child {
+    border-bottom: 0;
+}
+
+.kbd-keys {
+    display: inline-flex;
+    flex: none;
+    gap: 6px;
+}
+
+kbd {
+    min-width: 28px;
+    padding: 3px 8px;
+    border: 1px solid var(--sh-line);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: var(--sh-surface-2);
+    color: var(--sh-ink);
+    font: 600 12.5px/1.4 inherit;
+    text-align: center;
+}
+
+.sobre {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    margin-bottom: 14px;
+    text-align: center;
+}
+
+.sobre__logo {
+    width: 72px;
+    height: 72px;
+    margin-bottom: 6px;
+    object-fit: contain;
+    border-radius: 14px;
+    background: #fff;
+}
+
+.sobre__nome {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.sobre__hospital,
+.muted {
+    margin: 0;
+    color: var(--sh-muted);
+    font-size: 14px;
+}
+
+.about__text {
+    margin: 0 0 14px;
+    color: var(--sh-muted);
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.about-list {
+    display: grid;
+    gap: 0;
+    margin: 0;
+}
+
+.about-list > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-top: 1px solid var(--sh-line);
+}
+
+.about-list dt {
+    color: var(--sh-muted);
+}
+
+.about-list dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+/* ---------- Janela de suporte ---------- */
+
+.ct-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.ct-bloco {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--sh-line);
+    border-radius: 14px;
+    background: var(--sh-surface-2);
+    text-align: center;
+}
+
+.ct-bloco h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.ct-horarios {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.ct-horarios__linha {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 8px;
+}
+
+.ct-horarios dt {
+    font-weight: 700;
+}
+
+.ct-horarios dd {
+    margin: 0;
+    color: var(--sh-accent-ink);
+    font-weight: 500;
+}
+
+.ct-horarios__linha.is-fechado dd {
+    color: var(--sh-danger);
+    font-weight: 600;
+}
+
+.ct-lista {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ct-link {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    color: var(--sh-ink);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ct-link:hover {
+    background: var(--sh-accent-soft);
+    color: var(--sh-accent-ink);
+}
+
+.ct-link--forte {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.ct-link .icon {
+    color: var(--sh-accent-ink);
+}
+
+.ct-remoto {
+    justify-self: center;
+}
+
+/* ---------- Telas pequenas ---------- */
+
+@media (max-width: 1100px) {
+    .empresa-chip {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .ct-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .topbar__marca .brand-nome {
+        display: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .usermenu__name,
+    .usermenu__chev {
+        display: none;
+    }
+
+    .usermenu__button {
+        padding: 0 4px;
+    }
+}

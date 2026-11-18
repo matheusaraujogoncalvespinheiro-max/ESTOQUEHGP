@@ -1,0 +1,9 @@
+{
+  "name": "estoquehgp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de gestão de estoque do Hospital Geral de Palmas (OPME, Hemodinâmica, Centro Cirúrgico e Portaria)",
+  "scripts": {
+    "start": "python -m http.server 8080"
+  }
+}
