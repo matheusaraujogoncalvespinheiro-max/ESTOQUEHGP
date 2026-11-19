@@ -62,7 +62,7 @@ function hasPermission(action, setor = null) {
     if (role === 'FUNC_ENFERMAGEM') {
         if (action === 'register_patient') return true;
         if (action === 'view_patients') return true;
-        if (action === 'manage_patient_status') return true; // NEW: Allow nurse to manage status
+        if (action === 'manage_patient_status') return true;
         if (action === 'transfer') return false;
         if (action === 'view_history') return false;
         if (action === 'view_notifications') return false;
@@ -71,7 +71,23 @@ function hasPermission(action, setor = null) {
         return [
             'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'prontuario_evoluir',
             'evolucao_enfermagem', 'sinais_vitais_registrar', 'preparo_exame_checar', 'alergia_gerenciar',
+            'risco_assistencial_gerenciar', 'prescricao_checar', 'farmacia_retirar', 'auditoria_ver',
             'pacientes_consultar', 'nir_ver', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
+    }
+
+    if (role === 'TECNICO_ENFERMAGEM') {
+        return [
+            'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'evolucao_enfermagem',
+            'sinais_vitais_registrar', 'preparo_exame_checar', 'prescricao_checar',
+            'farmacia_retirar', 'pacientes_consultar', 'nir_ver', 'transporte_ver'
+        ].includes(action);
+    }
+
+    if (role === 'FARMACEUTICO') {
+        return [
+            'mapa_ver', 'prontuario_ver', 'farmacia_dispensar', 'farmacia_retirar',
+            'pacientes_consultar', 'view_history', 'nir_ver', 'transporte_ver', 'transporte_solicitar'
         ].includes(action);
     }
 
@@ -106,7 +122,8 @@ function hasPermission(action, setor = null) {
     if (role === 'MEDICO') {
         return [
             'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'evolucao_medica', 'prescrever', 'diagnosticar',
-            'alergia_gerenciar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver',
+            'alergia_gerenciar', 'risco_assistencial_gerenciar', 'prescricao_checar', 'auditoria_ver', 'interoperabilidade_exportar',
+            'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver',
             'nir_ver', 'transporte_ver', 'transporte_solicitar'
         ].includes(action);
     }
@@ -151,7 +168,9 @@ function getRoleLabel(role) {
         "FUNC_HEMODINAMICA": "Funcionário Hemodinâmica",
         "FUNC_OPME": "Funcionário OPME",
         "FUNC_CENTRO_CIRURGICO": "Funcionário Centro Cirúrgico",
-        "FUNC_ENFERMAGEM": "Funcionário Enfermagem",
+        "FUNC_ENFERMAGEM": "Enfermeiro(a) Assistencial",
+        "TECNICO_ENFERMAGEM": "Técnico(a) de Enfermagem",
+        "FARMACEUTICO": "Farmacêutico(a) Hospitalar",
         "CHEFE_PORTARIA": "Chefe Portaria",
         "FUNC_PORTARIA": "Funcionário Portaria",
         "FUNC_RECEPCAO": "Funcionário Recepção",
@@ -186,8 +205,20 @@ const anyOf = (...checks) => () => checks.some(check => check());
 /** Perfis que podem ser atribuídos a um usuário (usado nas telas de membros). */
 const ASSIGNABLE_ROLES = [
     'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
-    'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
+    'FUNC_ENFERMAGEM', 'TECNICO_ENFERMAGEM', 'FARMACEUTICO', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
     'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR', 'FUNC_TRANSPORTE'
+];
+
+/** Matriz RBAC granular exigida pela norma SBIS/CFM e LGPD para exibição e auditoria. */
+const MATRIZ_RBAC_ASSISTENCIAL = [
+    { perfil: 'MEDICO', rotulo: 'Médico(a)', escopo: 'Evolução médica, prescrição eletrônica (medicamentos/dietas), diagnóstico CID-10/CID-11, solicitação de exames, alergias e riscos.' },
+    { perfil: 'FUNC_ENFERMAGEM', rotulo: 'Enfermeiro(a)', escopo: 'Evolução de enfermagem, sinais vitais, escalas de risco (Morse/Braden), checagem beira-leito de prescrição, preparo de exames e gestão de leitos.' },
+    { perfil: 'TECNICO_ENFERMAGEM', rotulo: 'Técnico(a) de Enfermagem', escopo: 'Aferição de sinais vitais, anotação de enfermagem, checagem de administração sob supervisão e retirada rastreada na farmácia.' },
+    { perfil: 'FARMACEUTICO', rotulo: 'Farmacêutico(a)', escopo: 'Validação e dispensação farmacêutica por piso/leito, controle de lotes e registro nominal de quem retirou cada medicamento.' },
+    { perfil: 'FUNC_IMAGENOLOGIA', rotulo: 'Equipe Imagenologia', escopo: 'Agendamento na sala/equipamento, execução com metadados DICOM/PACS e liberação de laudos assinados.' },
+    { perfil: 'FUNC_NIR', rotulo: 'Regulador NIR', escopo: 'Regulação de leitos/viagens, conferência de documentação clínica/APAC e encaminhamento ao Setor de Transporte.' },
+    { perfil: 'FUNC_TRANSPORTE', rotulo: 'Setor de Transporte', escopo: 'Designação de maqueiro/motorista/ambulância, início e conclusão de trânsito com registro automático no PEP.' },
+    { perfil: 'FUNC_RECEPCAO', rotulo: 'Equipe Administrativa / Recepção', escopo: 'Cadastro único de pacientes (CPF + CNS) e admissão administrativa, sem acesso a evoluções clínicas restritas.' }
 ];
 
 /** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */

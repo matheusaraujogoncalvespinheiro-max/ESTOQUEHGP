@@ -4,23 +4,25 @@
 
 // ============ Recepção: pacientes ============
 
-/** Valida o cadastro rápido. Devolve a lista de erros: [{ campo, mensagem }]. */
+/** Valida o cadastro rápido (Cadastro Único vinculado ao CPF e ao CNS). Devolve a lista de erros: [{ campo, mensagem }]. */
 function validatePacienteForm(form) {
     const erros = [];
     const nome = String(form.nome ?? '').trim();
     const prontuario = String(form.prontuario ?? '').trim();
     const cpf = onlyDigits(form.cpf);
+    const cns = onlyDigits(form.cns);
     const telefone = onlyDigits(form.telefone);
 
     if (wordsCount(nome) < 2 || nome.length < 5) erros.push({ campo: 'nome', mensagem: 'Informe o nome completo do paciente.' });
-    if (!prontuario && !cpf) erros.push({ campo: 'prontuario', mensagem: 'Informe o número de identificação/prontuário ou o CPF.' });
+    if (!prontuario && !cpf && !cns) erros.push({ campo: 'prontuario', mensagem: 'Informe o CPF, o Cartão SUS (CNS) ou o número do prontuário.' });
     if (cpf && !validateCPF(cpf)) erros.push({ campo: 'cpf', mensagem: 'CPF inválido. Confira os 11 dígitos.' });
+    if (cns && cns.length !== 15) erros.push({ campo: 'cns', mensagem: 'Cartão Nacional de Saúde (CNS) deve ter 15 dígitos.' });
     if (!validateBirthDate(form.data_nascimento)) erros.push({ campo: 'data_nascimento', mensagem: 'Informe uma data de nascimento válida (não pode ser futura).' });
     if (telefone && !validatePhone(telefone)) erros.push({ campo: 'telefone', mensagem: 'Telefone inválido. Use DDD + número.' });
     return erros;
 }
 
-/** Dados do paciente prontos para gravar (CPF e telefone só com dígitos; nome_busca para pesquisa). */
+/** Dados do paciente prontos para gravar (CPF, CNS e telefone só com dígitos; nome_busca para pesquisa). */
 function buildPacientePayload(form) {
     const nome = String(form.nome ?? '').trim().replace(/\s+/g, ' ');
     return {
@@ -29,31 +31,53 @@ function buildPacientePayload(form) {
         nome_palavras: searchKey(nome).split(' ').filter(w => w.length >= 2),
         prontuario: String(form.prontuario ?? '').trim(),
         cpf: onlyDigits(form.cpf),
+        cns: onlyDigits(form.cns),
         data_nascimento: form.data_nascimento,
         telefone: onlyDigits(form.telefone)
     };
 }
 
 /**
- * Procura cadastros que podem ser do mesmo paciente.
- * Devolve [{ paciente, motivos: [...], bloqueia }]; `bloqueia` = CPF ou prontuário idênticos (não pode cadastrar de novo).
+ * Cadastro Único de Pacientes (Anti-Duplicidade por CPF, Cartão Nacional de Saúde - CNS e Nº Prontuário).
+ * Verifica tanto em memória (cache/seed) quanto no banco Firestore.
+ * Devolve [{ paciente, motivos: [...], bloqueia }]; `bloqueia` = CPF, CNS ou prontuário idênticos (não pode cadastrar duplicado).
  */
 async function findDuplicatePacientes(payload, excludeId = null) {
     const found = new Map();
-    const add = (list, motivo, bloqueia) => list.forEach(p => {
-        if (p.id === excludeId || p.ativo === false) return;
+    const add = (list, motivo, bloqueia) => (list || []).forEach(p => {
+        if (!p || p.id === excludeId || p.ativo === false) return;
         const entry = found.get(p.id) || { paciente: p, motivos: [], bloqueia: false };
         if (!entry.motivos.includes(motivo)) entry.motivos.push(motivo);
         entry.bloqueia = entry.bloqueia || bloqueia;
         found.set(p.id, entry);
     });
 
-    if (payload.cpf) add(await db_findPacientesByField('cpf', payload.cpf), 'CPF idêntico', true);
-    if (payload.prontuario) add(await db_findPacientesByField('prontuario', payload.prontuario), 'Prontuário idêntico', true);
+    const cpfLimpo = onlyDigits(payload.cpf);
+    const cnsLimpo = onlyDigits(payload.cns);
+    const prontLimpo = String(payload.prontuario || '').trim();
 
-    const byName = (await db_findPacientesByNamePrefix(payload.nome_busca)).filter(p => p.nome_busca === payload.nome_busca);
-    add(byName.filter(p => p.data_nascimento === payload.data_nascimento), 'Mesmo nome e data de nascimento', false);
-    add(byName.filter(p => p.data_nascimento !== payload.data_nascimento), 'Mesmo nome (nascimento diferente)', false);
+    // 1. Verificação síncrona no cache local / seed
+    const locais = [
+        ...Object.values((typeof MOCK_DATA !== 'undefined' && MOCK_DATA.PACIENTES_SEED_MAP) || {}),
+        ...((typeof CAD_DATA !== 'undefined' && Array.isArray(CAD_DATA.paciente)) ? CAD_DATA.paciente : [])
+    ];
+    if (cpfLimpo) add(locais.filter(p => onlyDigits(p.cpf) === cpfLimpo), 'CPF idêntico (Cadastro Único)', true);
+    if (cnsLimpo) add(locais.filter(p => onlyDigits(p.cns) === cnsLimpo), 'Cartão SUS (CNS) idêntico (Cadastro Único)', true);
+    if (prontLimpo) add(locais.filter(p => String(p.prontuario || '').trim() === prontLimpo), 'Prontuário idêntico', true);
+
+    // 2. Verificação no banco Firestore (quando conectado)
+    if (typeof db !== 'undefined' && db) {
+        try {
+            if (cpfLimpo) add(await db_findPacientesByField('cpf', cpfLimpo), 'CPF idêntico (Cadastro Único)', true);
+            if (cnsLimpo) add(await db_findPacientesByField('cns', cnsLimpo), 'Cartão SUS (CNS) idêntico (Cadastro Único)', true);
+            if (prontLimpo) add(await db_findPacientesByField('prontuario', prontLimpo), 'Prontuário idêntico', true);
+            if (payload.nome_busca) {
+                const byName = (await db_findPacientesByNamePrefix(payload.nome_busca)).filter(p => p.nome_busca === payload.nome_busca);
+                add(byName.filter(p => p.data_nascimento === payload.data_nascimento), 'Mesmo nome e data de nascimento', false);
+                add(byName.filter(p => p.data_nascimento !== payload.data_nascimento), 'Mesmo nome (nascimento diferente)', false);
+            }
+        } catch (e) { /* usa resultado em memória quando offline */ }
+    }
 
     return [...found.values()];
 }
@@ -79,17 +103,23 @@ async function registrarAtendimento(paciente, observacoes = '') {
     return registro;
 }
 
-/** Cadastra o paciente e já registra o primeiro atendimento. */
+/** Cadastra o paciente (Cadastro Único com bloqueio de duplicidade por CPF, CNS e Prontuário) e já registra o primeiro atendimento. */
 async function cadastrarPaciente(form) {
     requirePermission('recepcao_acessar');
     const erros = validatePacienteForm(form);
     if (erros.length) throw new Error(erros[0].mensagem);
 
+    const payload = buildPacientePayload(form);
+    const duplicados = (await findDuplicatePacientes(payload)).filter(d => d.bloqueia);
+    if (duplicados.length) {
+        throw new Error(`Cadastro Único: já existe paciente com ${duplicados[0].motivos.join(' / ')} (${duplicados[0].paciente.nome}).`);
+    }
+
     const user = state.currentUser;
     const agora = nowISO();
     const paciente = {
         id: newId('pac'),
-        ...buildPacientePayload(form),
+        ...payload,
         ativo: true,
         criado_em: agora,
         criado_por: user.username,
@@ -98,12 +128,12 @@ async function cadastrarPaciente(form) {
         atualizado_por: user.username
     };
     await db_savePaciente(paciente);
-    await auditar({ entidade: 'paciente', entidade_id: paciente.id, acao: 'CRIAR', depois: { nome: paciente.nome, prontuario: paciente.prontuario } });
+    await auditar({ entidade: 'paciente', entidade_id: paciente.id, acao: 'CRIAR', depois: { nome: paciente.nome, prontuario: paciente.prontuario, cpf: paciente.cpf, cns: paciente.cns } });
     const registro = await registrarAtendimento(paciente, form.observacoes);
     return { paciente, registro };
 }
 
-const CAMPOS_PACIENTE = ['nome', 'prontuario', 'cpf', 'data_nascimento', 'telefone'];
+const CAMPOS_PACIENTE = ['nome', 'prontuario', 'cpf', 'cns', 'data_nascimento', 'telefone'];
 
 /** Edita a identificação do paciente (exige permissão de edição) e registra o que mudou. */
 async function atualizarPaciente(id, form) {
@@ -144,12 +174,13 @@ async function buscarPacientes(term) {
         ...((typeof CAD_DATA !== 'undefined' && Array.isArray(CAD_DATA.paciente)) ? CAD_DATA.paciente : [])
     ];
     add(locais.filter(p =>
-        (digits && (String(p.cpf || '') === digits || String(p.prontuario || '').includes(digits)))
-        || searchKey(`${p.nome || ''} ${p.prontuario || ''} ${p.cpf || ''}`).includes(chave)
+        (digits && (String(p.cpf || '') === digits || String(p.cns || '') === digits || String(p.prontuario || '').includes(digits)))
+        || searchKey(`${p.nome || ''} ${p.prontuario || ''} ${p.cpf || ''} ${p.cns || ''}`).includes(chave)
     ));
 
     try {
         if (digits.length === 11) add(await db_findPacientesByField('cpf', digits));
+        if (digits.length === 15) add(await db_findPacientesByField('cns', digits));
         add(await db_findPacientesByField('prontuario', texto));
         if (digits && digits !== texto) add(await db_findPacientesByField('prontuario', digits));
         if (!/^[\d.\-\s]+$/.test(texto)) {

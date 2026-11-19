@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ctx = vm.createContext({ console, state: { currentUser: null }, MOCK_DATA: { AUTORIZACOES: [], LEITOS_ESTADO: {}, INTERNACOES: [] } });
-['assets/js/core/utils.js', 'assets/js/core/validators.js', 'assets/js/services/portaria.js', 'assets/js/services/estrutura-hospitalar.js', 'assets/js/services/hospital.js']
+['assets/js/core/utils.js', 'assets/js/core/validators.js', 'assets/js/services/portaria.js', 'assets/js/services/estrutura-hospitalar.js', 'assets/js/services/auditoria.js', 'assets/js/services/hospital.js']
     .forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f }));
 const call = (code) => vm.runInContext(code, ctx);
 
@@ -175,4 +175,63 @@ test('integração completa: seed populado renderiza Mapa, Prontuário Digital, 
     const htmlFarmaciaGeral = call("renderProntuario()");
     assert.ok(htmlFarmaciaGeral.includes('Ceftriaxona Dissódica'));
     assert.ok(htmlFarmaciaGeral.includes('Enf. Marcos Paulo Ribeiro'));
+});
+
+test('conformidade legal, auditoria imutável, RBAC, guarda 20 anos (CFM 1821 / Lei 13.787), ICP-Brasil (SBIS NGS2), HL7 FHIR (RNDS) e DICOM', async () => {
+    ['assets/js/services/pacientes.js', 'assets/js/services/atendimento.js', 'assets/js/core/backup.js']
+        .forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f }));
+
+    // 1. Guarda mínima de 20 anos (Lei nº 13.787/2018 e Resolução CFM nº 1.821/2007)
+    const guarda = call("calcularGuardaLegal20Anos('2026-11-19T12:00:00Z')");
+    assert.equal(guarda.guarda_obrigatoria_ate, '2046-11-19');
+    assert.equal(call("podeExpurgarProntuario('2026-11-19', '2035-01-01').permitido"), false);
+    assert.equal(call("podeExpurgarProntuario('2005-01-01', '2026-11-19').permitido"), true);
+
+    // 2. Padrão SBIS/CFM NGS2: Assinatura Digital ICP-Brasil e detecção de adulteração via Hash SHA-256
+    const regOriginal = call("MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01'][0]");
+    assert.equal(call("verificarIntegridadeRegistroClinico(MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01'][0]).integro"), true);
+    const adulterado = { ...regOriginal, texto: 'Texto adulterado indevidamente' };
+    assert.equal(call(`verificarIntegridadeRegistroClinico(${JSON.stringify(adulterado)}).integro`), false);
+
+    // 3. Trilha de Auditoria Imutável (Usuário, Data/Hora, IP e Hash encadeado)
+    const log = await call("auditar({ entidade: 'prontuario', entidade_id: 'pac_seed_01', acao: 'CONSULTAR', motivo: 'Auditoria LGPD' })");
+    assert.ok(log.ip_origem.includes('10.42.18.104'));
+    assert.equal(log.hash_log.length, 64);
+
+    // 4. Cadastro Único de Pacientes (bloqueia duplicidade por CPF e por CNS)
+    const dupCpf = await call("findDuplicatePacientes({ cpf: '52998224725', cns: '700999999999999', prontuario: '99999' })");
+    assert.ok(dupCpf.some(d => d.bloqueia));
+    const dupCns = await call("findDuplicatePacientes({ cpf: '', cns: '700405918273645', prontuario: '99999' })");
+    assert.ok(dupCns.some(d => d.bloqueia));
+
+    // 5. Prescrição Eletrônica: Alerta de Alergia + Checagem pela Enfermagem
+    const alertaAlergia = call("verificarAlertaAlergiaPrescricao(MOCK_DATA.PACIENTES_SEED_MAP['pac_seed_01'], [{ medicamento: 'Dipirona 1g EV' }])");
+    assert.equal(alertaAlergia.conflito, true);
+    await call("checarItemPrescricaoEnfermagem('clin_seed_05', 2, { checado_por: 'Enfermeiro Teste', coren: 'COREN-TO 118920' })");
+    const prescAtualizada = call("MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01'].find(r => r.id === 'clin_seed_05')");
+    assert.equal(prescAtualizada.itens[2].checagem_enfermagem.checado, true);
+
+    // 6. Tabelas Padronizadas (CID-10 ↔ CID-11, SIGTAP e TUSS) e Protocolos HL7 FHIR R4 (RNDS) e DICOM
+    assert.equal(call("validarCid11('8B20')"), true);
+    assert.equal(call("buscarCorrespondenciaCid('I64').cid11"), '8B20');
+    const fhir = call("gerarBundleHL7FhirRNDS('pac_seed_01')");
+    assert.equal(fhir.resourceType, 'Bundle');
+    assert.ok(fhir.entry.some(e => e.resource.resourceType === 'Patient'));
+    assert.ok(fhir.entry.some(e => e.resource.resourceType === 'Condition'));
+    assert.ok(fhir.entry.some(e => e.resource.resourceType === 'ImagingStudy'));
+    assert.ok(fhir.entry.some(e => e.resource.resourceType === 'Provenance'));
+
+    // 7. Backup Criptografado com Verificação SHA-256
+    const bkp = call("gerarPacoteBackupCriptografado({ criptografar: true })");
+    assert.equal(bkp.criptografado, true);
+    assert.ok(bkp.ciphertext.length > 10);
+    const decifrado = call(`validarEDecifrarPacoteBackup(${JSON.stringify(bkp)})`);
+    assert.ok(decifrado.mockData);
+
+    // 8. Renderização da Aba 9 de Conformidade Legal, Auditoria e HL7 FHIR no Prontuário
+    call("state.prontuario = { pacienteId: 'pac_seed_01', paciente: MOCK_DATA.PACIENTES_SEED_MAP['pac_seed_01'], tab: 'conformidade' }");
+    const htmlConf = call("renderProntuario()");
+    assert.ok(htmlConf.includes('Lei nº 13.787/2018'));
+    assert.ok(htmlConf.includes('HL7 FHIR R4'));
+    assert.ok(htmlConf.includes('ICP-Brasil'));
 });

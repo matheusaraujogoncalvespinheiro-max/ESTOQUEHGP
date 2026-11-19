@@ -273,23 +273,31 @@ function exameDetalhe(solId) {
         <div class="at-field"><label class="at-label" for="exd_npj">Justificativa *</label><input class="at-input" id="exd_npj" maxlength="200"></div></div>
         <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameMudarPrioridade('${sol.id}')">Registrar alteração</button></div>` : '';
 
+    const dicom = sol.dicom || (typeof gerarMetadadosDicomExame === 'function' ? gerarMetadadosDicomExame(sol) : null);
+    const prObj = sol.procedimento_principal || {};
+    const corrCid = sol.cid_principal && typeof buscarCorrespondenciaCid === 'function' ? buscarCorrespondenciaCid(sol.cid_principal) : null;
+    const cid11 = sol.cid_11 || (corrCid && corrCid.cid11) || '';
+
     hModal(`${sol.tipo_nome} · ${sol.protocolo}`, `
         <p style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             ${badgePrioridade(sol.prioridade)}
             <span class="at-badge at-badge--ok">${escapeHtml(rotuloStatusExame(sol.status))}</span>
             ${sol.contraste ? '<span class="at-badge at-badge--emergencia">Com Contraste</span>' : '<span class="at-badge at-badge--off">Sem Contraste</span>'}
+            ${dicom ? `<span class="at-badge at-badge--outros">DICOM ${escapeHtml(dicom.modality)} · ${escapeHtml(dicom.pacs_status)}</span>` : ''}
             ${sol.exige_autorizacao ? `<span class="at-badge ${stAut === 'APROVADA' ? 'at-badge--ok' : 'at-badge--urgente'}">Autorização: ${STATUS_AUTORIZACAO[stAut]}</span>` : ''}
             ${tr ? `<span class="at-badge at-badge--outros">🚑 Transporte NIR: ${escapeHtml(tr.protocolo)} (${escapeHtml(rotuloStatusTransporteNIR(tr.status))})</span>` : ''}
         </p>
         <dl class="about-list">${linha('Paciente', d.nome)}${linha('Prontuário', d.prontuario)}${linha('CNS', d.cns)}${linha('Nascimento', d.data_nascimento ? formatDateBR(d.data_nascimento) : '')}${linha('Sexo', d.sexo)}${linha('Setor / Leito Atual', sol.localizacao ? `Leito ${(leitoPorId(sol.localizacao.leito_id) || {}).rotulo} · ${sol.localizacao.andar}º andar · ${sol.localizacao.ala}` : 'Sem internação')}
             ${linha('Procedimento principal', proc(sol.procedimento_principal))}${(sol.procedimentos_secundarios || []).map((p, i) => linha('Secundário ' + (i + 1), proc(p))).join('')}
+            ${linha('Código SIGTAP (SUS) / TUSS (TISS)', `SIGTAP: ${prObj.codigo_sigtap || prObj.codigo || '02.06.01.007-9'} · TUSS/TISS: ${prObj.codigo_tuss || '41001010'}`)}
+            ${dicom ? linha('Integração DICOM / PACS', `StudyInstanceUID: ${dicom.study_instance_uid} · Modality: ${dicom.modality} · AE_Title: ${dicom.ae_title} · Accession: ${dicom.accession_number}`) : ''}
             ${linha('Uso de Contraste', sol.detalhe_contraste || (sol.contraste ? 'Sim' : 'Não'))}
-            ${linha('Justificativa clínica', sol.diagnostico_descricao)}${linha('CID-10', [sol.cid_principal, sol.cid_secundario, sol.cid_causas].filter(Boolean).join(' · '))}${linha('Justificativa da prioridade', sol.prioridade_justificativa)}${linha('Observações', sol.observacoes)}
+            ${linha('Justificativa clínica', sol.diagnostico_descricao)}${linha('CID-10 / CID-11', `${[sol.cid_principal, sol.cid_secundario, sol.cid_causas].filter(Boolean).join(' · ')}${cid11 ? ` (CID-11 OMS: ${cid11})` : ''}`)}${linha('Justificativa da prioridade', sol.prioridade_justificativa)}${linha('Observações', sol.observacoes)}
             ${linha('Solicitante', `${sol.solicitante.nome} · ${sol.solicitante.registro_conselho}`)}${linha('Data da solicitação', formatDateBR(sol.data_solicitacao))}
             ${linha('Agendamento', ag ? `${formatDateBR(ag.data)} às ${ag.hora} · ${ag.sala || 'Imagenologia'}` : 'Não agendado')}
             ${ag && ag.preparo ? linha('Preparo Exigido', ag.preparo) : ''}
             ${linha('Checklist Enfermagem', prep && prep.checado ? `Confirmado por ${prep.por} (${[prep.jejum && 'Jejum OK', prep.acesso_venoso && 'Acesso Venoso OK', prep.alergia_verificada && 'Alergia Verificada'].filter(Boolean).join(', ')}) ${prep.observacoes || ''}` : 'Pendente')}
-            ${sol.realizado ? linha('Realizado / Laudo', `${formatDateTimeBR(sol.realizado.em)} · ${sol.realizado.profissional} — ${sol.realizado.laudo || ''}`) : ''}</dl>
+            ${sol.realizado ? linha('Realizado / Laudo Assinado (ICP-Brasil)', `${formatDateTimeBR(sol.realizado.em)} · ${sol.realizado.profissional} (🔒 ICP-Brasil NGS2 · Hash: ${(sol.realizado.hash_integridade || '').slice(0, 14)}…) — ${sol.realizado.laudo || ''}`) : ''}</dl>
         ${(sol.pendencias || []).length ? `<h3 class="at-label" style="margin:12px 0 6px">Pendências</h3>${sol.pendencias.map((p, i) => `<p>${p.resolvida ? '✔' : '⚠'} ${escapeHtml(p.texto)} <small class="at-hint">${escapeHtml(p.por)}, ${escapeHtml(formatDateTimeBR(p.em))}</small> ${!p.resolvida && central ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameResolverPendencia('${sol.id}', ${i})">Resolver</button>` : ''}</p>`).join('')}` : ''}
         ${acoes}${prior}
         <h3 class="at-label" style="margin:14px 0 6px">Trajetória</h3>

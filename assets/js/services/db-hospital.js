@@ -384,7 +384,15 @@ async function garantirSeedAssistencia() {
             bairro: 'Plano Diretor Sul',
             cep: '77020026',
             alergias: 'Dipirona Sódica e Contraste Iodado',
-            diagnostico_principal: 'I64 - Acidente Vascular Cerebral (AVC) em investigação',
+            diagnostico_principal: 'I64 (CID-11: 8B20) - Acidente Vascular Cerebral (AVC) em investigação',
+            riscos_assistenciais: {
+                risco_queda: 'ALTO',
+                risco_lpp: 'MODERADO',
+                precaucao: 'Padrão',
+                observacoes: 'Grades elevadas e pulseira amarela (paresia em MSD pós-AVC)',
+                avaliado_por: 'Enfermeiro Teste',
+                avaliado_em: umaHoraAtras
+            },
             ativo: true,
             criado_em: ontem,
             criado_por: 'admin',
@@ -409,7 +417,15 @@ async function garantirSeedAssistencia() {
             bairro: 'Plano Diretor Norte',
             cep: '77006470',
             alergias: 'Nega alergias medicamentosas conhecidas',
-            diagnostico_principal: 'J18.9 - Pneumonia bacteriana aguda não especificada',
+            diagnostico_principal: 'J18.9 (CID-11: CA40.Z) - Pneumonia bacteriana aguda não especificada',
+            riscos_assistenciais: {
+                risco_queda: 'MODERADO',
+                risco_lpp: 'BAIXO',
+                precaucao: 'Gotículas',
+                observacoes: 'Uso de O2 em cateter nasal; supervisão para deambulação',
+                avaliado_por: 'Enfermeiro Teste',
+                avaliado_em: umaHoraAtras
+            },
             ativo: true,
             criado_em: ontem,
             criado_por: 'admin',
@@ -434,7 +450,15 @@ async function garantirSeedAssistencia() {
             bairro: 'Taquaralto',
             cep: '77064580',
             alergias: 'Penicilina (rash cutâneo)',
-            diagnostico_principal: 'I21.9 - Infarto Agudo do Miocárdio (pós-cateterismo)',
+            diagnostico_principal: 'I21.9 (CID-11: BA41) - Infarto Agudo do Miocárdio (pós-cateterismo)',
+            riscos_assistenciais: {
+                risco_queda: 'ALTO',
+                risco_lpp: 'ALTO',
+                precaucao: 'Padrão',
+                observacoes: 'Repouso absoluto pós-cateterismo femoral; mudança de decúbito 2/2h',
+                avaliado_por: 'Enfermeiro Teste',
+                avaliado_em: umaHoraAtras
+            },
             ativo: true,
             criado_em: ontem,
             criado_por: 'admin',
@@ -602,9 +626,10 @@ async function garantirSeedAssistencia() {
             tipo: 'PRESCRICAO',
             cid: '',
             itens: [
-                { medicamento: 'AAS (Ácido Acetilsalicílico)', dose: '100 mg', via: 'VO', frequencia: '1x ao dia (após almoço)', duracao: 'Uso contínuo', observacao: '' },
-                { medicamento: 'Sinvastatina', dose: '40 mg', via: 'VO', frequencia: '1x à noite (22h)', duracao: 'Uso contínuo', observacao: '' },
-                { medicamento: 'Soro Fisiológico 0,9%', dose: '500 ml', via: 'EV', frequencia: '12/12h', duracao: '24h', observacao: 'Manter acesso pérvio' }
+                { tipo_item: 'DIETA', medicamento: 'Dieta Hipossódica / Pastosa Assistida', dose: '1800 kcal/dia', via: 'VO', frequencia: '6 refeições/dia (Suspensa em jejum p/ TC)', duracao: '24h', observacao: 'Cabeceira elevada 30°', checagem_enfermagem: { checado: true, por: 'Enfermeiro Teste', coren: 'COREN-TO 118920', em: umaHoraAtras, observacao: 'Jejum iniciado às 08h para TC de Crânio' } },
+                { tipo_item: 'MEDICAMENTO', medicamento: 'AAS (Ácido Acetilsalicílico)', dose: '100 mg', via: 'VO', frequencia: '1x ao dia (após almoço)', duracao: 'Uso contínuo', observacao: '', checagem_enfermagem: { checado: true, por: 'Téc. Enf. Juliana Martins', coren: 'COREN-TO 224510', em: umaHoraAtras, observacao: 'Administrado no leito 204-A' } },
+                { tipo_item: 'MEDICAMENTO', medicamento: 'Sinvastatina', dose: '40 mg', via: 'VO', frequencia: '1x à noite (22h)', duracao: 'Uso contínuo', observacao: '', checagem_enfermagem: null },
+                { tipo_item: 'MEDICAMENTO', medicamento: 'Soro Fisiológico 0,9%', dose: '500 ml', via: 'EV', frequencia: '12/12h', duracao: '24h', observacao: 'Manter acesso pérvio', checagem_enfermagem: null }
             ],
             texto: 'AAS (Ácido Acetilsalicílico) · 100 mg · VO · 1x ao dia (após almoço) · por Uso contínuo\nSinvastatina · 40 mg · VO · 1x à noite (22h) · por Uso contínuo\nSoro Fisiológico 0,9% · 500 ml · EV · 12/12h · por 24h · (Manter acesso pérvio)',
             autor: 'medico',
@@ -647,7 +672,30 @@ async function garantirSeedAssistencia() {
         }
     ];
 
-    registrosSeed.forEach(r => _syncLocalCollection(COLH.REGISTROS, r));
+    registrosSeed.forEach(r => {
+        if (r.cid && !r.cid_11 && typeof buscarCorrespondenciaCid === 'function') {
+            const corr = buscarCorrespondenciaCid(r.cid);
+            if (corr) r.cid_11 = corr.cid11;
+        }
+        if (typeof gerarAssinaturaDigitalICPBrasil === 'function') {
+            r.assinatura_icp = gerarAssinaturaDigitalICPBrasil({
+                autor: r.autor,
+                autor_nome: r.autor_nome,
+                perfil: r.perfil,
+                registro_conselho: r.registro_conselho,
+                tipo: r.tipo,
+                texto: r.texto,
+                cid: r.cid || '',
+                cid_11: r.cid_11 || '',
+                em: r.em
+            });
+            r.hash_integridade = r.assinatura_icp.hash_documento;
+        }
+        if (typeof calcularGuardaLegal20Anos === 'function') {
+            r.guarda_legal_ate = calcularGuardaLegal20Anos(r.em).guarda_obrigatoria_ate;
+        }
+        _syncLocalCollection(COLH.REGISTROS, r);
+    });
 
     // 5. Vagas e Solicitações de Exame (1 exame já AGENDADO pela Imagenologia + 1 pedido PENDENTE na fila)
     const vagaSeed = {
@@ -790,6 +838,25 @@ async function garantirSeedAssistencia() {
     ];
 
     examesSeed.forEach(s => {
+        if (s.cid_principal && !s.cid_11 && typeof buscarCorrespondenciaCid === 'function') {
+            const corr = buscarCorrespondenciaCid(s.cid_principal);
+            if (corr) s.cid_11 = corr.cid11;
+        }
+        if (typeof obterProcedimentoPadronizado === 'function') {
+            const padrao = obterProcedimentoPadronizado(s.tipo_exame_id, s.tipo_nome);
+            s.tabela_procedimento = s.tabela_procedimento || 'SIGTAP';
+            s.procedimento_principal = {
+                tabela: s.tabela_procedimento,
+                codigo: (padrao && padrao.sigtap) || s.procedimento_principal.codigo,
+                codigo_sigtap: (padrao && padrao.sigtap) || s.procedimento_principal.codigo,
+                codigo_tuss: (padrao && padrao.tuss) || '41001010',
+                nome: s.procedimento_principal.nome,
+                qtd: s.procedimento_principal.qtd
+            };
+        }
+        if (!s.dicom && typeof gerarMetadadosDicomExame === 'function') {
+            s.dicom = gerarMetadadosDicomExame(s);
+        }
         if (!MOCK_DATA.SOLICITACOES_EXAME.some(x => x.id === s.id)) {
             _syncLocalCollection(COLH.SOLICITACOES, s);
         }
@@ -1063,6 +1130,57 @@ async function garantirSeedAssistencia() {
             _syncLocalCollection(COLH.FARMACIA, f);
         }
     });
+
+    // 8. Trilha de Auditoria Imutável Inicial (LGPD / CFM 1821 / SBIS NGS2)
+    if (!Array.isArray(MOCK_DATA.AUDITORIA_LOGS) || !MOCK_DATA.AUDITORIA_LOGS.length) {
+        MOCK_DATA.AUDITORIA_LOGS = [
+            {
+                id: 'aud_seed_01',
+                entidade: 'prontuario',
+                entidade_id: 'pac_seed_01',
+                acao: 'ASSINAR_ICP_BRASIL',
+                motivo: 'Evolução Médica e Prescrição assinadas digitalmente com Certificado ICP-Brasil (CRM-TO 4512 · SBIS NGS2)',
+                usuario: 'medico',
+                usuario_nome: 'Dr. Carlos Eduardo Silva',
+                perfil: 'MEDICO',
+                ip_origem: '10.42.18.21 (Posto Médico 2º Piso - Neuro)',
+                estacao: 'ESTACAO-HGP-NEURO-02',
+                base_legal_lgpd: 'Lei 13.709/2018 Art. 11, II, f · Lei 13.787/2018 · CFM 1.821/2007',
+                data_hora: duasHorasAtras,
+                hash_log: typeof calcularHashSHA256Deterministico === 'function' ? calcularHashSHA256Deterministico('aud_seed_01|pac_seed_01|medico') : 'A1B2C3D4'
+            },
+            {
+                id: 'aud_seed_02',
+                entidade: 'prontuario',
+                entidade_id: 'pac_seed_01',
+                acao: 'CHECAGEM_ENFERMAGEM',
+                motivo: 'Aferição de Sinais Vitais, Escala de Morse/Braden e Checklist de Preparo para Tomografia (COREN-TO 118920)',
+                usuario: 'enfermeiro',
+                usuario_nome: 'Enfermeiro Teste',
+                perfil: 'FUNC_ENFERMAGEM',
+                ip_origem: '10.42.18.45 (Posto Enfermagem 2º Piso - Ala E/F)',
+                estacao: 'ESTACAO-HGP-ENF-204',
+                base_legal_lgpd: 'Lei 13.709/2018 Art. 11, II, f · Lei 13.787/2018 · CFM 1.821/2007',
+                data_hora: umaHoraAtras,
+                hash_log: typeof calcularHashSHA256Deterministico === 'function' ? calcularHashSHA256Deterministico('aud_seed_02|pac_seed_01|enfermeiro') : 'E5F6A7B8'
+            },
+            {
+                id: 'aud_seed_03',
+                entidade: 'farmacia_piso',
+                entidade_id: 'pac_seed_01',
+                acao: 'DISPENSACAO_FARMACIA',
+                motivo: 'Dispensação rastreada para o 2º Piso (Leito 204-A) retirada por Téc. Enf. Juliana Martins (COREN-TO 224510)',
+                usuario: 'farmacia',
+                usuario_nome: 'Farm. Patrícia Azevedo (CRF-TO 3310)',
+                perfil: 'FARMACEUTICO',
+                ip_origem: '10.42.12.10 (Farmácia Central HGP)',
+                estacao: 'ESTACAO-HGP-FARM-01',
+                base_legal_lgpd: 'Lei 13.709/2018 Art. 11, II, f · Rastreabilidade Assistencial',
+                data_hora: umaHoraAtras,
+                hash_log: typeof calcularHashSHA256Deterministico === 'function' ? calcularHashSHA256Deterministico('aud_seed_03|pac_seed_01|farmacia') : 'C9D0E1F2'
+            }
+        ];
+    }
 
     // Se o Firestore estiver conectado, grava de forma assíncrona os registros de seed caso ainda não existam
     if (typeof db !== 'undefined' && db) {
