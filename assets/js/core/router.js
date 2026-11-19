@@ -62,6 +62,8 @@ function renderContent() {
             return renderInternacoes();
         case 'PRONTUARIO':
             return renderProntuario();
+        case 'TRANSPORTE_NIR':
+            return renderTransporteNIR();
         case 'IMAGEM':
             return renderCentralExames('IMAGENOLOGIA');
         case 'ULTRASSOM':

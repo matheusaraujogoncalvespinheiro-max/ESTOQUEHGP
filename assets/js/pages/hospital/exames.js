@@ -1,5 +1,5 @@
-// Central de Imagenologia e Ultrassonografia (mesma estrutura, filas separadas), detalhe da solicitação, agenda de vagas,
-// Controle de Autorizações e o formulário de Solicitação/Autorização para impressão (PDF).
+// Central de Imagenologia e Ultrassonografia (conectada ao Prontuário Digital e à Gestão de Transporte do NIR).
+// Fila de Pedidos Pendentes, Agenda da Imagenologia (Data, Hora, Sala/Equipamento, Preparo), Realização/Laudo e Autorizações APAC.
 
 function examesState(setor) {
     if (!state.exames) state.exames = {};
@@ -15,46 +15,193 @@ function ordenarFila(lista) {
 }
 
 function renderCentralExames(setor) {
-    db_watch('solicitacoes'); db_watch('autorizacoes'); db_watch('vagas'); db_watch('config_hospital'); db_cadWatch('tipoexame');
-    if (state.currentUser.role === 'ADMIN' && typeof garantirTiposExamePadrao === 'function' && !renderCentralExames._semeou) { renderCentralExames._semeou = true; garantirTiposExamePadrao().catch(e => console.warn('Tipos padrão:', e.message)); }
+    if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
+    db_watch('solicitacoes'); db_watch('autorizacoes'); db_watch('vagas'); db_watch('config_hospital'); db_watch('transportes_nir'); db_cadWatch('tipoexame');
+    if (state.currentUser && state.currentUser.role === 'ADMIN' && typeof garantirTiposExamePadrao === 'function' && !renderCentralExames._semeou) {
+        renderCentralExames._semeou = true;
+        garantirTiposExamePadrao().catch(e => console.warn('Tipos padrão:', e.message));
+    }
     const st = examesState(setor);
     const permissao = permissaoDoSetor(setor);
-    const todas = MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.setor_destino === setor);
+    const todas = (MOCK_DATA.SOLICITACOES_EXAME || []).filter(s => s.setor_destino === setor);
     const abertas = todas.filter(s => !statusEncerrado(s.status));
+    const pendentesAgendamento = abertas.filter(s => ['SOLICITADO', 'AGUARDANDO_TRIAGEM', 'EM_AVALIACAO', 'AGUARDANDO_AGENDAMENTO', 'REAGENDAMENTO_NECESSARIO'].includes(s.status));
+    const agendados = abertas.filter(s => ['AGENDADO', 'EM_ATENDIMENTO'].includes(s.status));
     const termo = searchKey(st.q);
-    const filtrar = (l) => l.filter(s => (!st.status || s.status === st.status) && (!st.prioridade || s.prioridade === st.prioridade) && (!st.tipo || s.tipo_exame_id === st.tipo)
-        && (!termo || searchKey(`${s.protocolo} ${s.paciente_dados.nome} ${s.paciente_dados.prontuario} ${s.tipo_nome}`).includes(termo)));
-    const fila = ordenarFila(filtrar(st.aba === 'historico' ? todas.filter(s => statusEncerrado(s.status)) : abertas));
+    const filtrar = (l) => l.filter(s =>
+        (!st.status || s.status === st.status)
+        && (!st.prioridade || s.prioridade === st.prioridade)
+        && (!st.tipo || s.tipo_exame_id === st.tipo)
+        && (!termo || searchKey(`${s.protocolo} ${s.paciente_dados.nome} ${s.paciente_dados.prontuario} ${s.tipo_nome} ${(s.localizacao && s.localizacao.leito_id) || ''} ${(s.localizacao && s.localizacao.ala) || ''}`).includes(termo))
+    );
+
+    const fonteLista = st.aba === 'historico'
+        ? todas.filter(s => statusEncerrado(s.status))
+        : st.aba === 'agenda'
+            ? agendados
+            : abertas;
+    const fila = ordenarFila(filtrar(fonteLista));
     const tipos = tiposExame().filter(t => t.setor_destino === setor);
     const contagem = (s) => abertas.filter(x => x.status === s).length;
     const op = (id, valor, lista, vazio) => `<select class="at-select hs-sel" onchange="exameFiltro('${setor}', '${id}', this.value)" data-keep="ex_${setor}_${id}"><option value="">${vazio}</option>${lista.map(o => `<option value="${escapeHtml(o.id)}" ${valor === o.id ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
 
-    const kpis = [['Na fila', abertas.length], ['Urgentes', abertas.filter(s => s.prioridade === 'URGENTE').length], ['Aguardando agendamento', contagem('AGUARDANDO_AGENDAMENTO')], ['Agendados', contagem('AGENDADO')], ['Pend. autorização', contagem('PENDENTE_AUTORIZACAO')], ['Realizados', todas.filter(s => s.status === 'REALIZADO').length]];
+    const kpis = [
+        ['Pedidos pendentes', pendentesAgendamento.length],
+        ['Urgentes na fila', abertas.filter(s => s.prioridade === 'URGENTE').length],
+        ['Agendados', contagem('AGENDADO')],
+        ['Em realização', contagem('EM_ATENDIMENTO')],
+        ['Laudos liberados', todas.filter(s => s.status === 'REALIZADO').length]
+    ];
     const cabeca = `
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon(setor === 'IMAGENOLOGIA' ? 'scan-line' : 'activity', 'w-7 h-7')}</div>
-            <div class="cd-head__txt"><h2>${setor === 'IMAGENOLOGIA' ? 'Central de Imagenologia' : 'Ultrassonografia'}</h2><p>Fila de solicitações, agendamento e acompanhamento dos exames. A prioridade clínica só muda com justificativa de profissional autorizado.</p></div></header>
+            <div class="cd-head__txt"><h2>${setor === 'IMAGENOLOGIA' ? 'Central de Imagenologia e Agenda de Exames' : 'Central de Ultrassonografia'}</h2><p>Pedidos recebidos diretamente dos Prontuários Digitais, agendamento com Sala/Equipamento e Preparo, liberação de laudos e ponte rápida com o Transporte (NIR).</p></div></header>
         <div class="cd-kpis">${kpis.map(([r, v]) => `<div class="cd-kpi"><strong>${v}</strong><span>${r}</span></div>`).join('')}</div>
-        <nav class="at-tabs">${[['fila', 'Fila de atendimento'], ['vagas', 'Vagas e agenda'], ['historico', 'Histórico']].map(([id, r]) => `<button type="button" class="at-tab ${st.aba === id ? 'is-active' : ''}" onclick="exameFiltro('${setor}', 'aba', '${id}')">${r}</button>`).join('')}</nav>`;
+        <nav class="at-tabs">${[
+            ['fila', `Pedidos Pendentes & Fila (${abertas.length})`],
+            ['agenda', `Agenda da Imagenologia (${agendados.length})`],
+            ['vagas', 'Grade de Vagas e Salas'],
+            ['historico', `Laudos Liberados / Histórico (${todas.filter(s => statusEncerrado(s.status)).length})`]
+        ].map(([id, r]) => `<button type="button" class="at-tab ${st.aba === id ? 'is-active' : ''}" onclick="exameFiltro('${setor}', 'aba', '${id}')">${r}</button>`).join('')}</nav>`;
 
     if (st.aba === 'vagas') return `<div class="at-stack tone-teal">${cabeca}${renderVagas(setor, tipos)}</div>`;
 
     return `<div class="at-stack tone-teal">${cabeca}
         <section class="at-card cd-filters">
-            <label class="cd-filter"><span>Situação</span>${op('status', st.status, Object.entries(STATUS_EXAME).map(([id, rotulo]) => ({ id, rotulo })), 'Todas')}</label>
-            <label class="cd-filter"><span>Prioridade</span>${op('prioridade', st.prioridade, PRIORIDADES, 'Todas')}</label>
-            <label class="cd-filter"><span>Tipo de exame</span>${op('tipo', st.tipo, tipos.map(t => ({ id: t.id, rotulo: t.nome })), 'Todos')}</label>
-            <label class="cd-filter cd-filter--grow"><span>Pesquisar</span><input class="at-input hs-sel" type="search" value="${escapeHtml(st.q)}" placeholder="Paciente, prontuário, protocolo ou exame" oninput="exameFiltro('${setor}', 'q', this.value)" data-keep="ex_${setor}_q" autocomplete="off"></label>
+            <label class="cd-filter"><span>Status do Exame</span>${op('status', st.status, Object.entries(STATUS_EXAME).map(([id, rotulo]) => ({ id, rotulo })), 'Todos')}</label>
+            <label class="cd-filter"><span>Urgência</span>${op('prioridade', st.prioridade, PRIORIDADES, 'Todas')}</label>
+            <label class="cd-filter"><span>Tipo de Exame</span>${op('tipo', st.tipo, tipos.map(t => ({ id: t.id, rotulo: t.nome })), 'Todos')}</label>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Paciente, Prontuário, Leito ou Protocolo)</span><input class="at-input hs-sel" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: Maria, 204-A, Neuro ou protocolo" oninput="exameFiltro('${setor}', 'q', this.value)" data-keep="ex_${setor}_q" autocomplete="off"></label>
         </section>
-        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>#</th><th>Paciente</th><th>Exame</th><th>Prioridade</th><th>Situação</th><th>Agenda</th><th>Solicitado</th></tr></thead>
-            <tbody>${fila.length ? fila.map((s, i) => `<tr class="cd-row" tabindex="0" onclick="exameDetalhe('${s.id}')" onkeydown="if (event.key === 'Enter') exameDetalhe('${s.id}')">
-                <td data-label="Posição">${i + 1}</td><td data-label="Paciente">${escapeHtml(s.paciente_dados.nome)}<br><small>Pront. ${escapeHtml(s.paciente_dados.prontuario || '—')}</small></td>
-                <td data-label="Exame">${escapeHtml(s.tipo_nome)}</td><td data-label="Prioridade">${badgePrioridade(s.prioridade)}</td>
-                <td data-label="Situação">${escapeHtml(rotuloStatusExame(s.status))}${(s.pendencias || []).some(p => !p.resolvida) ? ' <span class="at-badge at-badge--urgente">pendência</span>' : ''}</td>
-                <td data-label="Agenda">${s.agendamento ? escapeHtml(formatDateBR(s.agendamento.data) + ' ' + s.agendamento.hora) : '—'}</td>
-                <td data-label="Solicitado">${escapeHtml(formatDateBR(s.data_solicitacao))}<br><small>${escapeHtml(s.solicitante.nome)}</small></td></tr>`).join('') : `<tr><td colspan="7" class="at-empty">${hasPermission(permissao) ? 'Nenhuma solicitação nesta fila.' : 'Sem acesso.'}</td></tr>`}</tbody></table></div></section></div>`;
+        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>#</th><th>Paciente / Prontuário</th><th>Setor / Leito Atual</th><th>Exame & Contraste</th><th>Urgência</th><th>Status & Agenda</th><th>Preparo / Transporte NIR</th><th>Ações Rápidas</th></tr></thead>
+            <tbody>${fila.length ? fila.map((s, i) => {
+                const loc = s.localizacao
+                    ? `<strong>Leito ${escapeHtml((leitoPorId(s.localizacao.leito_id) || { rotulo: s.localizacao.leito_id }).rotulo)}</strong><br><small>${escapeHtml(s.localizacao.ala || (s.localizacao.andar + 'º Andar'))}</small>`
+                    : '<span class="at-hint">Ambulatorial</span>';
+                const ag = s.agendamento;
+                const prep = s.preparo_enfermagem;
+                const tr = transporteDoExame(s.id);
+                const podeGerenciar = hasPermission(permissao);
+                return `<tr class="cd-row" tabindex="0" onclick="exameDetalhe('${s.id}')" onkeydown="if (event.key === 'Enter') exameDetalhe('${s.id}')">
+                <td data-label="Posição">${i + 1}</td>
+                <td data-label="Paciente"><strong>${escapeHtml(s.paciente_dados.nome)}</strong><br><small>Pront. ${escapeHtml(s.paciente_dados.prontuario || '—')}</small></td>
+                <td data-label="Setor / Leito">${loc}</td>
+                <td data-label="Exame"><strong>${escapeHtml(s.tipo_nome)}</strong><br><small>${escapeHtml((s.procedimento_principal && s.procedimento_principal.nome) || '')}</small><br>${s.contraste ? '<span class="at-badge at-badge--emergencia">Com Contraste</span>' : '<span class="at-badge at-badge--off">Sem Contraste</span>'}</td>
+                <td data-label="Urgência">${badgePrioridade(s.prioridade)}</td>
+                <td data-label="Status & Agenda">
+                    <span class="at-badge ${s.status === 'REALIZADO' ? 'at-badge--ok' : s.status === 'AGENDADO' ? 'at-badge--urgente' : s.status === 'EM_ATENDIMENTO' ? 'at-badge--emergencia' : 'at-badge--outros'}">${escapeHtml(rotuloStatusExame(s.status))}</span>
+                    ${ag ? `<br><strong>${escapeHtml(formatDateBR(ag.data))} às ${escapeHtml(ag.hora)}</strong><br><small>${escapeHtml(ag.sala || '')}</small>` : ''}
+                </td>
+                <td data-label="Preparo / NIR">
+                    ${ag && ag.preparo ? `<small style="display:block;color:#d97706"><strong>Preparo:</strong> ${escapeHtml(ag.preparo)}</small>` : ''}
+                    ${prep && prep.checado ? `<span class="at-badge at-badge--ok">✔ Preparo Enf. OK</span>` : (ag ? `<span class="at-badge at-badge--off">Preparo Enf. Pendente</span>` : '')}
+                    ${tr ? `<br><span class="at-badge at-badge--outros" style="margin-top:4px;display:inline-block">🚑 ${escapeHtml(tr.protocolo)}: ${escapeHtml(rotuloStatusTransporteNIR(tr.status))}</span>` : ''}
+                </td>
+                <td data-label="Ações" onclick="event.stopPropagation()">
+                    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                        ${podeGerenciar && ['SOLICITADO', 'AGUARDANDO_TRIAGEM', 'EM_AVALIACAO', 'AGUARDANDO_AGENDAMENTO', 'REAGENDAMENTO_NECESSARIO'].includes(s.status)
+                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameAbrirModalAgendamento('${s.id}')">📅 Agendar Exame</button>` : ''}
+                        ${podeGerenciar && s.status === 'AGENDADO'
+                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameAvancar('${s.id}', 'EM_ATENDIMENTO')">▶ Iniciar Realização</button>` : ''}
+                        ${podeGerenciar && s.status === 'EM_ATENDIMENTO'
+                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameDetalhe('${s.id}')">✔ Liberar Laudo</button>` : ''}
+                        ${s.status === 'AGENDADO' && !tr && hasPermission('transporte_solicitar')
+                            ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameSolicitarTransporteNIR('${s.id}')">🚑 Solicitar NIR</button>` : ''}
+                        ${hasPermission('prontuario_ver')
+                            ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrir('${s.paciente_id}')">Abrir Prontuário</button>` : ''}
+                    </div>
+                </td></tr>`;
+            }).join('') : `<tr><td colspan="8" class="at-empty">${hasPermission(permissao) ? 'Nenhuma solicitação nesta fila.' : 'Sem acesso.'}</td></tr>`}</tbody></table></div></section></div>`;
 }
 
 function exameFiltro(setor, k, v) { examesState(setor)[k] = v; render(); }
+
+// ---------------- Modal de Agendamento Direto na Agenda da Imagenologia ----------------
+
+function exameAbrirModalAgendamento(solId) {
+    const sol = MOCK_DATA.SOLICITACOES_EXAME.find(s => s.id === solId);
+    if (!sol) return showMsg('Solicitação não encontrada.', 'error');
+    const hoje = todayISO();
+    const ag = sol.agendamento || {};
+    const vagas = MOCK_DATA.VAGAS_EXAME.filter(v => v.setor === sol.setor_destino && v.data >= hoje && v.capacidade - (v.ocupadas || 0) > 0 && (!v.tipo_exame_id || v.tipo_exame_id === sol.tipo_exame_id))
+        .sort((a, b) => `${a.data} ${a.hora}`.localeCompare(`${b.data} ${b.hora}`));
+    const loc = sol.localizacao ? `Leito ${(leitoPorId(sol.localizacao.leito_id) || {}).rotulo} · ${sol.localizacao.ala}` : 'Ambulatorial';
+
+    const d = hModal(`Agendar Exame na Imagenologia · ${sol.protocolo}`, `
+        <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
+            <strong>Paciente:</strong> ${escapeHtml(sol.paciente_dados.nome)} (Pront. ${escapeHtml(sol.paciente_dados.prontuario || '—')}) · <strong>Localização:</strong> ${escapeHtml(loc)}<br>
+            <strong>Exame:</strong> ${escapeHtml(sol.tipo_nome)} — ${escapeHtml((sol.procedimento_principal && sol.procedimento_principal.nome) || '')} ·
+            <strong>Contraste:</strong> ${sol.contraste ? 'SIM (' + escapeHtml(sol.detalhe_contraste || 'Com contraste') + ')' : 'Não'}
+        </div>
+        <div class="at-form">
+            <div class="at-field at-span-2"><label class="at-label" for="ag_vaga">Usar vaga da grade existente (opcional)</label>
+                <select class="at-select" id="ag_vaga" onchange="exameSelecionouVagaModal(this.value)">
+                    <option value="">Definir data e horário manualmente abaixo</option>
+                    ${vagas.map(v => `<option value="${v.id}" data-data="${v.data}" data-hora="${v.hora}" data-sala="${escapeHtml(v.sala || '')}">${escapeHtml(formatDateBR(v.data))} às ${escapeHtml(v.hora)} ${v.sala ? '· ' + escapeHtml(v.sala) : ''} (${v.capacidade - (v.ocupadas || 0)} livre(s))</option>`).join('')}
+                </select>
+            </div>
+            <div class="at-field"><label class="at-label" for="ag_data">Data do Exame *</label>
+                <input class="at-input" id="ag_data" type="date" min="${hoje}" value="${escapeHtml(ag.data || hoje)}">
+            </div>
+            <div class="at-field"><label class="at-label" for="ag_hora">Horário *</label>
+                <input class="at-input" id="ag_hora" type="time" value="${escapeHtml(ag.hora || '15:00')}">
+            </div>
+            <div class="at-field at-span-2"><label class="at-label" for="ag_sala">Sala / Equipamento *</label>
+                <select class="at-select" id="ag_sala">
+                    ${SALAS_IMAGENOLOGIA.map(s => `<option value="${escapeHtml(s)}" ${ag.sala === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+                </select>
+            </div>
+            <div class="at-field at-span-2"><label class="at-label" for="ag_preparo">Observações de Preparo para Enfermagem e Médico do Setor</label>
+                <input class="at-input" id="ag_preparo" value="${escapeHtml(ag.preparo || (sol.contraste ? 'Jejum de 6h, acesso venoso calibre 18G/20G pérvio e função renal conferida.' : 'Jejum de 4h e retirar objetos metálicos.'))}" maxlength="250" placeholder="Ex.: Jejum de 6h, acesso venoso pérvio" autocomplete="off">
+            </div>
+        </div>
+        <label class="cd-check" style="margin-top:12px">
+            <input type="checkbox" id="ag_gerar_nir" checked>
+            <span><strong>Já gerar solicitação de Transporte ao NIR</strong> para buscar o paciente no leito no horário agendado</span>
+        </label>
+        <p class="at-error" id="ag_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:14px">
+            <button type="button" class="at-btn at-btn--primary" id="ag_ok">${lucideIcon('calendar-check', 'w-4 h-4')} Confirmar Agendamento na Imagenologia</button>
+        </div>`, 'lg');
+
+    d.querySelector('#ag_ok').onclick = async () => {
+        d.querySelector('#ag_erro').textContent = '';
+        const vaga_id = d.querySelector('#ag_vaga').value;
+        const data = d.querySelector('#ag_data').value;
+        const hora = d.querySelector('#ag_hora').value;
+        const sala = d.querySelector('#ag_sala').value;
+        const preparo = d.querySelector('#ag_preparo').value;
+        const gerarNir = d.querySelector('#ag_gerar_nir').checked;
+        try {
+            const atualizado = await agendarExameDireto(solId, { vaga_id, data, hora, sala, preparo });
+            if (gerarNir && !transporteDoExame(solId) && hasPermission('transporte_solicitar')) {
+                await criarDemandaTransporteNIR({
+                    tipo: 'PACIENTE',
+                    prioridade: atualizado.prioridade === 'URGENTE' ? 'URGENTE' : 'ELETIVA',
+                    paciente_id: atualizado.paciente_id,
+                    setor_destino: `Imagenologia - ${sala}`,
+                    motivo: `Exame Agendado: ${atualizado.tipo_nome} (${formatDateBR(atualizado.agendamento.data)} às ${atualizado.agendamento.hora})`,
+                    meio_transporte: 'MACA',
+                    suporte: atualizado.prioridade === 'URGENTE' ? ['OXIGENIO', 'MONITOR'] : [],
+                    solicitacao_exame_id: atualizado.id
+                });
+            }
+            d.close();
+            showMsg('Exame agendado! Status e preparo atualizados automaticamente no Prontuário do Paciente.');
+            render();
+        } catch (err) {
+            d.querySelector('#ag_erro').textContent = err.message;
+        }
+    };
+}
+
+function exameSelecionouVagaModal(vagaId) {
+    const sel = document.getElementById('ag_vaga');
+    if (!sel || !vagaId) return;
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.dataset.data) document.getElementById('ag_data').value = opt.dataset.data;
+    if (opt.dataset.hora) document.getElementById('ag_hora').value = opt.dataset.hora;
+    if (opt.dataset.sala) document.getElementById('ag_sala').value = opt.dataset.sala;
+}
 
 // ---------------- Vagas ----------------
 
@@ -62,21 +209,29 @@ function renderVagas(setor, tipos) {
     const hoje = todayISO();
     const vagas = MOCK_DATA.VAGAS_EXAME.filter(v => v.setor === setor && v.data >= hoje).sort((a, b) => `${a.data} ${a.hora}`.localeCompare(`${b.data} ${b.hora}`));
     return `
-    <section class="at-card"><h3 class="at-card__title">Definir vagas</h3>
+    <section class="at-card"><h3 class="at-card__title">Definir vagas e salas na agenda</h3>
         <div class="at-form">
-            <div class="at-field"><label class="at-label" for="vg_data">Data *</label><input class="at-input" id="vg_data" type="date" min="${hoje}"></div>
-            <div class="at-field"><label class="at-label" for="vg_hora">Horário *</label><input class="at-input" id="vg_hora" type="time"></div>
-            <div class="at-field"><label class="at-label" for="vg_cap">Quantidade de vagas *</label><input class="at-input" id="vg_cap" type="number" min="1" max="50" value="1"></div>
+            <div class="at-field"><label class="at-label" for="vg_data">Data *</label><input class="at-input" id="vg_data" type="date" min="${hoje}" value="${hoje}"></div>
+            <div class="at-field"><label class="at-label" for="vg_hora">Horário *</label><input class="at-input" id="vg_hora" type="time" value="14:00"></div>
+            <div class="at-field"><label class="at-label" for="vg_cap">Quantidade de vagas *</label><input class="at-input" id="vg_cap" type="number" min="1" max="50" value="2"></div>
+            <div class="at-field"><label class="at-label" for="vg_sala">Sala / Equipamento</label><select class="at-select" id="vg_sala">${SALAS_IMAGENOLOGIA.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}</select></div>
             <div class="at-field"><label class="at-label" for="vg_tipo">Tipo de exame (opcional)</label><select class="at-select" id="vg_tipo"><option value="">Qualquer tipo do setor</option>${tipos.map(t => `<option value="${t.id}">${escapeHtml(t.nome)}</option>`).join('')}</select></div>
         </div>
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameCriarVaga('${setor}')" ${hasPermission(permissaoDoSetor(setor)) ? '' : 'disabled'}>Criar vaga</button></div></section>
-    <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Data</th><th>Horário</th><th>Tipo</th><th>Vagas</th><th>Ocupadas</th><th>Livres</th></tr></thead>
-        <tbody>${vagas.length ? vagas.map(v => `<tr><td data-label="Data">${escapeHtml(formatDateBR(v.data))}</td><td data-label="Horário">${escapeHtml(v.hora)}</td><td data-label="Tipo">${escapeHtml((tipos.find(t => t.id === v.tipo_exame_id) || { nome: 'Qualquer' }).nome)}</td><td data-label="Vagas">${v.capacidade}</td><td data-label="Ocupadas">${v.ocupadas || 0}</td><td data-label="Livres"><strong>${v.capacidade - (v.ocupadas || 0)}</strong></td></tr>`).join('') : '<tr><td colspan="6" class="at-empty">Nenhuma vaga futura cadastrada.</td></tr>'}</tbody></table></div></section>`;
+    <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Data</th><th>Horário</th><th>Sala / Equipamento</th><th>Tipo</th><th>Vagas</th><th>Ocupadas</th><th>Livres</th></tr></thead>
+        <tbody>${vagas.length ? vagas.map(v => `<tr><td data-label="Data">${escapeHtml(formatDateBR(v.data))}</td><td data-label="Horário">${escapeHtml(v.hora)}</td><td data-label="Sala">${escapeHtml(v.sala || 'Sala padrão')}</td><td data-label="Tipo">${escapeHtml((tipos.find(t => t.id === v.tipo_exame_id) || { nome: 'Qualquer' }).nome)}</td><td data-label="Vagas">${v.capacidade}</td><td data-label="Ocupadas">${v.ocupadas || 0}</td><td data-label="Livres"><strong>${v.capacidade - (v.ocupadas || 0)}</strong></td></tr>`).join('') : '<tr><td colspan="7" class="at-empty">Nenhuma vaga futura cadastrada.</td></tr>'}</tbody></table></div></section>`;
 }
 
 const exameCriarVaga = aviso(async (setor) => {
-    await criarVaga({ setor, data: document.getElementById('vg_data').value, hora: document.getElementById('vg_hora').value, capacidade: document.getElementById('vg_cap').value, tipo_exame_id: document.getElementById('vg_tipo').value });
-    showMsg('Vaga criada.');
+    await criarVaga({
+        setor,
+        data: document.getElementById('vg_data').value,
+        hora: document.getElementById('vg_hora').value,
+        capacidade: document.getElementById('vg_cap').value,
+        sala: document.getElementById('vg_sala')?.value || '',
+        tipo_exame_id: document.getElementById('vg_tipo').value
+    });
+    showMsg('Vaga criada na agenda.');
     renderFresh();
 });
 
@@ -91,24 +246,26 @@ function exameDetalhe(solId) {
     const proc = (p) => `${p.codigo ? p.codigo + ' · ' : ''}${p.nome} (x${p.qtd})`;
     const abertas = !statusEncerrado(sol.status);
     const proximos = (TRANSICOES_EXAME[sol.status] || []).filter(s => !['AGENDADO', 'REALIZADO', 'CANCELADO', 'REAGENDAMENTO_NECESSARIO'].includes(s) && !(s === 'PENDENTE_AUTORIZACAO' && !sol.exige_autorizacao));
-    const vagas = MOCK_DATA.VAGAS_EXAME.filter(v => v.setor === sol.setor_destino && v.data >= todayISO() && v.capacidade - (v.ocupadas || 0) > 0 && (!v.tipo_exame_id || v.tipo_exame_id === sol.tipo_exame_id))
-        .sort((a, b) => `${a.data} ${a.hora}`.localeCompare(`${b.data} ${b.hora}`));
-    const podeAg = ['AGUARDANDO_AGENDAMENTO', 'REAGENDAMENTO_NECESSARIO', 'AGENDADO'].includes(sol.status);
+    const tr = transporteDoExame(sol.id);
+    const ag = sol.agendamento;
+    const prep = sol.preparo_enfermagem;
 
     const acoes = !central || !abertas ? '' : `
-        <h3 class="at-label" style="margin:16px 0 6px">Ações do setor</h3>
-        <div class="at-actions">${proximos.map(s => `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameAvancar('${sol.id}', '${s}')">${escapeHtml(rotuloStatusExame(s))}</button>`).join('')}
-            ${sol.status === 'AGENDADO' ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameAvancar('${sol.id}', 'EM_ATENDIMENTO')">Iniciar atendimento</button>` : ''}</div>
-        ${podeAg ? `<div class="at-form" style="margin-top:10px"><div class="at-field at-span-2"><label class="at-label" for="exd_vaga">${sol.status === 'AGENDADO' ? 'Reagendar para' : 'Agendar em'}</label>
-            <select class="at-select" id="exd_vaga"><option value="">${vagas.length ? 'Selecione a vaga' : 'Nenhuma vaga livre: crie em "Vagas e agenda"'}</option>${vagas.map(v => `<option value="${v.id}">${escapeHtml(formatDateBR(v.data))} ${escapeHtml(v.hora)} (${v.capacidade - (v.ocupadas || 0)} livre(s))</option>`).join('')}</select></div></div>
-            <button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none;margin-top:8px" onclick="exameAgendar('${sol.id}')">${sol.status === 'AGENDADO' ? 'Reagendar' : 'Agendar'}</button>` : ''}
+        <h3 class="at-label" style="margin:16px 0 6px">Fluxo e Ações da Imagenologia</h3>
+        <div class="at-actions">
+            ${['SOLICITADO', 'AGUARDANDO_TRIAGEM', 'EM_AVALIACAO', 'AGUARDANDO_AGENDAMENTO', 'REAGENDAMENTO_NECESSARIO', 'AGENDADO'].includes(sol.status)
+                ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); exameAbrirModalAgendamento('${sol.id}')">${lucideIcon('calendar', 'w-4 h-4')} ${sol.status === 'AGENDADO' ? 'Reagendar / Alterar Sala e Preparo' : 'Agendar na Imagenologia'}</button>` : ''}
+            ${sol.status === 'AGENDADO' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameAvancar('${sol.id}', 'EM_ATENDIMENTO')">▶ Iniciar Realização do Exame</button>` : ''}
+            ${sol.status === 'AGENDADO' && !tr && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameSolicitarTransporteNIR('${sol.id}')">🚑 Solicitar Transporte ao NIR</button>` : ''}
+            ${proximos.map(s => `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameAvancar('${sol.id}', '${s}')">${escapeHtml(rotuloStatusExame(s))}</button>`).join('')}
+        </div>
         ${['AGENDADO', 'EM_ATENDIMENTO'].includes(sol.status) ? `<div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_reag">Reagendamento necessário (motivo)</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_reag" maxlength="200"><button type="button" class="cd-searchbtn" onclick="exameReagendar('${sol.id}')" title="Marcar reagendamento necessário">${lucideIcon('check', 'w-5 h-5')}</button></div></div>` : ''}
-        ${sol.status === 'EM_ATENDIMENTO' ? `<div class="at-card" style="margin-top:10px"><strong>Registrar realização</strong>
-            <div class="at-field"><label class="at-label" for="exd_prof">Profissional responsável pelo atendimento *</label><input class="at-input" id="exd_prof" value="${escapeHtml(state.currentUser.name)}"></div>
-            <div class="at-field"><label class="at-label" for="exd_res">Resultado / laudo (opcional)</label><textarea class="at-textarea" id="exd_res" rows="3" maxlength="2000"></textarea></div>
-            <label class="cd-check"><input type="checkbox" id="exd_conf"> <span>Confirmo que o exame foi realizado.</span></label>
-            <div style="margin-top:8px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameRealizar('${sol.id}')">Registrar como realizado</button></div></div>` : ''}
-        <div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_pend">Informar pendência</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_pend" maxlength="200" placeholder="Ex.: falta guia, paciente sem jejum"><button type="button" class="cd-searchbtn" onclick="examePendencia('${sol.id}')" title="Registrar pendência">${lucideIcon('plus', 'w-5 h-5')}</button></div></div>
+        ${sol.status === 'EM_ATENDIMENTO' ? `<div class="at-card" style="margin-top:10px"><strong>Concluir Exame e Liberar Laudo / Resultado no Prontuário</strong>
+            <div class="at-field"><label class="at-label" for="exd_prof">Profissional / Médico Radiologista responsável *</label><input class="at-input" id="exd_prof" value="${escapeHtml(state.currentUser.name)}"></div>
+            <div class="at-field"><label class="at-label" for="exd_res">Laudo / Resultado do Exame (será publicado automaticamente no Prontuário Digital do paciente) *</label><textarea class="at-textarea" id="exd_res" rows="4" maxlength="2000" placeholder="Descreva os achados radiológicos e conclusão do laudo..."></textarea></div>
+            <label class="cd-check"><input type="checkbox" id="exd_conf" checked> <span>Confirmo que o exame foi realizado e o laudo conferido.</span></label>
+            <div style="margin-top:8px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameRealizar('${sol.id}')">✔ Liberar Laudo no Prontuário</button></div></div>` : ''}
+        <div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_pend">Informar pendência ao setor</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_pend" maxlength="200" placeholder="Ex.: falta guia, paciente sem jejum"><button type="button" class="cd-searchbtn" onclick="examePendencia('${sol.id}')" title="Registrar pendência">${lucideIcon('plus', 'w-5 h-5')}</button></div></div>
         <div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_canc">Cancelar exame (motivo)</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_canc" maxlength="200"><button type="button" class="cd-searchbtn" style="background:#dc2626;border-color:#dc2626" onclick="exameCancelar('${sol.id}')" title="Cancelar">${lucideIcon('ban', 'w-5 h-5')}</button></div></div>`;
 
     const prior = hasPermission('exame_priorizar') && abertas ? `<div class="at-card" style="margin-top:10px"><strong>Alterar prioridade clínica</strong>
@@ -117,23 +274,37 @@ function exameDetalhe(solId) {
         <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameMudarPrioridade('${sol.id}')">Registrar alteração</button></div>` : '';
 
     hModal(`${sol.tipo_nome} · ${sol.protocolo}`, `
-        <p>${badgePrioridade(sol.prioridade)} <span class="at-badge at-badge--ok">${escapeHtml(rotuloStatusExame(sol.status))}</span> ${sol.exige_autorizacao ? `<span class="at-badge ${stAut === 'APROVADA' ? 'at-badge--ok' : 'at-badge--urgente'}">Autorização: ${STATUS_AUTORIZACAO[stAut]}</span>` : ''}</p>
-        <dl class="about-list">${linha('Paciente', d.nome)}${linha('Prontuário', d.prontuario)}${linha('CNS', d.cns)}${linha('Nascimento', d.data_nascimento ? formatDateBR(d.data_nascimento) : '')}${linha('Sexo', d.sexo)}${linha('Localização', sol.localizacao ? `Leito ${(leitoPorId(sol.localizacao.leito_id) || {}).rotulo} · ${sol.localizacao.andar}º andar · ${sol.localizacao.ala}` : 'Sem internação')}
+        <p style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            ${badgePrioridade(sol.prioridade)}
+            <span class="at-badge at-badge--ok">${escapeHtml(rotuloStatusExame(sol.status))}</span>
+            ${sol.contraste ? '<span class="at-badge at-badge--emergencia">Com Contraste</span>' : '<span class="at-badge at-badge--off">Sem Contraste</span>'}
+            ${sol.exige_autorizacao ? `<span class="at-badge ${stAut === 'APROVADA' ? 'at-badge--ok' : 'at-badge--urgente'}">Autorização: ${STATUS_AUTORIZACAO[stAut]}</span>` : ''}
+            ${tr ? `<span class="at-badge at-badge--outros">🚑 Transporte NIR: ${escapeHtml(tr.protocolo)} (${escapeHtml(rotuloStatusTransporteNIR(tr.status))})</span>` : ''}
+        </p>
+        <dl class="about-list">${linha('Paciente', d.nome)}${linha('Prontuário', d.prontuario)}${linha('CNS', d.cns)}${linha('Nascimento', d.data_nascimento ? formatDateBR(d.data_nascimento) : '')}${linha('Sexo', d.sexo)}${linha('Setor / Leito Atual', sol.localizacao ? `Leito ${(leitoPorId(sol.localizacao.leito_id) || {}).rotulo} · ${sol.localizacao.andar}º andar · ${sol.localizacao.ala}` : 'Sem internação')}
             ${linha('Procedimento principal', proc(sol.procedimento_principal))}${(sol.procedimentos_secundarios || []).map((p, i) => linha('Secundário ' + (i + 1), proc(p))).join('')}
+            ${linha('Uso de Contraste', sol.detalhe_contraste || (sol.contraste ? 'Sim' : 'Não'))}
             ${linha('Justificativa clínica', sol.diagnostico_descricao)}${linha('CID-10', [sol.cid_principal, sol.cid_secundario, sol.cid_causas].filter(Boolean).join(' · '))}${linha('Justificativa da prioridade', sol.prioridade_justificativa)}${linha('Observações', sol.observacoes)}
-            ${linha('Solicitante', `${sol.solicitante.nome} · ${sol.solicitante.registro_conselho}`)}${linha('Data da solicitação', formatDateBR(sol.data_solicitacao))}${linha('Agendamento', sol.agendamento ? `${formatDateBR(sol.agendamento.data)} ${sol.agendamento.hora}` : '')}${sol.realizado ? linha('Realizado', `${formatDateTimeBR(sol.realizado.em)} · ${sol.realizado.profissional}`) : ''}</dl>
+            ${linha('Solicitante', `${sol.solicitante.nome} · ${sol.solicitante.registro_conselho}`)}${linha('Data da solicitação', formatDateBR(sol.data_solicitacao))}
+            ${linha('Agendamento', ag ? `${formatDateBR(ag.data)} às ${ag.hora} · ${ag.sala || 'Imagenologia'}` : 'Não agendado')}
+            ${ag && ag.preparo ? linha('Preparo Exigido', ag.preparo) : ''}
+            ${linha('Checklist Enfermagem', prep && prep.checado ? `Confirmado por ${prep.por} (${[prep.jejum && 'Jejum OK', prep.acesso_venoso && 'Acesso Venoso OK', prep.alergia_verificada && 'Alergia Verificada'].filter(Boolean).join(', ')}) ${prep.observacoes || ''}` : 'Pendente')}
+            ${sol.realizado ? linha('Realizado / Laudo', `${formatDateTimeBR(sol.realizado.em)} · ${sol.realizado.profissional} — ${sol.realizado.laudo || ''}`) : ''}</dl>
         ${(sol.pendencias || []).length ? `<h3 class="at-label" style="margin:12px 0 6px">Pendências</h3>${sol.pendencias.map((p, i) => `<p>${p.resolvida ? '✔' : '⚠'} ${escapeHtml(p.texto)} <small class="at-hint">${escapeHtml(p.por)}, ${escapeHtml(formatDateTimeBR(p.em))}</small> ${!p.resolvida && central ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameResolverPendencia('${sol.id}', ${i})">Resolver</button>` : ''}</p>`).join('')}` : ''}
         ${acoes}${prior}
         <h3 class="at-label" style="margin:14px 0 6px">Trajetória</h3>
         <ol class="at-timeline">${(sol.historico || []).map(h => `<li><strong>${escapeHtml(rotuloStatusExame(h.status))}</strong> · ${escapeHtml(formatDateTimeBR(h.em))} · ${escapeHtml(h.por)}${h.motivo ? '<br><small>' + escapeHtml(h.motivo) + '</small>' : ''}</li>`).join('')}${(sol.prioridade_historico || []).map(h => `<li>Prioridade ${escapeHtml(h.de)} → ${escapeHtml(h.para)} · ${escapeHtml(formatDateTimeBR(h.em))} · ${escapeHtml(h.por)}<br><small>${escapeHtml(h.justificativa)}</small></li>`).join('')}</ol>
-        <div class="at-actions" style="margin-top:14px"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameImprimirFormulario('${sol.id}')">${lucideIcon('printer', 'w-4 h-4')} Imprimir / PDF do formulário</button></div>`, 'xl');
+        <div class="at-actions" style="margin-top:14px">
+            ${hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="fecharModais(); prontuarioAbrir('${sol.paciente_id}')">${lucideIcon('clipboard-list', 'w-4 h-4')} Abrir Prontuário do Paciente</button>` : ''}
+            <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameImprimirFormulario('${sol.id}')">${lucideIcon('printer', 'w-4 h-4')} Imprimir / PDF do formulário</button>
+        </div>`, 'xl');
 }
 
 const apos = (msg) => { fecharModais(); showMsg(msg); render(); };
 const exameAvancar = aviso(async (id, para) => { await avancarExame(id, para); apos('Situação atualizada.'); });
 const exameAgendar = aviso(async (id) => { const v = document.getElementById('exd_vaga').value; if (!v) throw new Error('Selecione a vaga.'); await agendarExame(id, v); apos('Agendamento registrado.'); });
 const exameReagendar = aviso(async (id) => { await marcarReagendamento(id, document.getElementById('exd_reag').value); apos('Marcado como reagendamento necessário.'); });
-const exameRealizar = aviso(async (id) => { await registrarRealizacao(id, { profissional: document.getElementById('exd_prof').value, confirmado: document.getElementById('exd_conf').checked, resultado: document.getElementById('exd_res').value }); apos('Exame registrado como realizado.'); });
+const exameRealizar = aviso(async (id) => { await registrarRealizacao(id, { profissional: document.getElementById('exd_prof').value, confirmado: document.getElementById('exd_conf').checked, resultado: document.getElementById('exd_res').value }); apos('Exame concluído e laudo liberado no Prontuário Digital!'); });
 const examePendencia = aviso(async (id) => { await adicionarPendencia(id, document.getElementById('exd_pend').value); fecharModais(); showMsg('Pendência registrada.'); render(); exameDetalhe(id); });
 const exameResolverPendencia = aviso(async (id, i) => { await resolverPendencia(id, i); fecharModais(); render(); exameDetalhe(id); });
 const exameCancelar = aviso(async (id) => { await cancelarExame(id, document.getElementById('exd_canc').value); apos('Exame cancelado.'); });
@@ -142,6 +313,7 @@ const exameMudarPrioridade = aviso(async (id) => { await alterarPrioridade(id, d
 // ============================================================ AUTORIZAÇÕES
 
 function renderAutorizacoes() {
+    if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
     db_watch('solicitacoes'); db_watch('autorizacoes'); db_watch('config_hospital');
     if (!state.autorizacoes) state.autorizacoes = { filtro: '', q: '' };
     const st = state.autorizacoes;

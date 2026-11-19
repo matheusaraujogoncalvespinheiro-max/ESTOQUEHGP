@@ -1,4 +1,4 @@
-// Regras da assistência hospitalar: leitos, internações, prontuário, solicitações de exame, agenda e autorizações.
+// Regras da assistência hospitalar: leitos, internações, prontuário digital, solicitações de exame (Imagenologia), agenda, autorizações e transporte NIR.
 // As telas só chamam estas funções (que validam permissão e regras); quem grava é services/db-hospital.js.
 
 // ============ Leitos ============
@@ -11,10 +11,10 @@ const STATUS_LEITO = {
 };
 const rotuloStatusLeito = (s) => (STATUS_LEITO[s] || { rotulo: s || '—' }).rotulo;
 
-const estadoLeito = (id) => MOCK_DATA.LEITOS_ESTADO[id] || { id, status: 'LIVRE' };
-const internacaoAtivaDoLeito = (leitoId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.leito_id === leitoId) || null;
-const internacaoAtivaDoPaciente = (pacienteId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.paciente_id === pacienteId) || null;
-const internacoesDoPaciente = (pacienteId) => MOCK_DATA.INTERNACOES.filter(i => i.paciente_id === pacienteId).sort((a, b) => String(b.data_hora_internacao).localeCompare(String(a.data_hora_internacao)));
+const estadoLeito = (id) => (MOCK_DATA.LEITOS_ESTADO && MOCK_DATA.LEITOS_ESTADO[id]) || { id, status: 'LIVRE' };
+const internacaoAtivaDoLeito = (leitoId) => (MOCK_DATA.INTERNACOES || []).find(i => i.status === 'ATIVA' && i.leito_id === leitoId) || null;
+const internacaoAtivaDoPaciente = (pacienteId) => (MOCK_DATA.INTERNACOES || []).find(i => i.status === 'ATIVA' && i.paciente_id === pacienteId) || null;
+const internacoesDoPaciente = (pacienteId) => (MOCK_DATA.INTERNACOES || []).filter(i => i.paciente_id === pacienteId).sort((a, b) => String(b.data_hora_internacao).localeCompare(String(a.data_hora_internacao)));
 
 function indicadoresLeitos(leitos = estruturaHospital()) {
     const c = { total: leitos.length, LIVRE: 0, OCUPADO: 0, HIGIENIZACAO: 0, BLOQUEADO: 0 };
@@ -24,10 +24,13 @@ function indicadoresLeitos(leitos = estruturaHospital()) {
 }
 
 const agoraISO = () => new Date().toISOString();
-const quem = () => ({ por: state.currentUser.username, por_nome: state.currentUser.name });
+const quem = () => ({
+    por: (state.currentUser && state.currentUser.username) || 'sistema',
+    por_nome: (state.currentUser && state.currentUser.name) || 'Sistema'
+});
 
 async function auditarLeito(leitoId, acao, antes, depois, motivo = '') {
-    await auditar({ entidade: 'leito', entidade_id: leitoId, acao, antes, depois, motivo });
+    if (typeof auditar === 'function') await auditar({ entidade: 'leito', entidade_id: leitoId, acao, antes, depois, motivo });
 }
 
 /** Interna o paciente no leito. Valida leito livre e paciente sem internação ativa (de forma atômica no banco). */
@@ -52,7 +55,7 @@ async function internarPaciente({ paciente, leito_id, setor_origem }) {
     const leitoNovo = { id: leito.id, status: 'OCUPADO', internacao_id: internacao.id, paciente_id: paciente.id, desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: '' };
     await db_internarAtomico({ internacao, leitoNovo });
     await auditarLeito(leito.id, 'OCUPAR', { status: 'LIVRE' }, { status: 'OCUPADO', internacao: internacao.id, prontuario: internacao.prontuario });
-    await auditar({ entidade: 'internacao', entidade_id: internacao.id, acao: 'CRIAR', depois: { paciente_id: paciente.id, leito: leito.rotulo, setor_origem: internacao.setor_origem } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'internacao', entidade_id: internacao.id, acao: 'CRIAR', depois: { paciente_id: paciente.id, leito: leito.rotulo, setor_origem: internacao.setor_origem } });
     return internacao;
 }
 
@@ -67,7 +70,7 @@ async function darAltaInternacao(internacaoId) {
     const leitoNovo = { id: atual.leito_id, status: 'HIGIENIZACAO', internacao_id: '', paciente_id: '', desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: 'Alta do paciente' };
     await db_altaAtomica({ internacao, leitoNovo });
     await auditarLeito(atual.leito_id, 'ALTA_HIGIENIZACAO', { status: 'OCUPADO' }, { status: 'HIGIENIZACAO' });
-    await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'ALTA', antes: { status: 'ATIVA' }, depois: { status: 'ALTA' } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'ALTA', antes: { status: 'ATIVA' }, depois: { status: 'ALTA' } });
     return internacao;
 }
 
@@ -92,7 +95,7 @@ async function transferirLeito(internacaoId, novoLeitoId, motivo) {
     });
     await auditarLeito(atual.leito_id, 'TRANSFERENCIA_SAIDA', { status: 'OCUPADO' }, { status: 'HIGIENIZACAO', destino: novo.id }, String(motivo).trim());
     await auditarLeito(novo.id, 'TRANSFERENCIA_ENTRADA', { status: 'LIVRE' }, { status: 'OCUPADO', origem: atual.leito_id, internacao: atual.id }, String(motivo).trim());
-    await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'TRANSFERIR', antes: { leito: atual.leito_id }, depois: { leito: novo.id }, motivo: String(motivo).trim() });
+    if (typeof auditar === 'function') await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'TRANSFERIR', antes: { leito: atual.leito_id }, depois: { leito: novo.id }, motivo: String(motivo).trim() });
     return internacao;
 }
 
@@ -127,10 +130,14 @@ const CID10_FORMATO = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,2})?$/;
 const validarCid10 = (cid) => CID10_FORMATO.test(String(cid || '').trim().toUpperCase());
 
 const TIPOS_CLINICOS = {
-    EVOLUCAO: { rotulo: 'Evolução', permissao: 'prontuario_evoluir' },
-    PRESCRICAO: { rotulo: 'Prescrição', permissao: 'prescrever' },
-    DIAGNOSTICO: { rotulo: 'Diagnóstico', permissao: 'diagnosticar' },
-    RESULTADO: { rotulo: 'Resultado/Laudo de exame', permissao: 'exame_resultado' }
+    EVOLUCAO: { rotulo: 'Evolução Médica', permissao: 'prontuario_evoluir', cor: '#0284c7' },
+    EVOLUCAO_ENFERMAGEM: { rotulo: 'Evolução de Enfermagem', permissao: 'prontuario_evoluir', cor: '#0d9488' },
+    SINAIS_VITAIS: { rotulo: 'Sinais Vitais', permissao: 'prontuario_evoluir', cor: '#16a34a' },
+    PRESCRICAO: { rotulo: 'Prescrição Médica', permissao: 'prescrever', cor: '#7c3aed' },
+    DIAGNOSTICO: { rotulo: 'Diagnóstico (CID-10)', permissao: 'diagnosticar', cor: '#d97706' },
+    RESULTADO: { rotulo: 'Resultado / Laudo de Exame', permissao: 'exame_resultado', cor: '#2563eb' },
+    PREPARO_EXAME: { rotulo: 'Preparo de Exame (Enfermagem)', permissao: 'prontuario_evoluir', cor: '#059669' },
+    TRANSPORTE_NIR: { rotulo: 'Movimentação / Transporte (NIR)', permissao: 'transporte_ver', cor: '#ea580c' }
 };
 
 /** Prescrição por item: medicamento, dose, via, frequência e duração. Gera também o texto corrido para leitura e impressão. */
@@ -147,12 +154,54 @@ function validarItensPrescricao(itens) {
 }
 const textoDoItemPrescricao = (i) => [i.medicamento, i.dose, i.via, i.frequencia, i.duracao && `por ${i.duracao}`, i.observacao && `(${i.observacao})`].filter(Boolean).join(' · ');
 
-async function registrarClinico({ internacao, tipo, texto, itens = null, cid = '', complementa_id = '', solicitacao_id = '', registro_conselho = '' }) {
+/** Valida e formata aferição de Sinais Vitais pela Enfermagem. */
+function validarSinaisVitais(sinais = {}) {
+    const pa = String(sinais.pa || '').trim();
+    const fc = String(sinais.fc || '').trim();
+    const fr = String(sinais.fr || '').trim();
+    const temp = String(sinais.temp || '').trim();
+    const spo2 = String(sinais.spo2 || '').trim();
+    const hgt = String(sinais.hgt || '').trim();
+    const dor = String(sinais.dor || '').trim();
+    if (!pa && !fc && !temp && !spo2) {
+        throw new Error('Informe ao menos Pressão Arterial (PA), Frequência Cardíaca (FC), Temperatura ou SpO2.');
+    }
+    return {
+        pa: pa ? (pa.includes('mmHg') ? pa : `${pa} mmHg`) : '',
+        fc: fc ? (fc.includes('bpm') ? fc : `${fc} bpm`) : '',
+        fr: fr ? (fr.includes('irpm') ? fr : `${fr} irpm`) : '',
+        temp: temp ? (temp.includes('°') ? temp : `${temp} °C`) : '',
+        spo2: spo2 ? (spo2.includes('%') ? spo2 : `${spo2}%`) : '',
+        hgt: hgt ? (hgt.includes('mg') ? hgt : `${hgt} mg/dL`) : '',
+        dor: dor ? (dor.includes('/') ? dor : `${dor}/10`) : ''
+    };
+}
+
+function textoSinaisVitais(s, obs = '') {
+    const partes = [
+        s.pa && `PA: ${s.pa}`,
+        s.fc && `FC: ${s.fc}`,
+        s.fr && `FR: ${s.fr}`,
+        s.temp && `Temp: ${s.temp}`,
+        s.spo2 && `SpO2: ${s.spo2}`,
+        s.hgt && `HGT: ${s.hgt}`,
+        s.dor && `Dor (EVA): ${s.dor}`
+    ].filter(Boolean);
+    return partes.join(' · ') + (String(obs || '').trim() ? ` — ${String(obs).trim()}` : '');
+}
+
+async function registrarClinico({ internacao, paciente_id = '', tipo, texto, itens = null, sinais = null, cid = '', complementa_id = '', solicitacao_id = '', transporte_id = '', registro_conselho = '' }) {
     const cfg = TIPOS_CLINICOS[tipo];
     if (!cfg) throw new Error('Tipo de registro inválido.');
-    requirePermission(cfg.permissao);
-    if (!internacao || internacao.status !== 'ATIVA') throw new Error('O registro clínico exige uma internação ativa do paciente.');
+    if (tipo !== 'TRANSPORTE_NIR') requirePermission(cfg.permissao);
+    const pacId = (internacao && internacao.paciente_id) || paciente_id;
+    if (!internacao || internacao.status !== 'ATIVA') {
+        if (tipo !== 'TRANSPORTE_NIR' && tipo !== 'RESULTADO') {
+            throw new Error('O registro clínico exige uma internação ativa do paciente.');
+        }
+    }
     if (tipo === 'PRESCRICAO' && itens) { itens = validarItensPrescricao(itens); texto = itens.map(textoDoItemPrescricao).join('\n'); }
+    if (tipo === 'SINAIS_VITAIS' && sinais) { sinais = validarSinaisVitais(sinais); texto = textoSinaisVitais(sinais, texto); }
     if (String(texto || '').trim().length < 5) throw new Error('Escreva o registro (mínimo de 5 caracteres).');
     if (tipo === 'DIAGNOSTICO') {
         if (!validarCid10(cid)) throw new Error('Informe o CID-10 no formato correto (ex.: I10 ou J18.9).');
@@ -160,13 +209,36 @@ async function registrarClinico({ internacao, tipo, texto, itens = null, cid = '
     }
     const u = quem();
     const reg = {
-        id: newId('clin'), paciente_id: internacao.paciente_id, internacao_id: internacao.id, tipo, texto: String(texto).trim(), itens: itens || [], cid,
-        complementa_id, solicitacao_id, autor: u.por, autor_nome: u.por_nome, perfil: state.currentUser.role, registro_conselho: String(registro_conselho || '').trim(),
+        id: newId('clin'), paciente_id: pacId, internacao_id: internacao ? internacao.id : '', tipo,
+        texto: String(texto).trim(), itens: itens || [], sinais: sinais || null, cid,
+        complementa_id, solicitacao_id, transporte_id,
+        autor: u.por, autor_nome: u.por_nome, perfil: (state.currentUser && state.currentUser.role) || 'ADMIN',
+        registro_conselho: String(registro_conselho || '').trim(),
         em: agoraISO(), assinado: true
     };
     await setDocH(COLH.REGISTROS, reg);
-    await auditar({ entidade: 'prontuario', entidade_id: internacao.paciente_id, acao: complementa_id ? 'COMPLEMENTAR' : 'REGISTRAR', depois: { tipo, registro: reg.id, internacao: internacao.id } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'prontuario', entidade_id: pacId, acao: complementa_id ? 'COMPLEMENTAR' : 'REGISTRAR', depois: { tipo, registro: reg.id, internacao: reg.internacao_id } });
     return reg;
+}
+
+/** Atualiza as alergias em destaque no cabeçalho do Prontuário do paciente e audita a alteração. */
+async function atualizarAlergiasPaciente(pacienteId, alergiasTexto) {
+    if (!hasPermission('alergia_gerenciar') && !hasPermission('prontuario_evoluir')) {
+        throw new Error('Acesso negado: seu perfil não pode alterar o registro de alergias.');
+    }
+    const pac = await db_getPaciente(pacienteId);
+    if (!pac) throw new Error('Paciente não encontrado.');
+    const texto = String(alergiasTexto || '').trim() || 'Nega alergias medicamentosas conhecidas';
+    const antes = pac.alergias || '';
+    const atualizado = { ...pac, alergias: texto, atualizado_em: agoraISO(), atualizado_por: quem().por };
+    await db_savePaciente(atualizado);
+    if (state.prontuario && state.prontuario.pacienteId === pacienteId) {
+        state.prontuario.paciente = atualizado;
+    }
+    if (typeof auditar === 'function') {
+        await auditar({ entidade: 'paciente', entidade_id: pacienteId, acao: 'ALERGIAS', antes: { alergias: antes }, depois: { alergias: texto } });
+    }
+    return atualizado;
 }
 
 /** Abre o prontuário de um paciente cadastrado (uma vez só; reabrir devolve o mesmo). Fica na auditoria. */
@@ -179,16 +251,33 @@ async function abrirProntuario(paciente) {
     const u = quem();
     const reg = { id: paciente.id, paciente_id: paciente.id, nome: paciente.nome, prontuario: paciente.prontuario || '', aberto_em: agoraISO(), aberto_por: u.por_nome };
     await setDocH(COLH.PRONTUARIOS, reg);
-    await auditar({ entidade: 'prontuario', entidade_id: paciente.id, acao: 'ABRIR_PRONTUARIO', depois: { prontuario: reg.prontuario } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'prontuario', entidade_id: paciente.id, acao: 'ABRIR_PRONTUARIO', depois: { prontuario: reg.prontuario } });
     return reg;
 }
 
 /** Consulta de prontuários: união dos prontuários abertos com os pacientes que já tiveram internação. */
 function listaProntuarios(abertos, internacoes) {
     const mapa = new Map();
-    const get = (id, nome, prontuario) => { if (!mapa.has(id)) mapa.set(id, { paciente_id: id, nome, prontuario, internacoes: 0, ativa: null, ultima: '', aberto_em: '' }); return mapa.get(id); };
-    abertos.forEach(a => { const r = get(a.paciente_id, a.nome, a.prontuario); r.aberto_em = a.aberto_em; });
-    internacoes.forEach(i => {
+    const get = (id, nome, prontuario) => {
+        if (!mapa.has(id)) {
+            const pCache = (MOCK_DATA.PACIENTES_SEED_MAP && MOCK_DATA.PACIENTES_SEED_MAP[id])
+                || ((typeof CAD_DATA !== 'undefined' && Array.isArray(CAD_DATA.paciente)) ? CAD_DATA.paciente.find(x => x.id === id) : null);
+            mapa.set(id, {
+                paciente_id: id,
+                nome: nome || (pCache && pCache.nome) || '',
+                prontuario: prontuario || (pCache && pCache.prontuario) || '',
+                cpf: (pCache && pCache.cpf) || '',
+                alergias: (pCache && pCache.alergias) || '',
+                internacoes: 0,
+                ativa: null,
+                ultima: '',
+                aberto_em: ''
+            });
+        }
+        return mapa.get(id);
+    };
+    (abertos || []).forEach(a => { const r = get(a.paciente_id, a.nome, a.prontuario); r.aberto_em = a.aberto_em; });
+    (internacoes || []).forEach(i => {
         const r = get(i.paciente_id, i.paciente_nome, i.prontuario);
         r.internacoes++;
         if (i.status === 'ATIVA') r.ativa = i;
@@ -202,19 +291,34 @@ function listaProntuarios(abertos, internacoes) {
 const PRIORIDADES = [{ id: 'URGENTE', rotulo: 'Urgente' }, { id: 'ELETIVO', rotulo: 'Eletivo' }];
 const SETORES_EXAME = { IMAGENOLOGIA: 'Imagenologia', ULTRASSONOGRAFIA: 'Ultrassonografia' };
 
+const SALAS_IMAGENOLOGIA = [
+    'Sala 01 - Tomógrafo Multislice 64 Canais',
+    'Sala 02 - Raio-X Digital (Radiografia)',
+    'Sala 03 - Ressonância Magnética 1.5T',
+    'Sala 04 - Ultrassonografia / Doppler',
+    'Exame no Leito (Equipamento Portátil)'
+];
+
 const STATUS_EXAME = {
-    SOLICITADO: 'Solicitado', AGUARDANDO_TRIAGEM: 'Aguardando triagem', EM_AVALIACAO: 'Em avaliação', AGUARDANDO_AGENDAMENTO: 'Aguardando agendamento',
-    AGENDADO: 'Agendado', EM_ATENDIMENTO: 'Em atendimento', REALIZADO: 'Realizado', CANCELADO: 'Cancelado',
-    REAGENDAMENTO_NECESSARIO: 'Reagendamento necessário', PENDENTE_AUTORIZACAO: 'Pendente de autorização'
+    SOLICITADO: 'Solicitado',
+    AGUARDANDO_TRIAGEM: 'Aguardando triagem',
+    EM_AVALIACAO: 'Em avaliação',
+    AGUARDANDO_AGENDAMENTO: 'Aguardando agendamento',
+    AGENDADO: 'Agendado',
+    EM_ATENDIMENTO: 'Em realização',
+    REALIZADO: 'Disponível / Laudo liberado',
+    CANCELADO: 'Cancelado',
+    REAGENDAMENTO_NECESSARIO: 'Reagendamento necessário',
+    PENDENTE_AUTORIZACAO: 'Pendente de autorização'
 };
 const rotuloStatusExame = (s) => STATUS_EXAME[s] || s;
 
 /** Mudanças de status permitidas. REALIZADO e CANCELADO encerram o fluxo. */
 const TRANSICOES_EXAME = {
-    SOLICITADO: ['AGUARDANDO_TRIAGEM', 'PENDENTE_AUTORIZACAO', 'CANCELADO'],
+    SOLICITADO: ['AGUARDANDO_TRIAGEM', 'PENDENTE_AUTORIZACAO', 'AGENDADO', 'CANCELADO'],
     PENDENTE_AUTORIZACAO: ['AGUARDANDO_TRIAGEM', 'CANCELADO'],
-    AGUARDANDO_TRIAGEM: ['EM_AVALIACAO', 'CANCELADO'],
-    EM_AVALIACAO: ['AGUARDANDO_AGENDAMENTO', 'PENDENTE_AUTORIZACAO', 'CANCELADO'],
+    AGUARDANDO_TRIAGEM: ['EM_AVALIACAO', 'AGENDADO', 'CANCELADO'],
+    EM_AVALIACAO: ['AGUARDANDO_AGENDAMENTO', 'PENDENTE_AUTORIZACAO', 'AGENDADO', 'CANCELADO'],
     AGUARDANDO_AGENDAMENTO: ['AGENDADO', 'CANCELADO'],
     AGENDADO: ['EM_ATENDIMENTO', 'REAGENDAMENTO_NECESSARIO', 'CANCELADO'],
     REAGENDAMENTO_NECESSARIO: ['AGENDADO', 'CANCELADO'],
@@ -224,7 +328,14 @@ const TRANSICOES_EXAME = {
 const transicaoPermitida = (de, para) => (TRANSICOES_EXAME[de] || []).includes(para);
 const statusEncerrado = (s) => s === 'REALIZADO' || s === 'CANCELADO';
 
-const tiposExame = () => (typeof cadRowsOf === 'function' ? cadRowsOf('tipoexame').filter(t => t.ativo) : []);
+function tiposExame() {
+    const cad = typeof cadRowsOf === 'function' ? cadRowsOf('tipoexame').filter(t => t.ativo !== false) : [];
+    if (cad.length) return cad;
+    if (typeof CAD_DATA !== 'undefined' && Array.isArray(CAD_DATA.tipoexame) && CAD_DATA.tipoexame.length) {
+        return CAD_DATA.tipoexame.filter(t => t.ativo !== false);
+    }
+    return TIPOS_EXAME_PADRAO;
+}
 const permissaoDoSetor = (setor) => (setor === 'ULTRASSONOGRAFIA' ? 'ultrassom_gerenciar' : 'imagem_gerenciar');
 
 // ============ Autorizações (APAC) ============
@@ -238,7 +349,7 @@ function statusAutorizacao(aut, hoje = todayISO()) {
     if (aut.decisao !== 'APROVADA' || !String(aut.numero_apac || '').trim() || !aut.data_autorizacao || !aut.validade_fim) return 'PENDENTE';
     return aut.validade_fim < hoje ? 'VENCIDA' : 'APROVADA';
 }
-const autorizacaoDaSolicitacao = (solId) => MOCK_DATA.AUTORIZACOES.find(a => a.solicitacao_id === solId) || null;
+const autorizacaoDaSolicitacao = (solId) => (MOCK_DATA.AUTORIZACOES || []).find(a => a.solicitacao_id === solId) || null;
 const autorizacaoVigente = (solId) => statusAutorizacao(autorizacaoDaSolicitacao(solId)) === 'APROVADA';
 
 /** Um exame que exige autorização só pode ser agendado com autorização aprovada e dentro da validade. */
@@ -294,27 +405,31 @@ async function emitirSolicitacaoExame(paciente, internacao, f) {
     const u = quem();
     const cfg = MOCK_DATA.CONFIG_HOSPITAL || {};
     const agora = agoraISO();
+    const exigeAut = Boolean(f.exige_autorizacao !== undefined ? f.exige_autorizacao : tipo.exige_autorizacao);
+    const stInicial = exigeAut ? 'PENDENTE_AUTORIZACAO' : 'SOLICITADO';
     const sol = {
         id: newId('exa'), protocolo: `EXA-${todayISO().replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
         paciente_id: paciente.id, internacao_id: internacao ? internacao.id : '',
         localizacao: internacao ? { leito_id: internacao.leito_id, andar: internacao.andar, ala: internacao.ala, quarto: internacao.quarto } : null,
-        tipo_exame_id: tipo.id, tipo_nome: tipo.nome, setor_destino: tipo.setor_destino, exige_autorizacao: Boolean(tipo.exige_autorizacao),
+        tipo_exame_id: tipo.id, tipo_nome: tipo.nome, setor_destino: tipo.setor_destino, exige_autorizacao: exigeAut,
         prioridade: f.prioridade, prioridade_justificativa: String(f.prioridade_justificativa).trim(),
         prioridade_historico: [],
+        contraste: Boolean(f.contraste),
+        detalhe_contraste: String(f.detalhe_contraste || (f.contraste ? 'Com contraste' : 'Sem contraste')).trim(),
         procedimento_principal: { codigo: String(f.proc_codigo || '').trim(), nome: String(f.proc_nome).trim(), qtd: Number(f.proc_qtd) },
         procedimentos_secundarios: (f.secundarios || []).filter(p => String(p.nome || '').trim()).slice(0, MAX_PROCEDIMENTOS_SECUNDARIOS)
             .map(p => ({ codigo: String(p.codigo || '').trim(), nome: String(p.nome).trim(), qtd: Number(p.qtd) || 1 })),
         diagnostico_descricao: String(f.diagnostico_descricao).trim(), cid_principal: String(f.cid_principal).trim().toUpperCase(),
         cid_secundario: String(f.cid_secundario || '').trim().toUpperCase(), cid_causas: String(f.cid_causas || '').trim().toUpperCase(), observacoes: String(f.observacoes || '').trim(),
         solicitante: { nome: u.por_nome, username: u.por, tipo_doc: f.solic_tipo_doc, documento: onlyDigits(f.solic_documento), registro_conselho: String(f.solic_registro).trim() },
-        data_solicitacao: todayISO(), estabelecimento_solicitante: { nome: cfg.nome || APP_INFO.hospital, cnes: cfg.cnes || '' },
+        data_solicitacao: todayISO(), estabelecimento_solicitante: { nome: cfg.nome || (typeof APP_INFO !== 'undefined' ? APP_INFO.hospital : 'HGP'), cnes: cfg.cnes || '' },
         paciente_dados: dadosPacienteParaFormulario(paciente),
-        status: tipo.exige_autorizacao ? 'PENDENTE_AUTORIZACAO' : 'SOLICITADO',
-        historico: [{ status: tipo.exige_autorizacao ? 'PENDENTE_AUTORIZACAO' : 'SOLICITADO', em: agora, por: u.por_nome, motivo: 'Solicitação emitida' }],
-        pendencias: [], agendamento: null, realizado: null, criado_em: agora, criado_por: u.por
+        status: stInicial,
+        historico: [{ status: stInicial, em: agora, por: u.por_nome, motivo: 'Solicitação emitida no prontuário eletrônico' }],
+        pendencias: [], agendamento: null, preparo_enfermagem: null, realizado: null, criado_em: agora, criado_por: u.por
     };
     await setDocH(COLH.SOLICITACOES, sol);
-    await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'CRIAR', depois: { protocolo: sol.protocolo, exame: sol.tipo_nome, prioridade: sol.prioridade, paciente: paciente.id } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'CRIAR', depois: { protocolo: sol.protocolo, exame: sol.tipo_nome, prioridade: sol.prioridade, paciente: paciente.id } });
     return sol;
 }
 
@@ -326,7 +441,7 @@ async function gravarStatusExame(sol, para, motivo, extras = {}) {
     const u = quem();
     const novo = { ...sol, ...extras, status: para, historico: [...(sol.historico || []), { status: para, em: agoraISO(), por: u.por_nome, motivo: motivo || '' }] };
     await setDocH(COLH.SOLICITACOES, novo);
-    await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'STATUS', antes: { status: sol.status }, depois: { status: para }, motivo: motivo || '' });
+    if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'STATUS', antes: { status: sol.status }, depois: { status: para }, motivo: motivo || '' });
     return novo;
 }
 
@@ -348,8 +463,8 @@ async function cancelarExame(solId, motivo) {
     return gravarStatusExame(sol, 'CANCELADO', String(motivo).trim(), { agendamento: null });
 }
 
-/** Agenda (ou reagenda) numa vaga existente. Reservar e devolver vagas é atômico. */
-async function agendarExame(solId, vagaId) {
+/** Agenda (ou reagenda) numa vaga existente, com opção de informar Sala/Equipamento e Observações de Preparo. */
+async function agendarExame(solId, vagaId, extras = {}) {
     const sol = await buscarSol(solId);
     exigirCentral(sol);
     const vaga = MOCK_DATA.VAGAS_EXAME.find(v => v.id === vagaId) || await getDocH(COLH.VAGAS, vagaId);
@@ -359,20 +474,91 @@ async function agendarExame(solId, vagaId) {
     if (!reagendando && !transicaoPermitida(sol.status, 'AGENDADO')) throw new Error(`Não é possível agendar um exame "${rotuloStatusExame(sol.status)}".`);
     const pode = podeAgendar(sol, vaga.data);
     if (!pode.ok) throw new Error(pode.motivo);
-    if (reagendando && sol.agendamento && sol.agendamento.vaga_id === vagaId) throw new Error('O exame já está nesta vaga.');
-    await db_ajustarVaga(vagaId, +1);
-    try {
-        if (reagendando && sol.agendamento && sol.agendamento.vaga_id) await db_ajustarVaga(sol.agendamento.vaga_id, -1);
-    } catch (e) { /* a vaga antiga some do mapa de ocupação no próximo ajuste; o agendamento novo já está reservado */ }
+    if (reagendando && sol.agendamento && sol.agendamento.vaga_id === vagaId && !extras.sala && !extras.preparo) throw new Error('O exame já está nesta vaga.');
+    if (!reagendando || !sol.agendamento || sol.agendamento.vaga_id !== vagaId) {
+        await db_ajustarVaga(vagaId, +1);
+        try {
+            if (reagendando && sol.agendamento && sol.agendamento.vaga_id) await db_ajustarVaga(sol.agendamento.vaga_id, -1);
+        } catch (e) { /* vaga antiga ajustada */ }
+    }
     const u = quem();
-    const agendamento = { vaga_id: vaga.id, data: vaga.data, hora: vaga.hora, por: u.por_nome, em: agoraISO() };
+    const sala = String(extras.sala || vaga.sala || SALAS_IMAGENOLOGIA[0]).trim();
+    const preparo = String(extras.preparo || (sol.agendamento && sol.agendamento.preparo) || '').trim();
+    const agendamento = { vaga_id: vaga.id, data: vaga.data, hora: vaga.hora, sala, preparo, por: u.por_nome, em: agoraISO() };
+    const resumo = `${formatDateBR(vaga.data)} às ${vaga.hora}${sala ? ' · ' + sala : ''}${preparo ? ' (Preparo: ' + preparo + ')' : ''}`;
+    if (typeof createNotification === 'function') {
+        createNotification('EXAME_AGENDADO', `Exame ${sol.tipo_nome} de ${sol.paciente_dados.nome} agendado para ${resumo}.`, sol.setor_destino);
+    }
     if (reagendando) {
-        const novo = { ...sol, agendamento, historico: [...sol.historico, { status: 'AGENDADO', em: agoraISO(), por: u.por_nome, motivo: `Reagendado para ${formatDateBR(vaga.data)} ${vaga.hora}` }] };
+        const novo = { ...sol, agendamento, historico: [...sol.historico, { status: 'AGENDADO', em: agoraISO(), por: u.por_nome, motivo: `Reagendado para ${resumo}` }] };
         await setDocH(COLH.SOLICITACOES, novo);
-        await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'REAGENDAR', antes: sol.agendamento, depois: agendamento });
+        if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'REAGENDAR', antes: sol.agendamento, depois: agendamento });
         return novo;
     }
-    return gravarStatusExame(sol, 'AGENDADO', `Agendado para ${formatDateBR(vaga.data)} ${vaga.hora}`, { agendamento });
+    return gravarStatusExame(sol, 'AGENDADO', `Agendado para ${resumo}`, { agendamento });
+}
+
+/**
+ * Agendamento direto na Agenda da Imagenologia: permite selecionar uma vaga existente OU definir Data, Horário,
+ * Sala/Equipamento e Observações de Preparo diretamente (criando/vinculando a vaga automaticamente).
+ */
+async function agendarExameDireto(solId, { vaga_id = '', data = '', hora = '', sala = '', preparo = '' }) {
+    const sol = await buscarSol(solId);
+    exigirCentral(sol);
+    let targetVagaId = vaga_id;
+    if (!targetVagaId) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || '')) || data < todayISO()) throw new Error('Informe uma data válida para o agendamento (hoje em diante).');
+        if (!/^\d{2}:\d{2}$/.test(String(hora || ''))) throw new Error('Informe o horário do exame.');
+        if (!String(sala || '').trim()) throw new Error('Informe a Sala / Equipamento do exame.');
+        const idVaga = `vaga_${sol.setor_destino}_${data}_${hora.replace(':', '')}_${sol.tipo_exame_id || 'todos'}`;
+        let vagaExistente = MOCK_DATA.VAGAS_EXAME.find(v => v.id === idVaga) || await getDocH(COLH.VAGAS, idVaga);
+        if (!vagaExistente) {
+            vagaExistente = { id: idVaga, setor: sol.setor_destino, data, hora, sala: String(sala).trim(), capacidade: 5, ocupadas: 0, tipo_exame_id: sol.tipo_exame_id, criado_por: quem().por_nome, criado_em: agoraISO() };
+            await setDocH(COLH.VAGAS, vagaExistente);
+        }
+        targetVagaId = vagaExistente.id;
+    }
+    return agendarExame(solId, targetVagaId, { sala, preparo });
+}
+
+/** Enfermagem checa o preparo do paciente para o exame agendado (jejum, acesso venoso, alergia verificada). */
+async function registrarPreparoExame(solId, { jejum = false, acesso_venoso = false, alergia_verificada = false, observacoes = '' }) {
+    if (!hasPermission('preparo_exame_checar') && !hasPermission('prontuario_evoluir')) {
+        throw new Error('Acesso negado: apenas Enfermagem ou Médico pode checar o preparo do exame.');
+    }
+    const sol = await buscarSol(solId);
+    const u = quem();
+    const agora = agoraISO();
+    const preparo_enfermagem = {
+        checado: Boolean(jejum || acesso_venoso || alergia_verificada),
+        jejum: Boolean(jejum),
+        acesso_venoso: Boolean(acesso_venoso),
+        alergia_verificada: Boolean(alergia_verificada),
+        observacoes: String(observacoes || '').trim(),
+        por: u.por_nome,
+        em: agora
+    };
+    const itensOk = [
+        jejum && 'Jejum confirmado',
+        acesso_venoso && 'Acesso venoso pérvio',
+        alergia_verificada && 'Alergia/contraste verificado'
+    ].filter(Boolean).join(', ') || 'Preparo atualizado';
+    const novo = {
+        ...sol,
+        preparo_enfermagem,
+        historico: [...(sol.historico || []), { status: sol.status, em: agora, por: u.por_nome, motivo: `Preparo de enfermagem: ${itensOk}${observacoes ? ' (' + observacoes + ')' : ''}` }]
+    };
+    await setDocH(COLH.SOLICITACOES, novo);
+    const internacao = internacaoAtivaDoPaciente(sol.paciente_id);
+    if (internacao) {
+        await registrarClinico({
+            internacao,
+            tipo: 'PREPARO_EXAME',
+            solicitacao_id: sol.id,
+            texto: `Checklist de Preparo (${sol.tipo_nome} - ${sol.protocolo}): ${itensOk}.${observacoes ? ' Obs.: ' + String(observacoes).trim() : ''}`
+        });
+    }
+    return novo;
 }
 
 async function marcarReagendamento(solId, motivo) {
@@ -383,18 +569,35 @@ async function marcarReagendamento(solId, motivo) {
     return gravarStatusExame(sol, 'REAGENDAMENTO_NECESSARIO', String(motivo).trim(), { agendamento: null });
 }
 
-/** O exame só vira REALIZADO com confirmação explícita e o profissional que atendeu. */
+/** O exame só vira REALIZADO (Disponível / Laudo Liberado) com confirmação explícita e o profissional que atendeu. */
 async function registrarRealizacao(solId, { profissional, confirmado, resultado = '' }) {
     const sol = await buscarSol(solId);
     exigirCentral(sol);
     if (!confirmado) throw new Error('Confirme que o exame foi realizado.');
     if (String(profissional || '').trim().length < 3) throw new Error('Informe o profissional responsável pelo atendimento.');
     const u = quem();
-    const novo = await gravarStatusExame(sol, 'REALIZADO', `Realizado por ${String(profissional).trim()}`, { realizado: { em: agoraISO(), por: u.por_nome, profissional: String(profissional).trim() } });
     const texto = String(resultado || '').trim();
+    const realizadoObj = {
+        em: agoraISO(),
+        por: u.por_nome,
+        profissional: String(profissional).trim(),
+        laudo: texto || 'Exame realizado e imagens disponibilizadas no PACS/Prontuário.'
+    };
+    const novo = await gravarStatusExame(sol, 'REALIZADO', `Realizado e laudo liberado por ${String(profissional).trim()}`, { realizado: realizadoObj });
     if (texto.length >= 5) {
-        const internacao = MOCK_DATA.INTERNACOES.find(i => i.id === sol.internacao_id);
-        if (internacao && internacao.status === 'ATIVA' && hasPermission('exame_resultado')) await registrarClinico({ internacao, tipo: 'RESULTADO', texto, solicitacao_id: sol.id });
+        const internacao = MOCK_DATA.INTERNACOES.find(i => i.id === sol.internacao_id) || internacaoAtivaDoPaciente(sol.paciente_id);
+        if (hasPermission('exame_resultado')) {
+            await registrarClinico({
+                internacao,
+                paciente_id: sol.paciente_id,
+                tipo: 'RESULTADO',
+                texto: `[${sol.tipo_nome} · ${sol.protocolo}] ${texto}`,
+                solicitacao_id: sol.id
+            });
+        }
+    }
+    if (typeof createNotification === 'function') {
+        createNotification('LAUDO_LIBERADO', `Laudo disponível: ${sol.tipo_nome} do paciente ${sol.paciente_dados.nome}.`, sol.setor_destino);
     }
     return novo;
 }
@@ -409,7 +612,7 @@ async function alterarPrioridade(solId, nova, justificativa) {
     const u = quem();
     const novoDoc = { ...sol, prioridade: nova, prioridade_justificativa: String(justificativa).trim(), prioridade_historico: [...(sol.prioridade_historico || []), { de: sol.prioridade, para: nova, em: agoraISO(), por: u.por_nome, justificativa: String(justificativa).trim() }] };
     await setDocH(COLH.SOLICITACOES, novoDoc);
-    await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PRIORIDADE', antes: { prioridade: sol.prioridade }, depois: { prioridade: nova }, motivo: String(justificativa).trim() });
+    if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PRIORIDADE', antes: { prioridade: sol.prioridade }, depois: { prioridade: nova }, motivo: String(justificativa).trim() });
     return novoDoc;
 }
 
@@ -420,7 +623,7 @@ async function adicionarPendencia(solId, texto) {
     const u = quem();
     const novo = { ...sol, pendencias: [...(sol.pendencias || []), { texto: String(texto).trim(), em: agoraISO(), por: u.por_nome, resolvida: false }] };
     await setDocH(COLH.SOLICITACOES, novo);
-    await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PENDENCIA', depois: { texto: String(texto).trim() } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PENDENCIA', depois: { texto: String(texto).trim() } });
     return novo;
 }
 
@@ -429,28 +632,27 @@ async function resolverPendencia(solId, indice) {
     exigirCentral(sol);
     const pend = [...(sol.pendencias || [])];
     if (!pend[indice] || pend[indice].resolvida) throw new Error('Pendência não encontrada.');
-    pend[indice] = { ...pend[indice], resolvida: true, resolvida_em: agoraISO(), resolvida_por: state.currentUser.name };
+    pend[indice] = { ...pend[indice], resolvida: true, resolvida_em: agoraISO(), resolvida_por: quem().por_nome };
     const novo = { ...sol, pendencias: pend };
     await setDocH(COLH.SOLICITACOES, novo);
-    await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PENDENCIA_RESOLVIDA', depois: { texto: pend[indice].texto } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'PENDENCIA_RESOLVIDA', depois: { texto: pend[indice].texto } });
     return novo;
 }
 
 // ============ Vagas ============
 
-async function criarVaga({ setor, data, hora, capacidade, tipo_exame_id = '' }) {
+async function criarVaga({ setor, data, hora, capacidade, tipo_exame_id = '', sala = '' }) {
     if (!SETORES_EXAME[setor]) throw new Error('Setor inválido.');
     requirePermission(permissaoDoSetor(setor));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || '')) || data < todayISO()) throw new Error('Informe uma data de hoje em diante.');
     if (!/^\d{2}:\d{2}$/.test(String(hora || ''))) throw new Error('Informe o horário.');
     const cap = Number(capacidade);
     if (!Number.isInteger(cap) || cap < 1 || cap > 50) throw new Error('A capacidade deve ser de 1 a 50 vagas.');
-    // id determinístico: duas pessoas criando a mesma vaga ao mesmo tempo nunca geram duplicata
     const idVaga = `vaga_${setor}_${data}_${hora.replace(':', '')}_${tipo_exame_id || 'todos'}`;
     if (await getDocH(COLH.VAGAS, idVaga)) throw new Error('Já existe uma vaga neste dia e horário.');
-    const vaga = { id: idVaga, setor, data, hora, capacidade: cap, ocupadas: 0, tipo_exame_id, criado_por: state.currentUser.name, criado_em: agoraISO() };
+    const vaga = { id: idVaga, setor, data, hora, sala: String(sala || '').trim(), capacidade: cap, ocupadas: 0, tipo_exame_id, criado_por: quem().por_nome, criado_em: agoraISO() };
     await setDocH(COLH.VAGAS, vaga);
-    await auditar({ entidade: 'agenda_vaga', entidade_id: vaga.id, acao: 'CRIAR', depois: { setor, data, hora, capacidade: cap } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'agenda_vaga', entidade_id: vaga.id, acao: 'CRIAR', depois: { setor, data, hora, capacidade: cap } });
     return vaga;
 }
 
@@ -491,7 +693,7 @@ async function registrarAutorizacao(solId, f) {
         historico: [...((anterior && anterior.historico) || []), { em: agoraISO(), por: u.por_nome, decisao: f.decisao, numero_apac: f.decisao === 'APROVADA' ? String(f.numero_apac).trim() : '' }]
     };
     await setDocH(COLH.AUTORIZACOES, aut);
-    await auditar({ entidade: 'autorizacao', entidade_id: aut.id, acao: anterior ? 'EDITAR' : 'CRIAR', antes: anterior ? { decisao: anterior.decisao, numero_apac: anterior.numero_apac } : null, depois: { decisao: aut.decisao, numero_apac: aut.numero_apac, validade_fim: aut.validade_fim } });
+    if (typeof auditar === 'function') await auditar({ entidade: 'autorizacao', entidade_id: aut.id, acao: anterior ? 'EDITAR' : 'CRIAR', antes: anterior ? { decisao: anterior.decisao, numero_apac: anterior.numero_apac } : null, depois: { decisao: aut.decisao, numero_apac: aut.numero_apac, validade_fim: aut.validade_fim } });
     // Aprovada: libera a solicitação para a fila do setor (nunca aprova nem agenda sozinha)
     if (statusAutorizacao(aut) === 'APROVADA' && sol.status === 'PENDENTE_AUTORIZACAO') await gravarStatusExame(sol, 'AGUARDANDO_TRIAGEM', `Autorização ${aut.numero_apac} registrada`);
     return aut;
@@ -501,21 +703,22 @@ async function salvarConfigHospital({ nome, cnes }) {
     requirePermission('autorizacao_gerenciar');
     const c = onlyDigits(cnes);
     if (c && c.length !== 7) throw new Error('O CNES tem 7 dígitos.');
-    await setDocH(COLH.CONFIG, { id: 'active', nome: String(nome || '').trim(), cnes: c, atualizado_por: state.currentUser.name, atualizado_em: agoraISO() });
-    await auditar({ entidade: 'config_hospital', entidade_id: 'active', acao: 'EDITAR', depois: { nome: String(nome || '').trim(), cnes: c } });
+    await setDocH(COLH.CONFIG, { id: 'active', nome: String(nome || '').trim(), cnes: c, atualizado_por: quem().por_nome, atualizado_em: agoraISO() });
+    if (typeof auditar === 'function') await auditar({ entidade: 'config_hospital', entidade_id: 'active', acao: 'EDITAR', depois: { nome: String(nome || '').trim(), cnes: c } });
 }
 
-// Tipos de exame padrão (TC, RNM, Biópsia, Ultrassonografia). Criados uma vez, com IDs fixos, pelo administrador.
-// O código SIGTAP fica em branco de propósito: é preenchido por quem conhece a tabela oficial.
+// Tipos de exame padrão (TC, Raio-X, RNM, Biópsia, Ultrassonografia). Criados uma vez, com IDs fixos, pelo administrador.
 const TIPOS_EXAME_PADRAO = [
     { id: 'tipo_tc', nome: 'Tomografia Computadorizada (TC)', setor_destino: 'IMAGENOLOGIA', exige_autorizacao: true },
+    { id: 'tipo_rx', nome: 'Raio-X Digital (Radiografia)', setor_destino: 'IMAGENOLOGIA', exige_autorizacao: false },
     { id: 'tipo_rnm', nome: 'Ressonância Magnética (RNM)', setor_destino: 'IMAGENOLOGIA', exige_autorizacao: true },
-    { id: 'tipo_biopsia', nome: 'Biópsia', setor_destino: 'IMAGENOLOGIA', exige_autorizacao: true },
+    { id: 'tipo_biopsia', nome: 'Biópsia Guiada por Imagem', setor_destino: 'IMAGENOLOGIA', exige_autorizacao: true },
     { id: 'tipo_us', nome: 'Ultrassonografia', setor_destino: 'ULTRASSONOGRAFIA', exige_autorizacao: false }
 ];
 
 async function garantirTiposExamePadrao() {
     if (!state.currentUser || state.currentUser.role !== 'ADMIN') return;
+    if (typeof db === 'undefined' || !db) return;
     const database = requireDb();
     for (const t of TIPOS_EXAME_PADRAO) {
         const ref = database.collection('cad_tipoexame').doc(t.id);
@@ -523,4 +726,306 @@ async function garantirTiposExamePadrao() {
         const codigo = await db_cadProximoCodigo('tipoexame', 'EXM');
         await ref.set({ ...t, codigo, codigo_procedimento: '', nome_procedimento: '', observacoes: 'Tipo padrão. Informe o código do procedimento conforme a tabela oficial.', ativo: true, criado_em: agoraISO(), criado_por: state.currentUser.username, versao: 1 });
     }
+}
+
+// ============================================================ MÓDULO 3: GESTÃO DE TRANSPORTE (DEMANDAS DO NIR)
+
+const TIPOS_TRANSPORTE_NIR = [
+    { id: 'PACIENTE', rotulo: 'Paciente' },
+    { id: 'INSUMO', rotulo: 'Medicamento / Insumo' }
+];
+
+const PRIORIDADES_TRANSPORTE_NIR = [
+    { id: 'ELETIVA', rotulo: 'Eletiva (Normal)', badge: 'at-badge--outros' },
+    { id: 'URGENTE', rotulo: 'Urgente', badge: 'at-badge--urgente' },
+    { id: 'EMERGENCIA', rotulo: 'Emergência (Imediata)', badge: 'at-badge--emergencia' }
+];
+
+const MEIOS_TRANSPORTE_NIR = [
+    { id: 'MACA', rotulo: 'Maca' },
+    { id: 'CADEIRA_RODAS', rotulo: 'Cadeira de Rodas' },
+    { id: 'AMBULANCIA_BASICA', rotulo: 'Ambulância Básica (USB)' },
+    { id: 'AMBULANCIA_UTI', rotulo: 'Ambulância UTI Móvel (USA)' },
+    { id: 'MALOTE_TERMICO', rotulo: 'Carrinho / Malote Térmico (Insumos)' }
+];
+
+const SUPORTES_TRANSPORTE_NIR = [
+    { id: 'OXIGENIO', rotulo: 'Oxigênio (Cilindro O2)' },
+    { id: 'MONITOR', rotulo: 'Monitor Multiparamétrico' },
+    { id: 'ACOMPANHANTE_MEDICO', rotulo: 'Acompanhante Médico' },
+    { id: 'BOMBA_INFUSAO', rotulo: 'Bomba de Infusão Contínua' }
+];
+
+const DESTINOS_TRANSPORTE_NIR = [
+    'Imagenologia - Sala 01 (Tomografia)',
+    'Imagenologia - Sala 02 (Raio-X Digital)',
+    'Imagenologia - Sala 03 (Ressonância Magnética)',
+    'Ultrassonografia - Sala 04',
+    'Centro Cirúrgico',
+    'Hemodinâmica - Sala 01',
+    'UTI Adulto',
+    'Pronto Socorro / Emergência',
+    'Clínica Médica (3º Andar)',
+    'Farmácia Central / Estoque OPME',
+    'Portaria / Alta Hospitalar',
+    'Transferência Externa'
+];
+
+const STATUS_TRANSPORTE_NIR = {
+    SOLICITADO_NIR: { rotulo: 'Solicitado pelo NIR', cor: '#d97706', fundo: '#fef3c7', badge: 'at-badge--urgente' },
+    EQUIPE_DESIGNADA: { rotulo: 'Equipe Designada', cor: '#0284c7', fundo: '#e0f2fe', badge: 'at-badge--outros' },
+    EM_TRANSITO: { rotulo: 'Em Trânsito', cor: '#ea580c', fundo: '#ffedd5', badge: 'at-badge--emergencia' },
+    CONCLUIDO: { rotulo: 'Concluído', cor: '#16a34a', fundo: '#dcfce7', badge: 'at-badge--ok' },
+    CANCELADO: { rotulo: 'Cancelado', cor: '#64748b', fundo: '#f1f5f9', badge: 'at-badge--off' }
+};
+
+const TRANSICOES_TRANSPORTE_NIR = {
+    SOLICITADO_NIR: ['EQUIPE_DESIGNADA', 'CANCELADO'],
+    EQUIPE_DESIGNADA: ['EM_TRANSITO', 'CANCELADO'],
+    EM_TRANSITO: ['CONCLUIDO', 'CANCELADO'],
+    CONCLUIDO: [],
+    CANCELADO: []
+};
+
+const rotuloStatusTransporteNIR = (s) => (STATUS_TRANSPORTE_NIR[s] || { rotulo: s || '—' }).rotulo;
+const rotuloMeioTransporteNIR = (id) => (MEIOS_TRANSPORTE_NIR.find(m => m.id === id) || { rotulo: id || '—' }).rotulo;
+const rotuloPrioridadeTransporteNIR = (id) => (PRIORIDADES_TRANSPORTE_NIR.find(p => p.id === id) || { rotulo: id || '—' }).rotulo;
+const transicaoTransportePermitida = (de, para) => (TRANSICOES_TRANSPORTE_NIR[de] || []).includes(para);
+
+/**
+ * Retorna a demanda de transporte do NIR que está EM_TRANSITO para o paciente informado (se houver).
+ * Usado pelo Mapa de Leitos e pelo Cabeçalho do Prontuário para exibir o selo "Em Transporte (Destino: X)".
+ */
+function transporteAtivoDoPaciente(pacienteId) {
+    if (!pacienteId) return null;
+    return (MOCK_DATA.TRANSPORTES_NIR || []).find(t =>
+        t.tipo === 'PACIENTE' && t.paciente_id === pacienteId && t.status === 'EM_TRANSITO'
+    ) || null;
+}
+
+/** Retorna a última demanda de transporte vinculada a um exame agendado. */
+function transporteDoExame(solId) {
+    if (!solId) return null;
+    return (MOCK_DATA.TRANSPORTES_NIR || []).find(t =>
+        t.solicitacao_exame_id === solId && t.status !== 'CANCELADO'
+    ) || null;
+}
+
+function validarDemandaTransporteNIR(f) {
+    const erros = [];
+    if (!['PACIENTE', 'INSUMO'].includes(f.tipo)) erros.push({ campo: 'tipo', mensagem: 'Selecione o tipo de transporte (Paciente ou Medicamento/Insumo).' });
+    if (!PRIORIDADES_TRANSPORTE_NIR.some(p => p.id === f.prioridade)) erros.push({ campo: 'prioridade', mensagem: 'Selecione a prioridade da demanda.' });
+    if (!String(f.setor_destino || '').trim()) erros.push({ campo: 'setor_destino', mensagem: 'Informe o destino da viagem.' });
+    if (String(f.motivo || '').trim().length < 3) erros.push({ campo: 'motivo', mensagem: 'Informe o motivo da viagem.' });
+
+    if (f.tipo === 'PACIENTE') {
+        if (!f.paciente_id) erros.push({ campo: 'paciente_id', mensagem: 'Selecione obrigatoriamente um paciente cadastrado/internado.' });
+        if (!MEIOS_TRANSPORTE_NIR.some(m => m.id === f.meio_transporte)) erros.push({ campo: 'meio_transporte', mensagem: 'Selecione o meio de transporte.' });
+    } else if (f.tipo === 'INSUMO') {
+        if (String(f.insumo_descricao || '').trim().length < 3) erros.push({ campo: 'insumo_descricao', mensagem: 'Informe o item/lote ou descrição do medicamento/insumo.' });
+        if (!String(f.setor_origem || '').trim()) erros.push({ campo: 'setor_origem', mensagem: 'Informe o setor de origem do insumo.' });
+    }
+    return erros;
+}
+
+/** Cria uma nova demanda de transporte do NIR (para Paciente ou Medicamento/Insumo). */
+async function criarDemandaTransporteNIR(f) {
+    requirePermission('transporte_solicitar');
+    const erros = validarDemandaTransporteNIR(f);
+    if (erros.length) throw new Error(erros[0].mensagem);
+
+    const u = quem();
+    const agora = agoraISO();
+    const hoje = todayISO().replace(/-/g, '');
+    const seq = String((MOCK_DATA.TRANSPORTES_NIR || []).length + 1).padStart(4, '0');
+    const protocolo = `NIR-${hoje}-${seq}`;
+
+    let dadosPaciente = {};
+    if (f.tipo === 'PACIENTE') {
+        const pac = await db_getPaciente(f.paciente_id);
+        const ativa = internacaoAtivaDoPaciente(f.paciente_id);
+        const leitoObj = ativa ? leitoPorId(ativa.leito_id) : (f.leito_origem_id ? leitoPorId(f.leito_origem_id) : null);
+        const origemAuto = ativa
+            ? `${ativa.andar}º Andar · ${ativa.ala} · Leito ${leitoObj ? leitoObj.rotulo : ativa.leito_id}`
+            : (String(f.setor_origem || 'Recepção / Ambulatório').trim());
+        dadosPaciente = {
+            paciente_id: f.paciente_id,
+            paciente_nome: (pac && pac.nome) || f.paciente_nome || 'Paciente',
+            prontuario: (pac && pac.prontuario) || (ativa && ativa.prontuario) || f.prontuario || '',
+            internacao_id: ativa ? ativa.id : '',
+            leito_origem_id: ativa ? ativa.leito_id : (f.leito_origem_id || ''),
+            setor_origem: origemAuto,
+            meio_transporte: f.meio_transporte,
+            suporte: Array.isArray(f.suporte) ? f.suporte : []
+        };
+    } else {
+        dadosPaciente = {
+            insumo_descricao: String(f.insumo_descricao).trim(),
+            insumo_lote: String(f.insumo_lote || '').trim(),
+            insumo_qtd: Number(f.insumo_qtd) || 1,
+            setor_origem: String(f.setor_origem).trim(),
+            meio_transporte: f.meio_transporte || 'MALOTE_TERMICO',
+            suporte: []
+        };
+    }
+
+    const demanda = {
+        id: newId('nir'),
+        protocolo,
+        tipo: f.tipo,
+        prioridade: f.prioridade,
+        ...dadosPaciente,
+        setor_destino: String(f.setor_destino).trim(),
+        motivo: String(f.motivo).trim(),
+        solicitacao_exame_id: f.solicitacao_exame_id || '',
+        solicitante_nome: String(f.solicitante_nome || u.por_nome).trim(),
+        status: 'SOLICITADO_NIR',
+        equipe: null,
+        criado_em: agora,
+        criado_por: u.por,
+        historico: [
+            { status: 'SOLICITADO_NIR', em: agora, por: u.por_nome, detalhe: `Solicitação de transporte registrada pelo NIR (${f.tipo === 'PACIENTE' ? dadosPaciente.paciente_nome : dadosPaciente.insumo_descricao})` }
+        ]
+    };
+
+    await setDocH(COLH.TRANSPORTES, demanda);
+
+    if (f.solicitacao_exame_id) {
+        const sol = await getDocH(COLH.SOLICITACOES, f.solicitacao_exame_id);
+        if (sol) {
+            await setDocH(COLH.SOLICITACOES, {
+                ...sol,
+                transporte_nir_id: demanda.id,
+                historico: [...(sol.historico || []), { status: sol.status, em: agora, por: u.por_nome, motivo: `Transporte solicitado ao NIR (${demanda.protocolo})` }]
+            });
+        }
+    }
+
+    if (typeof auditar === 'function') {
+        await auditar({ entidade: 'transporte_nir', entidade_id: demanda.id, acao: 'CRIAR', depois: { protocolo: demanda.protocolo, tipo: demanda.tipo, destino: demanda.setor_destino } });
+    }
+    return demanda;
+}
+
+/** Etapa 2 do NIR: Designar equipe (motorista/maqueiro e veículo/maca). */
+async function designarEquipeTransporteNIR(id, { motorista_maqueiro, veiculo_maca }) {
+    requirePermission('transporte_gerenciar');
+    const atual = await getDocH(COLH.TRANSPORTES, id);
+    if (!atual) throw new Error('Demanda de transporte não encontrada.');
+    if (!transicaoTransportePermitida(atual.status, 'EQUIPE_DESIGNADA')) {
+        throw new Error(`Não é possível designar equipe para uma demanda "${rotuloStatusTransporteNIR(atual.status)}".`);
+    }
+    if (String(motorista_maqueiro || '').trim().length < 3) throw new Error('Informe o nome do motorista ou maqueiro responsável.');
+    if (String(veiculo_maca || '').trim().length < 2) throw new Error('Informe a identificação do veículo, maca ou cadeira.');
+
+    const u = quem();
+    const agora = agoraISO();
+    const equipe = {
+        motorista_maqueiro: String(motorista_maqueiro).trim(),
+        veiculo_maca: String(veiculo_maca).trim(),
+        designado_em: agora,
+        designado_por: u.por_nome
+    };
+    const novo = {
+        ...atual,
+        status: 'EQUIPE_DESIGNADA',
+        equipe,
+        historico: [...(atual.historico || []), { status: 'EQUIPE_DESIGNADA', em: agora, por: u.por_nome, detalhe: `${equipe.motorista_maqueiro} · ${equipe.veiculo_maca}` }]
+    };
+    await setDocH(COLH.TRANSPORTES, novo);
+    if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'DESIGNAR_EQUIPE', depois: equipe });
+    return novo;
+}
+
+/** Etapa 3 do NIR: Iniciar trânsito (viagem em andamento -> ativa o selo "Em Transporte" no Mapa de Leitos e no Prontuário). */
+async function iniciarTransitoNIR(id) {
+    requirePermission('transporte_gerenciar');
+    const atual = await getDocH(COLH.TRANSPORTES, id);
+    if (!atual) throw new Error('Demanda de transporte não encontrada.');
+    if (!transicaoTransportePermitida(atual.status, 'EM_TRANSITO')) {
+        throw new Error(`Não é possível iniciar trânsito a partir de "${rotuloStatusTransporteNIR(atual.status)}".`);
+    }
+    const u = quem();
+    const agora = agoraISO();
+    const novo = {
+        ...atual,
+        status: 'EM_TRANSITO',
+        inicio_transito_em: agora,
+        historico: [...(atual.historico || []), { status: 'EM_TRANSITO', em: agora, por: u.por_nome, detalhe: `Em deslocamento: ${atual.setor_origem} → ${atual.setor_destino}` }]
+    };
+    await setDocH(COLH.TRANSPORTES, novo);
+    if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'INICIAR_TRANSITO', depois: { status: 'EM_TRANSITO', destino: atual.setor_destino } });
+    return novo;
+}
+
+/**
+ * Etapa 4 do NIR: Concluir transporte.
+ * Se for transporte de PACIENTE, grava automaticamente na linha do tempo do Prontuário Digital do paciente!
+ */
+async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' } = {}) {
+    requirePermission('transporte_gerenciar');
+    const atual = await getDocH(COLH.TRANSPORTES, id);
+    if (!atual) throw new Error('Demanda de transporte não encontrada.');
+    if (!transicaoTransportePermitida(atual.status, 'CONCLUIDO')) {
+        throw new Error(`Não é possível concluir uma viagem com status "${rotuloStatusTransporteNIR(atual.status)}".`);
+    }
+    const u = quem();
+    const agora = agoraISO();
+    const det = [recebido_por && `Recebido por: ${String(recebido_por).trim()}`, observacoes && String(observacoes).trim()].filter(Boolean).join(' · ') || 'Entregue no destino';
+    const novo = {
+        ...atual,
+        status: 'CONCLUIDO',
+        concluido_em: agora,
+        concluido_por: u.por_nome,
+        recebido_por: String(recebido_por || '').trim(),
+        observacoes_conclusao: String(observacoes || '').trim(),
+        historico: [...(atual.historico || []), { status: 'CONCLUIDO', em: agora, por: u.por_nome, detalhe: det }]
+    };
+    await setDocH(COLH.TRANSPORTES, novo);
+
+    // Integração Cruzada: registrar automaticamente uma entrada na linha do tempo do Prontuário Digital do paciente
+    if (atual.tipo === 'PACIENTE' && atual.paciente_id) {
+        const internacao = internacaoAtivaDoPaciente(atual.paciente_id) || (atual.internacao_id ? MOCK_DATA.INTERNACOES.find(i => i.id === atual.internacao_id) : null);
+        const leitoRot = atual.leito_origem_id ? ((leitoPorId(atual.leito_origem_id) || { rotulo: atual.leito_origem_id }).rotulo) : atual.setor_origem;
+        const eqInfo = atual.equipe ? ` · Equipe: ${atual.equipe.motorista_maqueiro} (${atual.equipe.veiculo_maca})` : '';
+        const textoTimeline = `Transporte concluído via NIR (${atual.protocolo}): Leito ${leitoRot} (${atual.setor_origem}) → ${atual.setor_destino} - Motivo: ${atual.motivo}${eqInfo}${recebido_por ? ' · Recebido por: ' + String(recebido_por).trim() : ''}.`;
+        await registrarClinico({
+            internacao,
+            paciente_id: atual.paciente_id,
+            tipo: 'TRANSPORTE_NIR',
+            transporte_id: atual.id,
+            texto: textoTimeline
+        });
+    }
+
+    if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'CONCLUIR', depois: { status: 'CONCLUIDO', concluido_em: agora } });
+    return novo;
+}
+
+/** Cancelar demanda de transporte do NIR (com justificativa obrigatória). */
+async function cancelarTransporteNIR(id, motivo) {
+    if (!hasPermission('transporte_gerenciar') && !hasPermission('transporte_solicitar')) {
+        throw new Error('Acesso negado: seu perfil não pode cancelar demandas de transporte.');
+    }
+    const atual = await getDocH(COLH.TRANSPORTES, id);
+    if (!atual) throw new Error('Demanda de transporte não encontrada.');
+    if (!transicaoTransportePermitida(atual.status, 'CANCELADO')) {
+        throw new Error(`Não é possível cancelar uma demanda "${rotuloStatusTransporteNIR(atual.status)}".`);
+    }
+    if (String(motivo || '').trim().length < 5) {
+        throw new Error('Informe a justificativa do cancelamento (mínimo de 5 caracteres).');
+    }
+    const u = quem();
+    const agora = agoraISO();
+    const novo = {
+        ...atual,
+        status: 'CANCELADO',
+        motivo_cancelamento: String(motivo).trim(),
+        cancelado_em: agora,
+        cancelado_por: u.por_nome,
+        historico: [...(atual.historico || []), { status: 'CANCELADO', em: agora, por: u.por_nome, detalhe: `Cancelado: ${String(motivo).trim()}` }]
+    };
+    await setDocH(COLH.TRANSPORTES, novo);
+    if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'CANCELAR', motivo: String(motivo).trim() });
+    return novo;
 }

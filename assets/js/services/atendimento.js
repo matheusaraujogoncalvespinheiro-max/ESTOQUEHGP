@@ -134,23 +134,35 @@ async function buscarPacientes(term) {
     const texto = String(term ?? '').trim();
     if (texto.length < 2) return [];
     const digits = onlyDigits(texto);
+    const chave = searchKey(texto);
     const results = new Map();
-    const add = (list) => list.forEach(p => { if (p.ativo !== false) results.set(p.id, p); });
+    const add = (list) => (list || []).forEach(p => { if (p && p.ativo !== false) results.set(p.id, p); });
 
-    if (digits.length === 11) add(await db_findPacientesByField('cpf', digits));
-    add(await db_findPacientesByField('prontuario', texto));
-    if (digits && digits !== texto) add(await db_findPacientesByField('prontuario', digits));
-    if (!/^[\d.\-\s]+$/.test(texto)) {
-        const chave = searchKey(texto);
-        add(await db_findPacientesByNamePrefix(chave));
-        // Também acha pelo sobrenome ou qualquer palavra inteira do nome: todas as palavras digitadas devem aparecer no nome
-        const palavras = chave.split(' ').filter(w => w.length >= 3);
-        if (palavras.length) {
-            const maior = [...palavras].sort((a, b) => b.length - a.length)[0];
-            const candidatos = await db_findPacientesByWord(maior);
-            add(candidatos.filter(p => palavras.every(w => String(p.nome_busca).includes(w))));
+    // Busca em memória (pacientes de seed e cache do cadastro)
+    const locais = [
+        ...Object.values(MOCK_DATA.PACIENTES_SEED_MAP || {}),
+        ...((typeof CAD_DATA !== 'undefined' && Array.isArray(CAD_DATA.paciente)) ? CAD_DATA.paciente : [])
+    ];
+    add(locais.filter(p =>
+        (digits && (String(p.cpf || '') === digits || String(p.prontuario || '').includes(digits)))
+        || searchKey(`${p.nome || ''} ${p.prontuario || ''} ${p.cpf || ''}`).includes(chave)
+    ));
+
+    try {
+        if (digits.length === 11) add(await db_findPacientesByField('cpf', digits));
+        add(await db_findPacientesByField('prontuario', texto));
+        if (digits && digits !== texto) add(await db_findPacientesByField('prontuario', digits));
+        if (!/^[\d.\-\s]+$/.test(texto)) {
+            add(await db_findPacientesByNamePrefix(chave));
+            // Também acha pelo sobrenome ou qualquer palavra inteira do nome: todas as palavras digitadas devem aparecer no nome
+            const palavras = chave.split(' ').filter(w => w.length >= 3);
+            if (palavras.length) {
+                const maior = [...palavras].sort((a, b) => b.length - a.length)[0];
+                const candidatos = await db_findPacientesByWord(maior);
+                add(candidatos.filter(p => palavras.every(w => String(p.nome_busca).includes(w))));
+            }
         }
-    }
+    } catch (e) { /* banco offline: retorna os resultados em memória */ }
     return [...results.values()];
 }
 

@@ -1,7 +1,7 @@
-# Assistência hospitalar: leitos, internação, prontuário, exames e autorizações
+# Assistência hospitalar: leitos, internação, prontuário digital, exames, autorizações e transporte (NIR)
 
-Módulos: **Assistência** (Mapa de Ocupação, Internações, Prontuário Eletrônico) e **Exames** (Imagenologia, Ultrassonografia, Autorizações).
-Cadastro novo: **Cadastro › Assistência › Tipos de Exame** (lista configurável). Regras em `services/hospital.js`, dados em `services/db-hospital.js`.
+Módulos: **Assistência** (Mapa de Ocupação, Internações, Prontuário Eletrônico Digital, Gestão de Transporte NIR) e **Exames** (Imagenologia, Ultrassonografia, Autorizações).
+Cadastro: **Cadastro › Assistência › Tipos de Exame** (lista configurável). Regras em `services/hospital.js`, dados e seed em `services/db-hospital.js`, telas em `pages/hospital/` (`mapa.js`, `prontuario.js`, `exames.js`, `transporte.js`).
 
 ## Estrutura única de localização
 

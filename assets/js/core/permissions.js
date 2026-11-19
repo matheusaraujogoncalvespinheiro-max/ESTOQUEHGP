@@ -17,7 +17,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return false;
         if (action === 'view_laudos') return true;
         if (action === 'manage_members') return true;
-        return false;
+        return ['transporte_ver', 'transporte_solicitar'].includes(action);
     }
 
     if (role === 'CHEFE_HEMODINAMICA') {
@@ -28,7 +28,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return false;
+        return ['transporte_ver', 'transporte_solicitar'].includes(action);
     }
 
     if (role === 'FUNC_HEMODINAMICA') {
@@ -37,7 +37,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return false;
+        return ['transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_OPME') {
@@ -46,7 +46,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'OPME') return true;
         if (action === 'view_laudos') return true;
-        return false;
+        return ['transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_CENTRO_CIRURGICO') {
@@ -56,7 +56,7 @@ function hasPermission(action, setor = null) {
         if (action === 'create_laudo' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_laudos') return true;
         if (action === 'manage_salas') return true;
-        return false;
+        return ['transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_ENFERMAGEM') {
@@ -68,7 +68,11 @@ function hasPermission(action, setor = null) {
         if (action === 'view_notifications') return false;
         if (action === 'create_laudo') return false;
         if (action === 'view_laudos') return false;
-        return ['mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'prontuario_evoluir', 'pacientes_consultar'].includes(action);
+        return [
+            'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'prontuario_evoluir',
+            'evolucao_enfermagem', 'sinais_vitais_registrar', 'preparo_exame_checar', 'alergia_gerenciar',
+            'pacientes_consultar', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
     }
 
     if (role === 'CHEFE_PORTARIA') {
@@ -86,7 +90,7 @@ function hasPermission(action, setor = null) {
     // ---- Recepção, Emergência e Gestão das Triagens ----
     // O Administrador tem tudo (retorno no início da função). Os demais perfis só recebem o que está listado.
     if (role === 'FUNC_RECEPCAO') {
-        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar'].includes(action);
+        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_EMERGENCIA') {
@@ -98,17 +102,21 @@ function hasPermission(action, setor = null) {
         return ['triagem_ver'].includes(action);
     }
 
-    // ---- Assistência: leitos, prontuário, exames e autorizações ----
+    // ---- Assistência: leitos, prontuário, exames, autorizações e transporte NIR ----
     if (role === 'MEDICO') {
-        return ['mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'prescrever', 'diagnosticar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver'].includes(action);
+        return [
+            'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'evolucao_medica', 'prescrever', 'diagnosticar',
+            'alergia_gerenciar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver',
+            'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
     }
 
     if (role === 'FUNC_IMAGENOLOGIA') {
-        return ['imagem_gerenciar', 'exame_resultado', 'autorizacao_ver'].includes(action);
+        return ['imagem_gerenciar', 'exame_resultado', 'autorizacao_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
     }
 
     if (role === 'FUNC_ULTRASSOM') {
-        return ['ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver'].includes(action);
+        return ['ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
     }
 
     if (role === 'AUTORIZADOR') {
@@ -117,6 +125,10 @@ function hasPermission(action, setor = null) {
 
     if (role === 'FUNC_HIGIENIZACAO') {
         return ['mapa_ver', 'leito_gerenciar'].includes(action);
+    }
+
+    if (role === 'FUNC_NIR') {
+        return ['mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'pacientes_consultar', 'transporte_ver', 'transporte_solicitar', 'transporte_gerenciar'].includes(action);
     }
 
     return false;
@@ -140,7 +152,8 @@ function getRoleLabel(role) {
         "FUNC_IMAGENOLOGIA": "Funcionário Imagenologia",
         "FUNC_ULTRASSOM": "Funcionário Ultrassonografia",
         "AUTORIZADOR": "Autorizador (Regulação)",
-        "FUNC_HIGIENIZACAO": "Funcionário Higienização"
+        "FUNC_HIGIENIZACAO": "Funcionário Higienização",
+        "FUNC_NIR": "Regulador / Transporte (NIR)"
     };
     return labels[role] || "Colaborador";
 }
@@ -164,7 +177,7 @@ const anyOf = (...checks) => () => checks.some(check => check());
 const ASSIGNABLE_ROLES = [
     'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
     'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
-    'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO'
+    'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR'
 ];
 
 /** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */

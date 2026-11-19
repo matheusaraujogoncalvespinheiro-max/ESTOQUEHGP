@@ -18,6 +18,7 @@ function homeModule(role) {
     if (role === 'FUNC_ULTRASSOM') return 'ULTRASSOM';
     if (role === 'AUTORIZADOR') return 'AUTORIZACOES';
     if (role === 'FUNC_HIGIENIZACAO') return 'MAPA_LEITOS';
+    if (role === 'FUNC_NIR') return 'TRANSPORTE_NIR';
     return 'DASHBOARD';
 }
 

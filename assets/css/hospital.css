@@ -1,4 +1,4 @@
-/* Assistência hospitalar: mapa de ocupação, prontuário, central de exames. Usa os componentes .at-* e .cd-*. */
+/* Assistência hospitalar: mapa de ocupação, prontuário digital, central de exames e gestão de transporte (NIR). Usa os componentes .at-* e .cd-*. */
 
 .modal--md .modal__box { width: min(560px, 94vw); }
 .modal--xl .modal__box { width: min(980px, 96vw); max-height: 92vh; }
@@ -14,17 +14,58 @@
 .hs-andar { padding: 18px; }
 .hs-ala { margin-bottom: 16px; }
 .hs-ala h4 { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--sh-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.hs-quartos { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.hs-quartos { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
 .hs-quarto { border: 1px solid var(--sh-line); border-radius: 14px; padding: 8px; background: var(--sh-surface-2); }
 .hs-quarto > span { display: block; margin: 0 0 6px 4px; font-size: 12px; font-weight: 700; color: var(--sh-muted); }
 .hs-leitos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.hs-leito { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 54px; padding: 6px 8px; border: 2px solid var(--c); border-radius: 10px; background: var(--f); color: var(--c); cursor: pointer; text-align: left; min-width: 0; }
+.hs-leito { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 58px; padding: 6px 8px; border: 2px solid var(--c); border-radius: 10px; background: var(--f); color: var(--c); cursor: pointer; text-align: left; min-width: 0; position: relative; }
+.hs-leito__top { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 4px; }
 .hs-leito b { font-size: 14px; }
 .hs-leito small { width: 100%; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hs-leito__pront { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: rgba(15, 23, 42, 0.08); color: inherit; }
+.hs-leito__pront:hover { background: rgba(15, 23, 42, 0.18); }
+.hs-leito--transito { border-color: #ea580c !important; box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.22); }
+.hs-leito__nir { display: block; width: 100%; margin-top: 2px; padding: 2px 5px; border-radius: 6px; background: #ea580c; color: #fff; font-size: 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hs-leito:hover { filter: brightness(0.96); transform: translateY(-1px); }
 html[data-tema='escuro'] .hs-leito { background: transparent; }
 
+.hs-badge-transito { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: #ffedd5; color: #c2410c; border: 1px solid #fdba74; font-size: 12px; font-weight: 800; }
+html[data-tema='escuro'] .hs-badge-transito { background: rgba(234, 88, 12, 0.22); color: #fdba74; border-color: rgba(251, 146, 60, 0.4); }
+
+/* Cabeçalho Fixo do Prontuário Eletrônico */
+.pr-fixed-header { position: sticky; top: 8px; z-index: 15; border-left: 5px solid #0d9488; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06); }
 .pr-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.pr-header-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; margin-top: 12px; }
+.pr-info-box { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--sh-line); background: var(--sh-surface-2); display: flex; flex-direction: column; gap: 3px; }
+.pr-info-box__label { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--sh-muted); }
+.pr-info-box__val { font-size: 13.5px; font-weight: 700; color: var(--sh-text); }
+.pr-info-box--alergia { background: #fef2f2; border-color: #fca5a5; }
+.pr-info-box--alergia .pr-info-box__label, .pr-info-box--alergia .pr-info-box__val { color: #b91c1c; }
+.pr-info-box--ok { background: #f0fdf4; border-color: #bbf7d0; }
+.pr-info-box--ok .pr-info-box__val { color: #15803d; }
+html[data-tema='escuro'] .pr-info-box--alergia { background: rgba(220, 38, 38, 0.16); border-color: rgba(248, 113, 113, 0.4); }
+html[data-tema='escuro'] .pr-info-box--alergia .pr-info-box__label, html[data-tema='escuro'] .pr-info-box--alergia .pr-info-box__val { color: #fca5a5; }
+html[data-tema='escuro'] .pr-info-box--ok { background: rgba(22, 163, 74, 0.14); border-color: rgba(74, 222, 128, 0.35); }
+html[data-tema='escuro'] .pr-info-box--ok .pr-info-box__val { color: #86efac; }
+
+.pr-alergia-inline { color: #dc2626; font-weight: 700; }
+.pr-link-btn { background: none; border: none; padding: 0; font-size: 12px; font-weight: 700; color: #0d9488; cursor: pointer; text-decoration: underline; }
+
+.pr-vitals-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: var(--sh-surface-2); border: 1px dashed var(--sh-line); font-size: 12.5px; }
+.pr-vitals-strip__title { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--sh-muted); }
+.pr-vital-chip { padding: 2px 8px; border-radius: 6px; background: var(--sh-surface); border: 1px solid var(--sh-line); font-size: 12px; }
+
+.pr-quick-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sh-line); }
+
+/* Alertas do Setor no Prontuário (Exames Agendados, Laudos Liberados e Transporte NIR) */
+.pr-sector-alert { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--sh-line); font-size: 13.5px; }
+.pr-sector-alert--agendado { background: #fffbeb; border-color: #fde68a; border-left: 5px solid #d97706; color: #92400e; }
+.pr-sector-alert--laudo { background: #eff6ff; border-color: #bfdbfe; border-left: 5px solid #2563eb; color: #1e40af; }
+.pr-sector-alert--transito { background: #fff7ed; border-color: #fed7aa; border-left: 5px solid #ea580c; color: #9a3412; }
+html[data-tema='escuro'] .pr-sector-alert--agendado { background: rgba(217, 119, 6, 0.14); border-color: rgba(251, 191, 36, 0.35); color: #fde68a; }
+html[data-tema='escuro'] .pr-sector-alert--laudo { background: rgba(37, 99, 235, 0.14); border-color: rgba(96, 165, 250, 0.35); color: #bfdbfe; }
+html[data-tema='escuro'] .pr-sector-alert--transito { background: rgba(234, 88, 12, 0.14); border-color: rgba(251, 146, 60, 0.35); color: #fed7aa; }
+
 .pr-reg { padding: 12px 14px; margin-bottom: 10px; border: 1px solid var(--sh-line); border-radius: 12px; background: var(--sh-surface); }
 .pr-reg header { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .pr-reg header small { color: var(--sh-muted); }

@@ -17,10 +17,11 @@ service cloud.firestore {
     function temPerfil(lista) { return logado() && (perfil() == 'ADMIN' || perfil() in lista); }
 
     // Perfis por área
-    function clinico() { return ['MEDICO', 'FUNC_ENFERMAGEM']; }
-    function internacao() { return ['FUNC_ENFERMAGEM', 'FUNC_RECEPCAO']; }
-    function leitos() { return ['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO', 'MEDICO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA']; }
-    function exames() { return ['MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR']; }
+    function clinico() { return ['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_NIR']; }
+    function internacao() { return ['FUNC_ENFERMAGEM', 'FUNC_RECEPCAO', 'FUNC_NIR']; }
+    function leitos() { return ['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO', 'MEDICO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'FUNC_NIR']; }
+    function exames() { return ['MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_ENFERMAGEM']; }
+    function transporte() { return ['FUNC_NIR', 'MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA']; }
     function estoque() { return ['CHEFE_OPME', 'FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM']; }
     function atendimento() { return ['FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM', 'FUNC_ENFERMAGEM', 'MEDICO']; }
 
@@ -88,6 +89,13 @@ service cloud.firestore {
     match /config_hospital/{id} {
       allow read: if logado();
       allow write: if temPerfil(['AUTORIZADOR']);
+    }
+
+    // ---------- Gestão de Transporte (Demandas do NIR) ----------
+    match /demandas_transporte/{id} {
+      allow read: if logado();
+      allow create, update: if temPerfil(transporte());
+      allow delete: if false;
     }
 
     // ---------- Pacientes e atendimento (dados pessoais: LGPD) ----------
