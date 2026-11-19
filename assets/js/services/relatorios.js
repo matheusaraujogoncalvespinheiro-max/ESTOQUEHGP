@@ -165,6 +165,153 @@ function relatorioEventosNsp(ocorrencias, de, ate, hoje = todayISO()) {
     };
 }
 
+// ---------------- Relatórios das demais áreas (consignado, portaria, procedimentos, consumo, compras, perdas, permissões) ----------------
+
+const diaDe = (iso) => String(iso || '').slice(0, 10);
+const dataBr = (s) => { const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : diaDe(s); };
+const ehConsig = (p) => Boolean(p.cadastro && p.cadastro.opme && p.cadastro.opme.tipo_material === 'Consignado');
+
+/** Estoque consignado: lotes de produtos marcados como consignados, com o fornecedor. */
+function relatorioConsignadoEstoque(produtos, nomeFornecedor = (id) => id) {
+    const linhas = [];
+    produtos.filter(ehConsig).forEach(p => (p.lotes || []).filter(l => l.quantidade > 0).forEach(l => linhas.push({
+        fornecedor: nomeFornecedor(p.cadastro.opme.fornecedor_id) || '—', codigo: p.barcode, produto: p.material, setor: p.setor, lote: l.lote,
+        validade: l.validade && l.validade !== 'N/A' ? formatDateBR(l.validade) : '—', quantidade: l.quantidade, situacao: ({ VENCIDO: 'Vencido', A_VENCER: 'A vencer', OK: 'Válido', SEM_VALIDADE: 'Sem validade' })[statusValidade(l.validade)] })));
+    linhas.sort((a, b) => String(a.fornecedor).localeCompare(String(b.fornecedor)) || String(a.produto).localeCompare(String(b.produto)));
+    return {
+        titulo: 'Estoque consignado', descricao: 'Material de terceiros em estoque (produtos marcados como "Consignado" na aba OPME do cadastro).',
+        colunas: [{ k: 'fornecedor', label: 'Fornecedor' }, { k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'setor', label: 'Setor' }, { k: 'lote', label: 'Lote' }, { k: 'validade', label: 'Validade' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'situacao', label: 'Situação do lote' }],
+        linhas, resumo: [{ rot: 'Lotes', valor: linhas.length }, { rot: 'Unidades', valor: linhas.reduce((a, l) => a + l.quantidade, 0) }, { rot: 'Fornecedores', valor: new Set(linhas.map(l => l.fornecedor)).size }]
+    };
+}
+
+/** Utilizações de material consignado: itens de laudo cujo produto é consignado (base para o acerto com o fornecedor). */
+function relatorioConsignadoUso(laudos, produtos, nomeFornecedor, de, ate) {
+    const consig = new Map(produtos.filter(ehConsig).map(p => [`${p.setorId || p.setor}|${p.barcode}`, p]));
+    const porCodigo = new Map(produtos.filter(ehConsig).map(p => [p.barcode, p]));
+    const linhas = [];
+    laudos.filter(l => dentro(l.data, de, ate)).forEach(l => (l.itens_opme || []).forEach(i => {
+        const p = porCodigo.get(i.barcode);
+        if (!p) return;
+        linhas.push({ data: formatDateBR(l.data), paciente: l.paciente || '—', procedimento: l.procedimento || l.tipo_laudo || '—', fornecedor: nomeFornecedor(p.cadastro.opme.fornecedor_id) || '—', produto: p.material, lote: i.lote || '—', quantidade: Number(i.quantidade) || 0, responsavel: l.usuario || '—' });
+    }));
+    return {
+        titulo: 'Utilizações de consignado', descricao: 'Material consignado usado em procedimentos, por fornecedor e lote (base para o acerto de contas).',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'fornecedor', label: 'Fornecedor' }, { k: 'produto', label: 'Material' }, { k: 'lote', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'paciente', label: 'Paciente' }, { k: 'procedimento', label: 'Procedimento' }, { k: 'responsavel', label: 'Responsável' }],
+        linhas, resumo: [{ rot: 'Utilizações', valor: linhas.length }, { rot: 'Unidades usadas', valor: linhas.reduce((a, l) => a + l.quantidade, 0) }]
+    };
+}
+
+/** Visitas da portaria. tipo: 'VISITANTE' (todos menos acompanhantes), 'ACOMPANHANTE' ou '' (histórico completo). */
+function relatorioPortaria(visitas, tipo, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const ehAcomp = (v) => /acompanhante/i.test(v.tipo || '');
+    const linhas = visitas.filter(v => (tipo === 'ACOMPANHANTE' ? ehAcomp(v) : (tipo === 'VISITANTE' ? !ehAcomp(v) : true)) && dentro(v.hora_entrada, de, ate))
+        .sort((a, b) => String(b.hora_entrada).localeCompare(String(a.hora_entrada)))
+        .map(v => ({ nome: v.nome, documento: v.documento ? maskCPF(onlyDigits(v.documento)) : '—', tipo: v.tipo || 'Visita', destino: [v.setor, v.destino].filter(Boolean).join(' · ') || '—', entrada: formatDateTimeBR(v.hora_entrada), saida: v.hora_saida ? formatDateTimeBR(v.hora_saida) : 'Dentro', porteiro: v.porteiro_entrada || '—' }))
+        .filter(l => !t || searchKey(Object.values(l).join(' ')).includes(t));
+    return {
+        titulo: tipo === 'ACOMPANHANTE' ? 'Acompanhantes' : (tipo === 'VISITANTE' ? 'Visitantes' : 'Histórico da portaria'),
+        descricao: 'Entradas e saídas registradas na portaria. Documentos aparecem mascarados (LGPD).',
+        colunas: [{ k: 'nome', label: 'Nome' }, { k: 'documento', label: 'Documento' }, { k: 'tipo', label: 'Tipo' }, { k: 'destino', label: 'Destino' }, { k: 'entrada', label: 'Entrada' }, { k: 'saida', label: 'Saída' }, { k: 'porteiro', label: 'Porteiro' }],
+        linhas, resumo: [{ rot: 'Registros', valor: linhas.length }, { rot: 'Ainda dentro', valor: linhas.filter(l => l.saida === 'Dentro').length }]
+    };
+}
+
+/** Mapa cirúrgico: procedimentos agendados por dia. */
+function relatorioMapaCirurgico(agendados, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const linhas = agendados.filter(a => dentro(a.data, de, ate)).sort((a, b) => String(a.data).localeCompare(String(b.data)))
+        .map(a => ({ data: a.data ? formatDateBR(a.data) : '—', paciente: a.pacienteNome || '—', cns: a.cartaoSus || '—', exame: a.exame || '—', procedimento: a.procedimento || '—' }))
+        .filter(l => !t || searchKey(Object.values(l).join(' ')).includes(t));
+    const dias = new Set(linhas.map(l => l.data));
+    return {
+        titulo: 'Mapa cirúrgico', descricao: 'Procedimentos agendados, por data.',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'paciente', label: 'Paciente' }, { k: 'cns', label: 'CNS' }, { k: 'exame', label: 'Exame' }, { k: 'procedimento', label: 'Procedimento' }],
+        linhas, resumo: [{ rot: 'Procedimentos', valor: linhas.length }, { rot: 'Dias com agenda', valor: dias.size }]
+    };
+}
+
+/** Consumo: tudo que saiu do estoque no período (saídas, consumo em sala, laudos), por produto. */
+function relatorioConsumo(historico, saidas, laudos, de, ate) {
+    const mapa = new Map();
+    const soma = (codigo, nome, qtd, tipo) => { const k = String(codigo); if (!mapa.has(k)) mapa.set(k, { codigo: k, produto: nome, saidas: 0, sala: 0, laudos: 0 }); mapa.get(k)[tipo] += Number(qtd) || 0; };
+    historico.filter(h => h.action === 'CONSU_SALA' && dentro(dataBr(h.date), de, ate)).forEach(h => soma(h.barcode, h.product || h.product_desc, h.quantity ?? h.qty, 'sala'));
+    saidas.filter(s => dentro(s.criado_em, de, ate)).forEach(s => soma(String(s.produto).split('|')[1], s.produto_desc, s.quantidade, 'saidas'));
+    laudos.filter(l => dentro(l.data, de, ate)).forEach(l => (l.itens_opme || []).forEach(i => soma(i.barcode, i.descricao || i.material, i.quantidade, 'laudos')));
+    const linhas = [...mapa.values()].map(l => ({ ...l, total: l.saidas + l.sala + l.laudos })).sort((a, b) => b.total - a.total);
+    return {
+        titulo: 'Consumo de materiais', descricao: 'Saídas, consumo em sala e uso em laudos, por produto, no período.',
+        colunas: [{ k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'saidas', label: 'Saídas' }, { k: 'sala', label: 'Em sala' }, { k: 'laudos', label: 'Em laudos' }, { k: 'total', label: 'Total' }],
+        linhas, resumo: [{ rot: 'Produtos', valor: linhas.length }, { rot: 'Unidades consumidas', valor: linhas.reduce((a, l) => a + l.total, 0) }]
+    };
+}
+
+/** Compras: pedidos e recebimentos no período, por fornecedor. */
+function relatorioCompras(pedidos, recebimentos, nomeFornecedor, de, ate) {
+    const peds = pedidos.filter(p => dentro(p.criado_em, de, ate));
+    const recs = recebimentos.filter(r => dentro(r.data_recebimento, de, ate));
+    const mapa = new Map();
+    const get = (id) => { const k = nomeFornecedor(id) || '—'; if (!mapa.has(k)) mapa.set(k, { fornecedor: k, pedidos: 0, valor_pedido: 0, recebidos: 0, abertos: 0, valor_recebido: 0 }); return mapa.get(k); };
+    peds.forEach(p => { const g = get(p.fornecedor_id); g.pedidos++; g.valor_pedido += Number(p.valor_total) || 0; if (p.situacao === 'Recebido') g.recebidos++; else if (p.situacao !== 'Cancelado') g.abertos++; });
+    const porPedido = new Map(pedidos.map(p => [p.id, p]));
+    recs.forEach(r => { const p = porPedido.get(r.pedido); if (p) get(p.fornecedor_id).valor_recebido += Number(r.valor_total) || 0; });
+    const linhas = [...mapa.values()].map(l => ({ ...l, valor_pedido: formatMoney(l.valor_pedido), valor_recebido: formatMoney(l.valor_recebido) }));
+    return {
+        titulo: 'Compras', descricao: 'Pedidos e recebimentos por fornecedor no período.',
+        colunas: [{ k: 'fornecedor', label: 'Fornecedor' }, { k: 'pedidos', label: 'Pedidos' }, { k: 'valor_pedido', label: 'Valor pedido' }, { k: 'recebidos', label: 'Recebidos' }, { k: 'abertos', label: 'Em aberto' }, { k: 'valor_recebido', label: 'Valor recebido' }],
+        linhas, resumo: [{ rot: 'Pedidos', valor: peds.length }, { rot: 'Recebimentos', valor: recs.length }, { rot: 'Em aberto', valor: peds.filter(p => !['Recebido', 'Cancelado'].includes(p.situacao)).length }]
+    };
+}
+
+/** Procedimentos: agendados, não realizados (com o motivo) e laudos emitidos, no período. */
+function relatorioProcedimentos(agendados, naoRealizados, laudos, de, ate) {
+    const ag = agendados.filter(a => dentro(a.data, de, ate));
+    const nr = naoRealizados.filter(n => dentro(n.data, de, ate));
+    const lau = laudos.filter(l => dentro(l.data, de, ate));
+    const motivos = new Map();
+    nr.forEach(n => motivos.set(n.motivo || 'Sem motivo', (motivos.get(n.motivo || 'Sem motivo') || 0) + 1));
+    const linhas = [...motivos.entries()].sort((a, b) => b[1] - a[1]).map(([motivo, quantidade]) => ({ motivo, quantidade }));
+    return {
+        titulo: 'Procedimentos', descricao: 'Agendados, não realizados (por motivo) e laudos emitidos no período.',
+        colunas: [{ k: 'motivo', label: 'Motivo do não realizado' }, { k: 'quantidade', label: 'Ocorrências' }],
+        linhas, resumo: [{ rot: 'Agendados', valor: ag.length }, { rot: 'Não realizados', valor: nr.length }, { rot: 'Laudos emitidos', valor: lau.length }]
+    };
+}
+
+/** Perdas: registros de perda no período, por motivo e produto. */
+function relatorioPerdas(perdas, de, ate) {
+    const linhas = perdas.filter(p => dentro(p.criado_em, de, ate)).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
+        .map(p => ({ data: formatDateTimeBR(p.criado_em), produto: p.produto_desc, lote: p.lote_codigo, quantidade: p.quantidade, motivo: p.motivo, descricao: p.descricao || '—', responsavel: p.criado_por }));
+    const porMotivo = new Map();
+    linhas.forEach(l => porMotivo.set(l.motivo, (porMotivo.get(l.motivo) || 0) + l.quantidade));
+    return {
+        titulo: 'Perdas', descricao: 'Material perdido no período, com motivo e responsável.',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'produto', label: 'Produto' }, { k: 'lote', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'motivo', label: 'Motivo' }, { k: 'descricao', label: 'Descrição' }, { k: 'responsavel', label: 'Responsável' }],
+        linhas, resumo: [{ rot: 'Registros', valor: linhas.length }, { rot: 'Unidades perdidas', valor: linhas.reduce((a, l) => a + l.quantidade, 0) }, ...[...porMotivo.entries()].slice(0, 3).map(([m, q]) => ({ rot: m, valor: q }))]
+    };
+}
+
+/** Permissões: quais telas do menu cada perfil enxerga (calculado com as mesmas regras que montam o menu). */
+function relatorioPermissoes() {
+    const original = state.currentUser;
+    const perfis = ASSIGNABLE_ROLES;
+    const telas = [];
+    walkMenuTree(MENU_TREE, (node, trilha) => { if (node.module && !node.soon) telas.push({ node, trilha }); });
+    try {
+        const linhas = telas.map(({ node, trilha }) => {
+            const l = { tela: [...trilha, node.label].join(' › ') };
+            perfis.forEach(r => { state.currentUser = { username: '_', role: r, name: '_' }; let ok = false; try { ok = !node.access || node.access(); } catch (e) { ok = false; } l[r] = ok ? 'Sim' : '—'; });
+            return l;
+        });
+        return {
+            titulo: 'Permissões por perfil', descricao: 'Quem acessa cada tela. As permissões são definidas no código (core/permissions.js e data/menu.js); esta tabela mostra o resultado.',
+            colunas: [{ k: 'tela', label: 'Tela' }, ...perfis.map(r => ({ k: r, label: getRoleLabel(r) }))],
+            linhas, resumo: [{ rot: 'Telas', valor: linhas.length }, { rot: 'Perfis', valor: perfis.length }]
+        };
+    } finally { state.currentUser = original; }
+}
+
 /** CSV para Excel (separador ponto e vírgula, com BOM para acentos). */
 function relatorioParaCsv(rel) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;

@@ -164,3 +164,7 @@ Cobrem as validações (CPF, telefone, datas) e as regras puras da Gestão das T
 Menu Cadastro (consulta e cadastro separados para as 17 opções): [docs/cadastros.md](docs/cadastros.md).
 
 Assistência hospitalar (leitos, internação, prontuário, exames e autorizações): [docs/assistencia.md](docs/assistencia.md).
+
+Telas operacionais (movimentações, compras, consignado, financeiro e parâmetros): [docs/operacoes.md](docs/operacoes.md).
+
+Fiscal (NF-e, NFS-e, entrada de mercadoria, inventário) e cancelamento de operação: [docs/fiscal.md](docs/fiscal.md).

@@ -52,6 +52,8 @@ function renderContent() {
             return renderCad();
         case 'CAD':
             return renderCad();
+        case 'ENTRADA_XML':
+            return renderEntradaXml();
         case 'RELATORIOS':
             return renderRelatorios();
         case 'MAPA_LEITOS':

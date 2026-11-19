@@ -79,18 +79,38 @@ const MENU_TREE = [
     {
         id: 'movimentacoes', ordem: 30, label: 'Movimentações', icon: 'arrow-left-right',
         children: [
-            soon(10, 'Saídas'),
+            cadItem(10, 'Saídas', 'saida'),
             item(20, 'Transferência', 'HISTORY', { access: exceptRoles('FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA'), ...historyTab('TRANSFERS') }),
-            soon(30, 'Devolução'),
-            soon(40, 'Perdas'),
-            soon(50, 'Baixas'),
+            cadItem(30, 'Devolução', 'devolucao'),
+            cadItem(40, 'Perdas', 'perda'),
+            cadItem(50, 'Baixas', 'baixa'),
             item(60, 'Histórico', 'HISTORY', { access: byPermission('view_history'), ...historyTab('ENTRIES') }),
+            cadItem(65, 'Cancelamento de Operação', 'cancelamento'),
             group(70, 'Solicitações', [
                 item(10, 'Solicitar Material', 'REQUEST', { access: byPermission('transfer') }),
                 item(20, 'Separação', 'TRANSFER_CONFIRMATION', { access: byRole(...ROLES_PEDIDOS) }),
-                soon(30, 'Entregas'),
+                cadItem(30, 'Entregas', 'entrega'),
                 item(40, 'Recebimentos', 'MY_REQUESTS', { access: byPermission('transfer') })
+            ]),
+            group(80, 'Consignado', [
+                cadItem(10, 'Fornecedor', 'contrato'),
+                relItem(20, 'Estoque Consignado', 'CONSIGNADO_ESTOQUE', byRole(...R_OPS)),
+                relItem(30, 'Utilizações', 'CONSIGNADO_USO', byRole(...R_OPS)),
+                cadItem(40, 'Devoluções', 'consigdev'),
+                cadItem(50, 'Conferências', 'conferencia')
             ])
+        ]
+    },
+
+    // 3B. FISCAL (registro e conferência de notas; o sistema não emite nota)
+    {
+        id: 'fiscal', ordem: 35, label: 'Fiscal', icon: 'receipt',
+        children: [
+            // Telas fiscais prontas no código (data/cadastros-fiscal.js), mas ainda não liberadas: para liberar, troque soon() por cadItem()
+            soon(10, 'Entrada de Mercadoria'),
+            soon(20, 'Inventário de Estoque'),
+            soon(30, 'NF-e'),
+            soon(40, 'NFS-e')
         ]
     },
 
@@ -98,22 +118,10 @@ const MENU_TREE = [
     {
         id: 'compras', ordem: 40, label: 'Compras', icon: 'shopping-cart',
         children: [
-            soon(10, 'Solicitação de Compra'),
-            soon(20, 'Cotações'),
-            soon(30, 'Pedidos'),
-            soon(40, 'Recebimentos')
-        ]
-    },
-
-    // 5. CONSIGNADO
-    {
-        id: 'consignado', ordem: 50, label: 'Consignado', icon: 'handshake',
-        children: [
-            soon(10, 'Fornecedor'),
-            soon(20, 'Estoque Consignado'),
-            soon(30, 'Utilizações'),
-            soon(40, 'Devoluções'),
-            soon(50, 'Conferências')
+            cadItem(10, 'Solicitação de Compra', 'solcompra'),
+            cadItem(20, 'Cotações', 'cotacao'),
+            cadItem(30, 'Pedidos', 'pedido'),
+            cadItem(40, 'Recebimentos', 'recebimento')
         ]
     },
 
@@ -122,7 +130,7 @@ const MENU_TREE = [
         id: 'procedimentos', ordem: 60, label: 'Procedimentos', icon: 'stethoscope',
         children: [
             item(10, 'Agenda', 'PROCEDIMENTOS', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM'), before: () => { state.selectedProcedimentoPatient = null; } }),
-            soon(20, 'Mapa Cirúrgico'),
+            relItem(20, 'Mapa Cirúrgico', 'MAPA_CIRURGICO', byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM', 'FUNC_CENTRO_CIRURGICO')),
             item(30, 'Hemodinâmica', 'MAPA', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
             item(40, 'Salas', 'SALAS', { access: byRole('ADMIN', 'FUNC_CENTRO_CIRURGICO'), before: () => { state.activeSala = null; } }),
             item(50, 'Cancelamentos', 'PROCEDIMENTOS_NAO_REALIZADOS', { access: byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM') }),
@@ -170,9 +178,9 @@ const MENU_TREE = [
             item(20, 'Recepção', 'RECEPCAO', { icon: 'user-round-plus', tone: 'blue', access: byPermission('recepcao_acessar') }),
             item(30, 'Emergência', 'EMERGENCIA', { icon: 'siren', tone: 'red', access: byPermission('emergencia_acessar') }),
             item(40, 'Gestão das Triagens', 'TRIAGEM', { icon: 'users-round', tone: 'teal', access: byPermission('triagem_ver') }),
-            soon(50, 'Visitantes'),
-            soon(60, 'Acompanhantes'),
-            soon(70, 'Histórico')
+            relItem(50, 'Visitantes', 'PORTARIA_VISITANTES', byRole('ADMIN', 'FUNC_PORTARIA', 'CHEFE_PORTARIA')),
+            relItem(60, 'Acompanhantes', 'PORTARIA_ACOMPANHANTES', byRole('ADMIN', 'FUNC_PORTARIA', 'CHEFE_PORTARIA')),
+            relItem(70, 'Histórico', 'PORTARIA_HISTORICO', byRole('ADMIN', 'FUNC_PORTARIA', 'CHEFE_PORTARIA'))
         ]
     },
 
@@ -193,10 +201,10 @@ const MENU_TREE = [
                 relItem(30, 'Validade dos lotes', 'VALIDADE', byRole('ADMIN', 'CHEFE_OPME'))
             ]),
             group(30, 'OPME', [relItem(10, 'Rastreabilidade', 'OPME_RASTREIO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA'))]),
-            soon(40, 'Consumo'),
-            soon(50, 'Compras'),
-            soon(60, 'Procedimentos'),
-            soon(70, 'Perdas'),
+            relItem(40, 'Consumo', 'CONSUMO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA')),
+            relItem(50, 'Compras', 'COMPRAS', byRole('ADMIN', 'CHEFE_OPME')),
+            relItem(60, 'Procedimentos', 'PROCEDIMENTOS_REL', byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM', 'FUNC_CENTRO_CIRURGICO')),
+            relItem(70, 'Perdas', 'PERDAS', byRole('ADMIN', 'CHEFE_OPME')),
             relItem(80, 'Auditoria', 'AUDITORIA', byPermission('auditoria_ver'))
         ]
     },
@@ -206,10 +214,10 @@ const MENU_TREE = [
         id: 'sistema', ordem: 100, label: 'Sistema', icon: 'settings',
         children: [
             group(10, 'Configuração', [
-                group(10, 'Empresa', [soon(10, 'Dados')]),
-                group(20, 'Financeiro', [soon(10, 'Contas a Pagar / Receber')]),
-                group(30, 'Cadastro', [soon(10, 'Permissões de Usuário'), soon(20, 'Setores')]),
-                group(40, 'Dashboard', [soon(10, 'Configuração')])
+                group(10, 'Empresa', [cadItem(10, 'Dados', 'empresa')]),
+                group(20, 'Financeiro', [cadItem(10, 'Contas a Pagar / Receber', 'titulo')]),
+                group(30, 'Cadastro', [relItem(10, 'Permissões de Usuário', 'PERMISSOES', byRole('ADMIN')), cadItem(20, 'Setores', 'setor')]),
+                group(40, 'Dashboard', [cadItem(10, 'Configuração', 'parametro')])
             ]),
             group(20, 'Outras opções', [
                 item(10, 'Backup', 'BACKUP', { access: byRole('ADMIN', 'CHEFE_OPME') })

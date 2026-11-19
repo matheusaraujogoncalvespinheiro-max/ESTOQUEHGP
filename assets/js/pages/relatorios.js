@@ -10,6 +10,17 @@ const RELATORIOS = {
     VALIDADE: { rotulo: 'Validade dos lotes', periodo: false, gerar: () => relatorioValidade(produtosComSetor()) },
     OPME_RASTREIO: { rotulo: 'Rastreabilidade de OPME', periodo: true, busca: true, gerar: (f) => relatorioRastreabilidadeOpme(MOCK_DATA.LAUDOS || [], f.de, f.ate, f.q) },
     EVENTOS_NSP: { rotulo: 'Eventos e segurança do paciente', periodo: true, gerar: (f) => relatorioEventosNsp(MOCK_DATA.OCORRENCIAS_EMERGENCIA || [], f.de, f.ate), watch: ['emergencia'] },
+    CONSIGNADO_ESTOQUE: { rotulo: 'Estoque consignado', periodo: false, gerar: () => relatorioConsignadoEstoque(produtosComSetor(), (id) => cadRotuloRef('fornecedor', id)), watch: [], cad: ['fornecedor'] },
+    CONSIGNADO_USO: { rotulo: 'Utilizações de consignado', periodo: true, gerar: (f) => relatorioConsignadoUso(MOCK_DATA.LAUDOS || [], produtosComSetor(), (id) => cadRotuloRef('fornecedor', id), f.de, f.ate), cad: ['fornecedor'] },
+    PORTARIA_VISITANTES: { rotulo: 'Visitantes', periodo: true, busca: true, gerar: (f) => relatorioPortaria(MOCK_DATA.PORTARIA_VISITS || [], 'VISITANTE', f.de, f.ate, f.q) },
+    PORTARIA_ACOMPANHANTES: { rotulo: 'Acompanhantes', periodo: true, busca: true, gerar: (f) => relatorioPortaria(MOCK_DATA.PORTARIA_VISITS || [], 'ACOMPANHANTE', f.de, f.ate, f.q) },
+    PORTARIA_HISTORICO: { rotulo: 'Histórico da portaria', periodo: true, busca: true, gerar: (f) => relatorioPortaria(MOCK_DATA.PORTARIA_VISITS || [], '', f.de, f.ate, f.q) },
+    MAPA_CIRURGICO: { rotulo: 'Mapa cirúrgico', periodo: true, busca: true, gerar: (f) => relatorioMapaCirurgico(MOCK_DATA.PROCEDIMENTOS_AGENDADOS || [], f.de, f.ate, f.q) },
+    CONSUMO: { rotulo: 'Consumo', periodo: true, gerar: (f) => relatorioConsumo(MOCK_DATA.PRODUCT_HISTORY || [], CAD_DATA.saida || [], MOCK_DATA.LAUDOS || [], f.de, f.ate), cad: ['saida'] },
+    COMPRAS: { rotulo: 'Compras', periodo: true, gerar: (f) => relatorioCompras(CAD_DATA.pedido || [], CAD_DATA.recebimento || [], (id) => cadRotuloRef('fornecedor', id), f.de, f.ate), cad: ['pedido', 'recebimento', 'fornecedor'] },
+    PROCEDIMENTOS_REL: { rotulo: 'Procedimentos', periodo: true, gerar: (f) => relatorioProcedimentos(MOCK_DATA.PROCEDIMENTOS_AGENDADOS || [], MOCK_DATA.PROCEDIMENTOS_NAO_REALIZADOS || [], MOCK_DATA.LAUDOS || [], f.de, f.ate) },
+    PERDAS: { rotulo: 'Perdas', periodo: true, gerar: (f) => relatorioPerdas(CAD_DATA.perda || [], f.de, f.ate), cad: ['perda'] },
+    PERMISSOES: { rotulo: 'Permissões por perfil', periodo: false, gerar: () => relatorioPermissoes() },
     AUDITORIA: { rotulo: 'Auditoria', periodo: true, auditoria: true, gerar: (f) => relatorioAuditoria(state.relatorio.auditoria || [], { entidade: f.entidade, usuario: f.q, de: f.de, ate: f.ate }) }
 };
 
@@ -27,6 +38,7 @@ function relatorioAbrir(tipo) {
     const st = relatorioState();
     Object.assign(st, { tipo, de: '', ate: '', q: '', entidade: '', auditoria: null });
     (RELATORIOS[tipo].watch || []).forEach(w => { try { db_watch(w); } catch (e) { /* sem banco */ } });
+    (RELATORIOS[tipo].cad || []).forEach(k => db_cadWatch(k));
     if (RELATORIOS[tipo].auditoria) relatorioCarregarAuditoria();
 }
 
@@ -45,6 +57,7 @@ function renderRelatorios() {
     const st = relatorioState();
     const def = RELATORIOS[st.tipo];
     (def.watch || []).forEach(w => db_watch(w));
+    (def.cad || []).forEach(k => db_cadWatch(k));
     const rel = def.gerar(st);
     const campoData = (k, rot) => `<label class="cd-filter"><span>${rot}</span><input class="at-input hs-sel" type="date" value="${st[k]}" onchange="relatorioFiltro('${k}', this.value)" data-keep="rl_${k}"></label>`;
     const entidades = def.auditoria ? [...new Set((st.auditoria || []).map(r => r.entidade))].sort() : [];

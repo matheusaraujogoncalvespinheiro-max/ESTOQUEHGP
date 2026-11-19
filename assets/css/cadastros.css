@@ -179,3 +179,25 @@
 .cd-top, .cd-top--erp { border-left: 0 !important; }
 .cd-inputbtn:not(.has-btn) > .at-input { border-right: 2px solid var(--sh-line) !important; }
 .cd-inputbtn:not(.has-btn) > .at-input:focus { border-color: var(--tone, #2563eb) !important; }
+
+/* ---------- Alinhamento geral: mesma altura (46 px) em campo, seleção e combo nas consultas e nos formulários ---------- */
+.cd-filters .at-input, .cd-filters .at-select, .cd-filters .cd-combo__btn,
+.at-form .at-field .at-input, .at-form .at-field .at-select, .at-form .at-field .cd-combo__btn, .at-form .at-field .cd-ro { height: 46px !important; min-height: 46px !important; font-size: 15px; box-sizing: border-box; }
+.hs-sel { height: 46px !important; min-height: 46px !important; box-sizing: border-box; }
+.cd-filters { align-items: flex-end; }
+.cd-filter > span { min-height: 18px; line-height: 18px; }
+.cd-clear { height: 46px; }
+.cd-filters .cd-inputbtn .at-input { height: 46px !important; }
+.at-form { align-items: end; }
+.at-form .at-field { justify-content: flex-end; }
+.at-form .at-field > .at-label { min-height: 20px; line-height: 20px; }
+
+/* Combobox global (shell/combo-global.js): o <select> nativo fica escondido e a lista é desenhada pelo sistema */
+.cdx-native { display: none !important; }
+.cdx { display: block; }
+.cdx .cd-combo__pop { position: fixed; right: auto; z-index: 10000; min-width: 200px; }
+.cdx .cd-combo__opt { height: auto; min-height: 38px; padding: 8px 12px; line-height: 1.25; text-align: left; }
+.cdx .cd-combo__opt:disabled { opacity: 0.45; cursor: not-allowed; }
+.cdx .cd-combo__opt > span { min-width: 0; overflow-wrap: anywhere; }
+.cdx-grupo { padding: 8px 12px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--sh-muted); }
+.cdx .cd-combo__btn { background: var(--sh-surface); }

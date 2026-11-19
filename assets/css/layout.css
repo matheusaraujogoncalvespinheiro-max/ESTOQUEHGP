@@ -215,7 +215,7 @@
     margin-left: 24px;
     padding-left: 12px;
     overflow: hidden;
-    border-left: 1px solid var(--sh-line);
+    border-left: 0;
     visibility: hidden;
     transition: visibility 0s 0.22s;
 }
@@ -727,13 +727,14 @@
 }
 
 /* ---------- Itens do menu sem tela ainda ("Em breve", só administradores) ----------
-   Ícone + nome + selo. O nome ocupa o que precisa (sem encolher até sobrepor o selo); se não couber na
-   mesma linha, o selo desce para a linha de baixo, alinhado à direita. */
+   Ícone + nome na primeira linha e o selo sempre embaixo do nome, alinhado à esquerda com ele (todos iguais). */
 
 .shell-root .wm-link--soon {
-    flex-wrap: wrap;
-    column-gap: 8px;
-    row-gap: 2px;
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 3px;
     padding: 6px 8px 6px 10px;
     cursor: default;
     opacity: 0.55;
@@ -744,14 +745,13 @@
     color: var(--sh-muted);
 }
 
-.shell-root .wm-link--soon > span {
-    flex: 1 1 auto;
-    min-width: 0;
-}
+.shell-root .wm-link--soon > svg { grid-column: 1; grid-row: 1; }
+.shell-root .wm-link--soon > span { grid-column: 2; grid-row: 1; min-width: 0; }
 
 .shell-root .wm-soon {
-    flex: none;
-    margin-left: auto;
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
     padding: 0 6px;
     border: 1px solid var(--sh-line);
     border-radius: 999px;
@@ -763,3 +763,7 @@
     text-transform: uppercase;
     white-space: nowrap;
 }
+
+/* Menu lateral: sem barra de rolagem visível (a rolagem continua funcionando com o mouse, o toque e o teclado) */
+.shell-root .wm-nav { scrollbar-width: none; -ms-overflow-style: none; }
+.shell-root .wm-nav::-webkit-scrollbar { display: none; width: 0; height: 0; }

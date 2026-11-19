@@ -33,6 +33,7 @@ function cadWatchEntity(key) {
     const def = CAD_DEFS[key];
     if (!def || !cadCan(def, 'ver')) return;
     cadStoreOf(def).watch(def);
+    (def.watch || []).forEach(k => db_cadWatch(k));
     // entidades referenciadas (seletores e filtros)
     const refs = new Set();
     (def.tabs || []).forEach(t => (t.fields || []).forEach(f => f.ref && refs.add(f.ref)));
@@ -63,7 +64,7 @@ const cadOptRotulo = (o) => (typeof o === 'string' ? o : o.rotulo);
 
 function cadList(def) {
     const st = cadState();
-    if (!st.lists[def.key]) st.lists[def.key] = { q: '', filtros: {}, situacao: 'ativos', sort: { k: (def.columns[0] || {}).k, dir: 'asc' }, page: 1, size: 10 };
+    if (!st.lists[def.key]) st.lists[def.key] = { q: '', filtros: { ...(def.filtrosPadrao || {}) }, situacao: 'ativos', sort: { k: (def.columns[0] || {}).k, dir: 'asc' }, page: 1, size: 10 };
     return st.lists[def.key];
 }
 
@@ -74,6 +75,7 @@ function cadFiltrar(def) {
     if (L.situacao === 'ativos') rows = rows.filter(r => r.ativo);
     else if (L.situacao === 'inativos') rows = rows.filter(r => !r.ativo);
     Object.entries(L.filtros).forEach(([k, v]) => { if (v) rows = rows.filter(r => String(r[k] ?? '') === v); });
+    Object.entries(L.txt || {}).forEach(([k, v]) => { if (v) { const t = searchKey(v); rows = rows.filter(r => searchKey(r[k]).includes(t) || (onlyDigits(v) && onlyDigits(r[k]).includes(onlyDigits(v)))); } });
     if (q) rows = rows.filter(r => (def.search || []).some(k => searchKey(r[k]).includes(q) || onlyDigits(q) && onlyDigits(r[k]).includes(onlyDigits(q))));
     const col = def.columns.find(c => c.k === L.sort.k);
     const val = (r) => (col && col.num ? Number(r[L.sort.k]) || 0 : searchKey(r[L.sort.k]));
@@ -89,13 +91,15 @@ function cadKpis(def, rows) {
 }
 
 function renderCadList(def) {
+    if (def.estiloERP && typeof renderCadListaERP === 'function') return renderCadListaERP(def);
     const L = cadList(def);
     const rows = cadFiltrar(def);
     const pages = Math.max(1, Math.ceil(rows.length / L.size));
     if (L.page > pages) L.page = pages;
     const pageRows = rows.slice((L.page - 1) * L.size, L.page * L.size);
     const podeCriar = cadCan(def, 'criar');
-    const filtrosAtivos = L.q || L.situacao !== 'ativos' || Object.values(L.filtros).some(Boolean);
+    const padrao = def.filtrosPadrao || {};
+    const filtrosAtivos = L.q || L.situacao !== 'ativos' || Object.keys({ ...padrao, ...L.filtros }).some(k => (L.filtros[k] || '') !== (padrao[k] || ''));
 
     const filterSelect = (f) => {
         const opts = f.ref ? cadRowsOf(f.ref).filter(r => r.ativo).map(r => ({ id: r.id, rotulo: CAD_DEFS[f.ref].rotulo(r) })) : cadOptsOf(f);
@@ -108,6 +112,7 @@ function renderCadList(def) {
             <div class="cd-head__ico">${lucideIcon(def.icon, 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>${escapeHtml(def.label)}</h2><p>${escapeHtml(def.desc)}</p></div>
             <div class="cd-head__btns">
+                ${(def.botoesLista || []).filter(b => !b.perm || cadCan(def, b.perm)).map(b => `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="${b.fn}()">${lucideIcon(b.icon || 'file', 'w-5 h-5')} ${escapeHtml(b.rotulo)}</button>`).join('')}
                 <button type="button" class="at-btn at-btn--ghost cd-new" onclick="cadImprimir()" title="Imprimir os dados desta consulta (com os filtros atuais)">${lucideIcon('printer', 'w-5 h-5')} Imprimir</button>
                 ${podeCriar ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="cadNovo()">${lucideIcon('plus', 'w-5 h-5')} Novo Cadastro</button>` : ''}
             </div>
@@ -128,16 +133,15 @@ function renderCadList(def) {
             <div class="cd-tablewrap"><table class="tri-table cd-table">
                 <thead><tr>
                     ${def.columns.map(c => `<th ${c.sort ? `class="is-sort" onclick="cadOrdenar('${c.k}')" aria-sort="${L.sort.k === c.k ? (L.sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"` : ''}>${escapeHtml(c.label)}${L.sort.k === c.k ? (L.sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`).join('')}
-                    <th>Situação</th><th class="cd-actcol">Ações</th>
+                    ${def.semInativar && !def.rotuloInativo ? '' : '<th>Situação</th>'}${def.semInativar ? '' : '<th class="cd-actcol">Ações</th>'}
                 </tr></thead>
                 <tbody>${pageRows.length ? pageRows.map(r => `<tr class="cd-row ${r.ativo ? '' : 'is-off'}" tabindex="0" title="Abrir cadastro" onclick="cadAbrirLinha(${cadArg(r.id)})" onkeydown="if (event.key === 'Enter') cadAbrirLinha(${cadArg(r.id)})">
                     ${def.columns.map(c => `<td data-label="${escapeHtml(c.label)}">${escapeHtml(c.get ? c.get(r) : (r[c.k] ?? '—'))}</td>`).join('')}
-                    <td data-label="Situação">${cadBadge(r)}</td>
-                    <td class="cd-actcol">
-                        ${cadCan(def, 'inativar') ? (r.ativo
+                    ${def.semInativar && !def.rotuloInativo ? '' : `<td data-label="Situação">${cadBadge(r)}</td>`}
+                    ${def.semInativar ? '' : `<td class="cd-actcol">
+                        ${cadCan(def, 'inativar') && !def.semInativar ? (r.ativo
                             ? `<button type="button" class="cd-ico cd-ico--warn" title="Inativar" aria-label="Inativar" onclick="event.stopPropagation(); cadInativar(${cadArg(r.id)})">${lucideIcon('ban', 'w-4 h-4')}</button>`
-                            : `<button type="button" class="cd-ico cd-ico--ok" title="Reativar" aria-label="Reativar" onclick="event.stopPropagation(); cadReativar(${cadArg(r.id)})">${lucideIcon('rotate-ccw', 'w-4 h-4')}</button>`) : ''}
-                    </td></tr>`).join('') : `<tr><td colspan="${def.columns.length + 2}" class="at-empty">${cadStoreOf(def).rows(def).length ? 'Nenhum registro encontrado com estes filtros.' : 'Nenhum registro cadastrado ainda.'}</td></tr>`}
+                            : `<button type="button" class="cd-ico cd-ico--ok" title="Reativar" aria-label="Reativar" onclick="event.stopPropagation(); cadReativar(${cadArg(r.id)})">${lucideIcon('rotate-ccw', 'w-4 h-4')}</button>`) : ''}</td>`}</tr>`).join('') : `<tr><td colspan="${def.columns.length + 2}" class="at-empty">${cadStoreOf(def).rows(def).length ? 'Nenhum registro encontrado com estes filtros.' : 'Nenhum registro cadastrado ainda.'}</td></tr>`}
                 </tbody></table></div>
             <footer class="cd-pager">
                 <span>${rows.length} registro(s)</span>
@@ -154,7 +158,7 @@ function renderCadList(def) {
 }
 
 const cadArg = (id) => escapeHtml(JSON.stringify(String(id)));
-const cadBadge = (r) => `<span class="at-badge ${r.ativo ? 'at-badge--ok' : 'at-badge--off'}">${r.ativo ? 'Ativo' : 'Inativo'}</span>`;
+const cadBadge = (r) => { const d = state.cad && CAD_DEFS[state.cad.key]; return `<span class="at-badge ${r.ativo ? 'at-badge--ok' : 'at-badge--off'}">${r.ativo ? 'Ativo' : ((d && d.rotuloInativo) || 'Inativo')}</span>`; };
 const cadNomeCampo = (def) => (k) => {
     const f = cadCamposDe(def).find(x => x.k === k);
     const c = def.columns.find(x => x.k === k);
@@ -166,7 +170,7 @@ const cadCamposDe = (def) => [...(def.top || []), ...(def.tabs || []).flatMap(t 
 function cadBusca(v) { const L = cadList(cadDef()); L.q = v; L.page = 1; clearTimeout(cadBusca.t); cadBusca.t = setTimeout(render, 180); }
 function cadFiltro(k, v) { const L = cadList(cadDef()); L.filtros[k] = v; L.page = 1; render(); }
 function cadSituacao(v) { const L = cadList(cadDef()); L.situacao = v; L.page = 1; render(); }
-function cadLimpar() { const L = cadList(cadDef()); L.q = ''; L.filtros = {}; L.situacao = 'ativos'; L.page = 1; renderFresh(); }
+function cadLimpar() { const L = cadList(cadDef()); L.q = ''; L.filtros = { ...(cadDef().filtrosPadrao || {}) }; L.situacao = 'ativos'; L.page = 1; renderFresh(); }
 function cadOrdenar(k) { const L = cadList(cadDef()); L.sort = { k, dir: L.sort.k === k && L.sort.dir === 'asc' ? 'desc' : 'asc' }; render(); }
 function cadPagina(n) { const L = cadList(cadDef()); L.page = Math.max(1, n); render(); }
 function cadTamanho(n) { const L = cadList(cadDef()); L.size = Number(n); L.page = 1; render(); }
@@ -178,7 +182,7 @@ function cadNovo() {
     if (!cadCan(def, 'criar')) return showMsg('Seu perfil não pode criar este cadastro.', 'error');
     const st = cadState();
     st.mode = 'form'; st.id = null; st.tab = cadAbas(def, {})[0].id; st.dirty = false; st.saving = false;
-    st.form = { ativo: true, ativo_sel: '1', ...(def.defaults || {}), ...((cadStoreOf(def).defaults && cadStoreOf(def).defaults(def)) || {}) };
+    st.form = { ativo: true, ativo_sel: '1', ...(typeof def.defaults === 'function' ? def.defaults() : (def.defaults || {})), ...((cadStoreOf(def).defaults && cadStoreOf(def).defaults(def)) || {}) };
     st.secoes = {};
     renderFresh(); window.scrollTo(0, 0);
 }
@@ -198,7 +202,12 @@ async function cadAbrirRegistro(id, modo) {
 }
 const cadEditar = (id) => cadAbrirRegistro(id, 'form');
 /** Clique em qualquer parte da linha da grid: abre o cadastro para edição (ou só para ver, sem permissão de editar). */
-function cadAbrirLinha(id) { return cadAbrirRegistro(id, cadCan(cadDef(), 'editar') ? 'form' : 'view'); }
+function cadAbrirLinha(id) {
+    const def = cadDef();
+    const rec = cadStoreOf(def).rows(def).find(r => r.id === id);
+    const travado = def.imutavel || (def.somenteLeitura && rec && def.somenteLeitura(rec));
+    return cadAbrirRegistro(id, cadCan(def, 'editar') && !travado ? 'form' : 'view');
+}
 const cadVer = (id) => cadAbrirRegistro(id, 'view');
 
 function cadVoltar() {
@@ -274,10 +283,99 @@ function cadListaHtml(f, st, readonly) {
     </div>`;
 }
 
+
+
+// ---------------- Campos extras: arquivo (importar XML), operação (para cancelamento) e carga de itens ----------------
+
+/** Lê o arquivo escolhido e deixa o campo da definição (onFile) preencher o formulário. */
+function cadArquivo(k, el) {
+    const f = cadCamposDe(cadDef()).find(x => x.k === k);
+    const arquivo = el.files && el.files[0];
+    if (!arquivo || !f || !f.onFile) return;
+    const leitor = new FileReader();
+    leitor.onload = () => {
+        try {
+            Object.assign(cadState().form, f.onFile(String(leitor.result)));
+            cadState().dirty = true;
+            renderFresh();
+            showMsg('Arquivo lido. Confira os dados antes de salvar.');
+        } catch (err) { showMsg(err.message, 'error'); }
+    };
+    leitor.readAsText(arquivo, 'utf-8');
+}
+
+/** Botão "Carregar" de uma tabela de itens (ex.: todos os produtos do setor num inventário). */
+function cadItensCarregar(k) {
+    const st = cadState();
+    const f = cadCamposDe(cadDef()).find(x => x.k === k);
+    try {
+        const linhas = f.carregar(st.form);
+        if (!linhas.length) return showMsg('Nada para carregar. Confira os campos acima.', 'error');
+        st.form[k] = linhas; st.dirty = true; render();
+    } catch (err) { showMsg(err.message, 'error'); }
+}
+
+/** Operações já registradas de um tipo (para cancelar). Valor do campo "tipo_operacao" = chave da entidade. */
+function cadOperacoesOpcoes(tipoChave) {
+    const def = CAD_DEFS[tipoChave];
+    if (!def) return [];
+    return (CAD_DATA[tipoChave] || []).filter(r => r.ativo !== false).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
+        .map(r => ({ id: r.id, rotulo: `${r.codigo} · ${r.produto_desc || r.nota_fiscal || r.destino || ''} · ${r.criado_em ? formatDateTimeBR(r.criado_em) : ''}` }));
+}
+
+// ---------------- Tipos de campo das operações: produto, lote e tabela de itens ----------------
+
+const SETORES_ESTOQUE_OPS = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO'];
+const rotuloSetorOps = (s) => ({ OPME: 'OPME', HEMODINAMICA: 'Hemodinâmica', CENTRO_CIRURGICO: 'Centro Cirúrgico' }[s] || s);
+
+/** Opções de produto de todos os setores: valor "SETOR|código". */
+function cadProdutosOpcoes() {
+    return SETORES_ESTOQUE_OPS.flatMap(s => (MOCK_DATA[s] || []).map(p => ({ id: `${s}|${p.barcode}`, rotulo: `${p.barcode} · ${p.material} — ${rotuloSetorOps(s)} (saldo ${p.qtd})` })));
+}
+
+/** Produto escolhido num campo do tipo produto: { setor, produto } ou null. */
+function cadProdutoDe(valor) {
+    const [setor, barcode] = String(valor || '').split('|');
+    const produto = (MOCK_DATA[setor] || []).find(p => p.barcode === barcode);
+    return produto ? { setor, produto } : null;
+}
+
+function cadLotesOpcoes(valorProduto) {
+    const pr = cadProdutoDe(valorProduto);
+    if (!pr) return [];
+    return (pr.produto.lotes || []).filter(l => l.quantidade > 0).map(l => ({ id: String(l.id), rotulo: `${l.lote} · ${l.validade && l.validade !== 'N/A' ? 'val. ' + formatDateBR(l.validade) : 'sem validade'} · ${l.quantidade} un${loteVencido(l) ? ' · VENCIDO' : ''}` }));
+}
+
+function cadItemCampo(k, i, c, v) {
+    const st = cadState();
+    const col = ((cadCamposDe(cadDef()).find(f => f.k === k) || {}).colunas || []).find(x => x.k === c) || {};
+    st.form[k][i][c] = col.type === 'number' || col.type === 'money' ? (v === '' ? '' : Number(v)) : v;
+    st.dirty = true;
+}
+function cadItemAdd(k) { const st = cadState(); st.form[k] = [...(st.form[k] || []), {}]; st.dirty = true; render(); }
+function cadItemRem(k, i) { const st = cadState(); st.form[k] = (st.form[k] || []).filter((_, n) => n !== i); st.dirty = true; render(); }
+
+/** Tabela de itens editável (compras, recebimentos, entregas, conferências). */
+function cadItensHtml(f, st, readonly) {
+    const linhas = st.form[f.k] || [];
+    const ctl = (c, v, i) => {
+        if (readonly) return escapeHtml(c.type === 'produto' ? ((cadProdutosOpcoes().find(o => o.id === v) || {}).rotulo || v || '—') : (c.type === 'money' ? formatMoney(v) : (c.type === 'date' && v ? formatDateBR(v) : (v ?? '—'))));
+        const on = `oninput="cadItemCampo('${f.k}', ${i}, '${c.k}', this.value)"`;
+        if (c.type === 'produto') return `<select class="at-select" onchange="cadItemCampo('${f.k}', ${i}, '${c.k}', this.value)"><option value="">Selecione</option>${cadProdutosOpcoes().map(o => `<option value="${escapeHtml(o.id)}" ${o.id === v ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
+        if (c.ro) return `<span>${escapeHtml(v ?? '—')}</span>`;
+        const tipo = c.type === 'number' || c.type === 'money' ? 'number" step="' + (c.type === 'money' ? '0.01' : '1') + '" min="0' : (c.type === 'date' ? 'date' : 'text');
+        return `<input class="at-input" type="${tipo}" value="${escapeHtml(v ?? '')}" maxlength="150" ${on} autocomplete="off">`;
+    };
+    return `<div class="cd-itens"><div class="cd-lista__head"><span>${escapeHtml(f.label)}${f.req && !readonly ? ' *' : ''}</span>${readonly || !f.carregar ? '' : `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadItensCarregar('${f.k}')">${escapeHtml(f.carregarRotulo || 'Carregar itens')}</button>`}${readonly || f.semAdicionar ? '' : `<button type="button" class="cd-plus" title="Adicionar item" aria-label="Adicionar item" onclick="cadItemAdd('${f.k}')">${lucideIcon('plus', 'w-5 h-5')}</button>`}</div>
+        <div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr>${f.colunas.map(c => `<th>${escapeHtml(c.label)}${c.req ? ' *' : ''}</th>`).join('')}${readonly || f.semAdicionar ? '' : '<th></th>'}</tr></thead>
+        <tbody>${linhas.length ? linhas.map((l, i) => `<tr>${f.colunas.map(c => `<td data-label="${escapeHtml(c.label)}">${ctl(c, l[c.k], i)}</td>`).join('')}${readonly || f.semAdicionar ? '' : `<td><button type="button" class="cd-ico cd-ico--warn" title="Remover item" aria-label="Remover item" onclick="cadItemRem('${f.k}', ${i})">${lucideIcon('trash-2', 'w-4 h-4')}</button></td>`}</tr>`).join('') : `<tr><td colspan="${f.colunas.length + 1}" class="at-empty">Nenhum item. Use o botão + para adicionar.</td></tr>`}</tbody></table></div></div>`;
+}
+
 function cadControle(def, f, st, readonly) {
     const val = st.form[f.k] ?? '';
     const id = `cad_${f.k}`;
     if (f.type === 'lista') return cadListaHtml(f, st, readonly);
+    if (f.type === 'itens') return cadItensHtml(f, st, readonly);
     if (readonly || f.ro || (f.roEdit && st.id)) return `<div class="cd-ro" id="${id}">${escapeHtml(cadValorLegivel(def, f, val) || f.roVazio || '—')}</div>`;
     const on = `oninput="cadCampo('${f.k}', this)"`;
     const keep = `data-keep="${id}"`;
@@ -304,6 +402,10 @@ function cadControle(def, f, st, readonly) {
         }
         case 'cep': return `<div class="cd-inputbtn has-btn"><input class="at-input" type="text" inputmode="numeric" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="9" placeholder="00000-000" autocomplete="off" ${on} ${keep}>
             <button type="button" class="cd-searchbtn" title="Buscar endereço pelo CEP" aria-label="Buscar endereço pelo CEP" onclick="cadBuscarCep()">${lucideIcon('search', 'w-5 h-5')}</button></div>`;
+        case 'arquivo': return `<input class="at-input" type="file" accept="${f.accept || '*'}" onchange="cadArquivo('${f.k}', this)">`;
+        case 'operacao': { const ops = cadOperacoesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: val, opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione a operação' : 'Nenhuma operação ativa deste tipo') : 'Escolha o tipo primeiro', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
+        case 'produto': return cadComboHtml({ id, valor: val, opts: cadProdutosOpcoes(), placeholder: 'Selecione o produto', vazio: 'Selecione', fn: 'cadSelecionar', arg: f.k });
+        case 'lote': { const ops = cadLotesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: String(val || ''), opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione o lote' : 'Sem lote com saldo') : 'Selecione o produto primeiro', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
         case 'municipio': {
             const uf = st.form[f.dep || 'uf'];
             const lista = (IBGE_MUNICIPIOS[uf] || []).map(([cod, nome]) => ({ id: String(cod), rotulo: nome }));
@@ -319,6 +421,9 @@ function cadControle(def, f, st, readonly) {
 function cadValorLegivel(def, f, val) {
     if (val === '' || val === null || val === undefined) return '';
     if (f.type === 'ref') return cadRotuloRef(f.ref, val);
+    if (f.type === 'operacao') return (cadOperacoesOpcoes(cadState().form[f.dep]).find(o => o.id === val) || {}).rotulo || val;
+    if (f.type === 'produto') return (cadProdutosOpcoes().find(o => o.id === val) || {}).rotulo || val;
+    if (f.type === 'lote') return (cadLotesOpcoes(cadState().form[f.dep]).find(o => o.id === String(val)) || {}).rotulo || val;
     if (f.type === 'municipio') return cadNomeMunicipio(val);
     if (f.type === 'check') return val ? 'Sim' : 'Não';
     if (f.type === 'date') return formatDateBR(val);
@@ -333,7 +438,7 @@ function cadCampoHtml(def, f, st, readonly) {
         if (f.ocultoNovo && !st.id) return '';
         const ctl = cadControle(def, f, st, readonly);
         return `<div class="cd-cell" style="--col:${(!st.id && f.colNovo) || f.col || 3}">
-            ${f.type === 'lista' ? ctl : `<label class="at-label" for="cad_${f.k}">${escapeHtml(cadRotuloCampo(f, st.form))}${f.req && !readonly ? ' <span class="req">*</span>' : ''}</label>${ctl}
+            ${f.type === 'lista' || f.type === 'itens' ? ctl : `<label class="at-label" for="cad_${f.k}">${escapeHtml(cadRotuloCampo(f, st.form))}${f.req && !readonly ? ' <span class="req">*</span>' : ''}</label>${ctl}
             ${!readonly && f.help ? `<span class="at-hint">${escapeHtml(f.help)}</span>` : ''}<p class="at-error" data-error="cad_${f.k}" role="alert"></p>`}
         </div>`;
     }
@@ -348,7 +453,7 @@ function renderCadForm(def, readonly) {
     if (!abas.find(t => t.id === st.tab)) st.tab = abas[0].id;
     const aba = abas.find(t => t.id === st.tab);
     const ativo = st.form.ativo !== false;
-    const podeSit = !readonly && !def.semSitForm && cadCan(def, 'inativar') && Boolean(st.id);
+    const podeSit = !readonly && !def.semSitForm && !def.semInativar && cadCan(def, 'inativar') && Boolean(st.id);
     const titulo = readonly ? `Visualizar ${def.singular}` : (st.id ? `Editar ${def.singular}` : `Novo ${def.singular}`);
     const ident = rec ? def.rotulo(rec) : '';
 
@@ -447,6 +552,12 @@ function cadValidar(def, form, id) {
     const erros = [];
     const campos = cadCamposDe(def);
     campos.forEach(f => {
+        if (f.type === 'itens') {
+            const linhas = (form[f.k] || []).filter(l => Object.values(l).some(x => String(x ?? '').trim() !== ''));
+            if (f.req && !linhas.length) erros.push({ campo: f.k, mensagem: `Inclua ao menos um item em ${f.label.toLowerCase()}.` });
+            linhas.forEach((l, n) => f.colunas.filter(c => c.req).forEach(c => { if (String(l[c.k] ?? '').trim() === '') erros.push({ campo: f.k, mensagem: `Item ${n + 1}: informe ${c.label.toLowerCase()}.` }); }));
+            return;
+        }
         if (f.ro || f.type === 'lista') return;
         const v = form[f.k];
         const vazio = v === undefined || v === null || String(v).trim() === '';
@@ -566,10 +677,10 @@ const CAD_STORES = {
             const user = state.currentUser;
             const dados = {};
             cadCamposDe(def).forEach(f => {
-                if (f.ro || f.k === 'ativo_sel') return;
+                if (f.ro || f.k === 'ativo_sel' || f.type === 'arquivo') return;
                 let v = form[f.k];
                 if (v === undefined || v === null) v = f.type === 'check' ? false : '';
-                if (f.type === 'lista') { dados[f.k] = Array.isArray(v) ? v : []; return; }
+                if (f.type === 'lista' || f.type === 'itens') { dados[f.k] = Array.isArray(v) ? v : []; return; }
                 if (typeof v === 'string') v = v.trim();
                 if (['cnpj', 'cpf', 'cep', 'phone', 'doc', 'digits'].includes(f.type)) v = onlyDigits(v);
                 if (f.type === 'doc') dados.pessoa = cadPessoaDoDoc(v);
@@ -577,10 +688,12 @@ const CAD_STORES = {
                 dados[f.k] = v;
             });
             dados.busca = searchKey(Object.values(dados).filter(x => typeof x === 'string').join(' '));
+            if (def.validar) Object.assign(dados, (await def.validar(form, id, dados)) || {});
             if (!id) {
                 const reg = { id: newId(def.key.slice(0, 3)), codigo: await db_cadProximoCodigo(def.key, def.prefix), ...dados, ativo: true, criado_em: agora, criado_por: user.username, atualizado_em: agora, atualizado_por: user.username, versao: 1 };
                 await db_cadSalvar(def.key, reg);
                 await auditar({ entidade: 'cad_' + def.key, entidade_id: reg.id, acao: 'CRIAR', depois: { codigo: reg.codigo, rotulo: def.rotulo(reg) } });
+                if (def.depois) await def.depois(reg, form);
                 return reg;
             }
             const atual = CAD_DATA[def.key].find(r => r.id === id);
@@ -591,6 +704,7 @@ const CAD_STORES = {
             const reg = { id, ...dados, ativo: ativoNovo, atualizado_em: agora, atualizado_por: user.username, versao: (atual.versao || 1) + 1 };
             await db_cadSalvar(def.key, reg);
             await auditar({ entidade: 'cad_' + def.key, entidade_id: id, acao: 'EDITAR', antes: diff.antes, depois: diff.depois });
+            if (def.depoisEdicao) await def.depoisEdicao({ ...atual, ...reg }, form, atual);
             return reg;
         },
         async setAtivo(def, id, ativo) {

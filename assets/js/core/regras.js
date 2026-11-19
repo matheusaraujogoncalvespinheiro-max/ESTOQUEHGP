@@ -30,7 +30,14 @@ function situacaoEspera(nivelId, inicioISO, agora = new Date()) {
 const PERFIS_CLASSIFICADORES = ['ADMIN', 'FUNC_EMERGENCIA'];
 
 // ---------- Validade de lotes (estoque / OPME) ----------
-const DIAS_ALERTA_VALIDADE = 30;
+const DIAS_ALERTA_VALIDADE = 30; // padrão; o valor em uso vem de diasAlertaValidade()
+
+/** Dias de alerta configurados em Sistema › Dashboard › Parâmetros (padrão 30). */
+function diasAlertaValidade() {
+    const lista = (typeof CAD_DATA !== 'undefined' && CAD_DATA.parametro) || [];
+    const p = lista.find(x => x.chave === 'dias_alerta_validade' && x.ativo !== false);
+    return Number(p && p.valor) > 0 ? Number(p.valor) : DIAS_ALERTA_VALIDADE;
+}
 
 /** Dias até vencer (negativo = vencido). null quando o lote não tem validade (N/A). */
 function diasParaVencer(validade, hoje = new Date()) {
@@ -47,7 +54,7 @@ function statusValidade(validade, hoje = new Date()) {
     const dias = diasParaVencer(validade, hoje);
     if (dias === null) return 'SEM_VALIDADE';
     if (dias < 0) return 'VENCIDO';
-    return dias <= DIAS_ALERTA_VALIDADE ? 'A_VENCER' : 'OK';
+    return dias <= diasAlertaValidade() ? 'A_VENCER' : 'OK';
 }
 
 const loteVencido = (lote, hoje = new Date()) => statusValidade(lote && lote.validade, hoje) === 'VENCIDO';

@@ -159,9 +159,9 @@ function produtoMovimentos(codigo, setor) {
         if (h.barcode !== codigo || (h.sector || h.setor) !== setor) return;
         const qtd = Number(h.quantity ?? h.qty ?? 0);
         const acao = h.action || '';
-        const saida = acao === 'CONSU_SALA';
-        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: acao === 'CADASTRO' ? 'Cadastro / entrada inicial' : (saida ? 'Consumo em sala' : 'Entrada de estoque'),
-            delta: saida ? -qtd : qtd, qtd, lote: h.batch ?? h.batch_code ?? '', validade: '', origem: saida ? rotuloSetor(setor) : 'Entrada', destino: saida ? 'Sala de procedimento' : rotuloSetor(setor),
+        const saida = ['CONSU_SALA', 'SAIDA', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO'].includes(acao);
+        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
+            delta: saida ? -qtd : qtd, qtd, lote: h.batch ?? h.batch_code ?? '', validade: '', origem: saida ? rotuloSetor(setor) : 'Entrada', destino: saida ? (acao === 'CONSU_SALA' ? 'Sala de procedimento' : 'Saída do estoque') : rotuloSetor(setor),
             setor: rotuloSetor(setor), usuario: h.user ?? h.user_name ?? '', paciente: '', fornecedor: '', obs: '' });
     });
     (MOCK_DATA.TRANSFER_HISTORY || []).forEach(t => {

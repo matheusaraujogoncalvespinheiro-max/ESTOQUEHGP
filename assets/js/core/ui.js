@@ -29,6 +29,8 @@ function showMsg(text, type = 'success') {
 }
 
 function getModuleTitle() {
+    if (state.activeModule === 'ENTRADA_XML') return 'Importar XML Nota Fiscal Eletrônica (NF-e)';
+    if (state.activeModule === 'CAD' && state.cad && CAD_DEFS[state.cad.key] && CAD_DEFS[state.cad.key].tituloTela) return CAD_DEFS[state.cad.key].tituloTela;
     if (state.activeModule === 'RELATORIOS') return 'Relatórios';
     if (state.activeModule === 'CAD') { const d = state.cad && CAD_DEFS[state.cad.key]; return d ? `Cadastro de ${d.label}` : 'Cadastro'; }
     const titles = {

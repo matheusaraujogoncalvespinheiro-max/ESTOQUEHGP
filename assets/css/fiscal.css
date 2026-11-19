@@ -1,0 +1,123 @@
+/* Telas fiscais no estilo "ERP": barra de ícones, filtros em linha, cartão de total, linhas em pílula. Segue o tema (claro/escuro). */
+
+.erp-page { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+.erp-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.erp-bar__l, .erp-bar__r { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.erp-ico { display: inline-grid; place-items: center; width: 44px; height: 38px; border: 0; border-radius: 8px; background: #334155; color: #fff; cursor: pointer; }
+.erp-ico:hover:not(:disabled) { background: #1e293b; }
+.erp-ico:disabled { opacity: 0.4; cursor: not-allowed; }
+.erp-ico--p { width: 34px; height: 30px; }
+
+.erp-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 14px; border: 1px solid transparent; border-radius: 8px; font: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; }
+.erp-btn--azul { background: #4a86c5; } .erp-btn--azul:hover { background: #3b72ab; }
+.erp-btn--verde { background: #2ecc8f; } .erp-btn--verde:hover { background: #22b37b; }
+.erp-btn--escuro { background: #334155; } .erp-btn--escuro:hover { background: #1e293b; }
+.erp-btn--claro { background: var(--sh-surface); color: #dc2626; border-color: var(--sh-line); } .erp-btn--claro:hover { background: var(--sh-surface-2); }
+.erp-btn--vermelho { background: #dc2626; } .erp-btn--vermelho:hover { background: #b91c1c; }
+
+.erp-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: stretch; }
+.erp-card { background: var(--sh-surface); border: 1px solid var(--sh-line); border-radius: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); }
+.erp-filtros { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 16px 18px; }
+.erp-campo { display: flex; flex-direction: column; gap: 4px; min-width: 150px; flex: 1 1 170px; max-width: 320px; font-size: 14px; color: var(--sh-ink); }
+.erp-campo--g { flex: 2 1 260px; max-width: 460px; }
+.erp-campo > span { font-weight: 500; }
+.erp-input { height: 34px; padding: 0 10px; border: 1px solid var(--sh-line); border-radius: 6px; background: var(--sh-surface); color: var(--sh-ink); font: inherit; font-size: 15px; width: 100%; }
+.erp-input:focus { outline: none; border-color: #4a86c5; box-shadow: 0 0 0 3px rgba(74, 134, 197, 0.2); }
+.erp-select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #dc2626 50%), linear-gradient(135deg, #dc2626 50%, transparent 50%); background-position: calc(100% - 16px) 14px, calc(100% - 11px) 14px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
+.erp-btn--pesq { height: 34px; min-height: 34px; }
+.erp-kpi { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 230px; padding: 14px 18px; }
+.erp-kpi span { font-size: 15px; color: var(--sh-ink); }
+.erp-kpi strong { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 500; color: var(--sh-ink); }
+.erp-kpi svg { color: #22c55e; }
+
+.erp-legenda { display: flex; flex-wrap: wrap; gap: 22px; padding: 12px 18px; font-size: 14px; }
+.erp-bola { display: inline-block; width: 20px; height: 20px; border-radius: 50%; vertical-align: middle; border: 1px solid #64748b; }
+.erp-bola--ok { background: #a7f3d0; } .erp-bola--cancelada { background: #fecaca; } .erp-bola--aviso { background: repeating-linear-gradient(45deg, #fde68a, #fde68a 3px, #f59e0b 3px, #f59e0b 5px); } .erp-bola--cinza { background: #94a3b8; }
+
+.erp-tabela { display: flex; flex-direction: column; gap: 8px; }
+.erp-th, .erp-tr { display: grid; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--sh-line); border-radius: 10px; background: var(--sh-surface); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); font-size: 15px; min-width: 0; }
+.erp-th { font-weight: 500; color: var(--sh-ink); }
+.erp-th .is-sort { cursor: pointer; }
+.erp-tr > span, .erp-th > span { min-width: 0; overflow-wrap: anywhere; }
+.erp-tr { cursor: pointer; background: var(--sh-surface-2); }
+.erp-tr:hover { background: var(--tone-soft, #dbeafe); }
+.erp-tr--ok { background: #bbf7d0; color: #14532d; }
+.erp-tr--cancelada { background: #fecaca; color: #7f1d1d; }
+.erp-tr--cinza { background: #cbd5e1; color: #1e293b; }
+.erp-tr--ok:hover { background: #86efac; } .erp-tr--cancelada:hover { background: #fca5a5; }
+html[data-tema='escuro'] .erp-tr--ok { background: rgba(34, 197, 94, 0.25); color: #bbf7d0; }
+html[data-tema='escuro'] .erp-tr--cancelada { background: rgba(220, 38, 38, 0.25); color: #fecaca; }
+.erp-vazio { padding: 12px; text-align: center; border: 1px solid var(--sh-line); border-radius: 10px; background: var(--sh-surface-2); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+.erp-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--sh-ink); }
+.erp-pag { display: flex; align-items: center; gap: 8px; }
+
+/* Formulários ERP: campos na grade de 12 colunas, rótulo acima, campos achatados */
+.cd-erp .cd-cell .at-input, .cd-erp .cd-cell .cd-combo__btn, .cd-erp .cd-cell .cd-ro { height: 36px; min-height: 36px; font-size: 15px; border-width: 1px; border-radius: 6px; }
+
+/* Página Importar XML */
+.erp-xml-cab { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 10px 12px; padding: 16px 18px; }
+.erp-xml-cab .erp-campo { grid-column: span var(--col, 3); max-width: none; min-width: 0; }
+.erp-ro { height: 34px; display: flex; align-items: center; padding: 0 10px; border: 1px solid var(--sh-line); border-radius: 6px; background: var(--sh-surface-2); color: var(--sh-ink); font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.erp-abas { display: flex; gap: 4px; }
+.erp-aba { padding: 8px 16px; border: 0; border-radius: 8px 8px 0 0; background: var(--sh-surface-2); color: var(--sh-ink); font: inherit; font-weight: 700; cursor: pointer; }
+.erp-aba.is-active { background: var(--sh-surface); color: #dc2626; }
+.erp-acoes { display: inline-flex; gap: 6px; }
+.erp-acoes .erp-ico { width: 34px; height: 30px; }
+.erp-acoes .erp-ico--azul { background: #4a86c5; }
+
+@media (max-width: 900px) {
+    .erp-top { grid-template-columns: minmax(0, 1fr); }
+    .erp-xml-cab .erp-campo { grid-column: span 12; }
+    .erp-th { display: none; }
+    .erp-tr { grid-template-columns: minmax(0, 1fr) !important; gap: 4px; }
+    .erp-tr > span::before { content: attr(data-label) ': '; font-weight: 700; color: var(--sh-muted); }
+}
+
+.erp-scroll { overflow-x: auto; }
+.erp-tabela--larga { min-width: 1000px; }
+
+/* ---------- Alinhamento: uma única altura para todos os controles das telas ERP ----------
+   O responsive.css força 46 px em qualquer campo dentro do conteúdo; aqui a altura é definida uma vez (--ctl-h)
+   e vale para campo, seleção, combo, texto somente leitura e botão de busca, para que tudo fique na mesma linha. */
+.erp-page, .erp-xml-cab, .cd-erp { --ctl-h: 38px; }
+
+.erp-page .erp-input, .erp-xml-cab .erp-input, .erp-xml-cab .erp-ro, .erp-filtros .erp-input { height: var(--ctl-h) !important; min-height: var(--ctl-h) !important; font-size: 15px; box-sizing: border-box; }
+.erp-ro { height: var(--ctl-h); min-height: var(--ctl-h); box-sizing: border-box; }
+.erp-btn, .erp-btn--pesq { height: var(--ctl-h); min-height: var(--ctl-h); }
+.erp-ico { height: var(--ctl-h); }
+.erp-select { background-position: calc(100% - 16px) calc(50% - 1px), calc(100% - 11px) calc(50% - 1px); }
+
+/* Formulário ERP: rótulo com altura fixa (rótulos longos não empurram o campo) e controles alinhados pela base */
+.cd-erp .cd-grid12 { align-items: end; gap: 12px 14px; }
+.cd-erp .cd-cell { justify-content: flex-end; }
+.cd-erp .cd-cell > .at-label { min-height: 20px; line-height: 20px; margin: 0; font-size: 14px; }
+.cd-erp .cd-cell .at-input,
+.cd-erp .cd-cell .at-select,
+.cd-erp .cd-cell .cd-combo__btn,
+.cd-erp .cd-cell .cd-ro,
+.cd-erp .cd-cell .cd-searchbtn { height: var(--ctl-h) !important; min-height: var(--ctl-h) !important; font-size: 15px; box-sizing: border-box; }
+.cd-erp .cd-cell .at-textarea { min-height: 90px; font-size: 15px; }
+.cd-erp .cd-cell .cd-check { min-height: var(--ctl-h); }
+.cd-erp .cd-cell .at-hint { margin-top: 2px; }
+.cd-erp .cd-top--erp .cd-grid12 { align-items: end; }
+
+/* Tabelas de itens: campos compactos, colunas com largura mínima e rolagem horizontal quando faltar espaço */
+.cd-itens { min-width: 0; }
+.cd-itens .cd-tablewrap { overflow-x: auto; }
+.cd-itens table { min-width: 640px; }
+.cd-itens th { white-space: nowrap; }
+.cd-itens td { vertical-align: middle; padding: 6px 8px; }
+.cd-itens .at-input, .cd-itens .at-select { height: 36px !important; min-height: 36px !important; font-size: 14px; padding: 0 10px; border-width: 1px; border-radius: 6px; }
+.cd-itens input[type='number'] { text-align: right; }
+.cd-itens td > span { display: inline-block; padding: 0 4px; }
+.cd-itens .cd-ico { width: 34px; height: 34px; margin: 0; }
+
+/* Cabeçalho da página Importar XML: mesma grade e mesma altura */
+.erp-xml-cab { align-items: end; }
+.erp-xml-cab .erp-campo { justify-content: flex-end; }
+.erp-xml-cab .erp-campo > span { min-height: 20px; line-height: 20px; }
+.erp-th > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.erp-tabela--larga { min-width: 1060px; }
+.cd-tabs { scrollbar-width: none; }
+.cd-tabs::-webkit-scrollbar { display: none; }

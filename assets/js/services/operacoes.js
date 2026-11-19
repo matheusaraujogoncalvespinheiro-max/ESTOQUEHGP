@@ -1,0 +1,206 @@
+// Operações de estoque e compras: regras que acompanham os cadastros transacionais (saídas, perdas, baixas, devoluções,
+// recebimentos, devolução ao fornecedor). Cada registro é IMUTÁVEL; o efeito no estoque é aplicado depois de gravar,
+// depois de validar tudo (saldo, validade, produto ativo, permissão do setor).
+
+const MOTIVOS_PERDA = ['Vencimento', 'Avaria', 'Extravio', 'Contaminação', 'Recolhimento do fabricante', 'Outro'];
+const MOTIVOS_BAIXA = ['Diferença de inventário', 'Erro de lançamento', 'Doação', 'Descarte autorizado', 'Outro'];
+const MOTIVOS_DEVOLUCAO = ['Não utilizado', 'Cancelamento do procedimento', 'Troca', 'Outro'];
+const MOTIVOS_DEV_FORNECEDOR = ['Não utilizado', 'Fim de contrato', 'Produto com defeito', 'Troca', 'Outro'];
+
+/** Produto + lote escolhidos no formulário, já conferidos. Lança erro se algo estiver fora do previsto. */
+function operacaoItem(form, { exigeLote = true, permitirVencido = false, permissao = 'update_stock' } = {}) {
+    const pr = cadProdutoDe(form.produto);
+    if (!pr) throw new Error('Selecione o produto.');
+    if (!hasPermission(permissao, pr.setor)) throw new Error(`Seu perfil não pode movimentar o estoque ${rotuloSetorOps(pr.setor)}.`);
+    if (!produtoAtivo(pr.produto)) throw new Error(`O produto ${pr.produto.material} está inativo.`);
+    const qtd = Number(form.quantidade);
+    if (!Number.isInteger(qtd) || qtd < 1) throw new Error('Informe a quantidade (número inteiro, mínimo 1).');
+    let lote = null;
+    if (exigeLote) {
+        lote = (pr.produto.lotes || []).find(l => String(l.id) === String(form.lote));
+        if (!lote) throw new Error('Selecione o lote.');
+        if (lote.quantidade < qtd) throw new Error(`O lote ${lote.lote} tem só ${lote.quantidade} un.`);
+        if (!permitirVencido && loteVencido(lote)) throw new Error(`O lote ${lote.lote} está vencido: use Perdas para descartá-lo.`);
+    }
+    return { ...pr, lote, qtd };
+}
+
+const dadosDoItem = (it) => ({ setor: it.setor, produto_desc: `${it.produto.barcode} · ${it.produto.material}`, lote_codigo: it.lote ? it.lote.lote : '', validade_lote: it.lote ? (it.lote.validade || '') : '' });
+
+function registrarHistoricoEstoque(acao, it, qtd, loteCodigo, extra = '') {
+    if (typeof logEntryHistory === 'function') logEntryHistory(acao, it.setor, it.produto.barcode, it.produto.material, qtd, loteCodigo, extra);
+}
+
+// ---- Saída (para setor, paciente ou procedimento) ----
+function validarSaida(form) {
+    if (!form.destino_detalhe || String(form.destino_detalhe).trim().length < 3) throw new Error('Informe o destino da saída (setor, paciente ou procedimento).');
+    return dadosDoItem(operacaoItem(form));
+}
+function aplicarSaida(reg) {
+    const pr = cadProdutoDe(reg.produto);
+    const r = darBaixaNoEstoque(pr.setor, pr.produto.barcode, reg.quantidade, Number(reg.lote) || reg.lote);
+    if (!r.success) throw new Error(r.message);
+    registrarHistoricoEstoque('SAIDA', pr, reg.quantidade, reg.lote_codigo);
+}
+
+// ---- Perda e baixa (aceitam lote vencido; baixa exige autorização/documento) ----
+function validarPerda(form) {
+    if (form.motivo === 'Outro' && String(form.descricao || '').trim().length < 5) throw new Error('Descreva o motivo da perda (mínimo de 5 caracteres).');
+    return dadosDoItem(operacaoItem(form, { permitirVencido: true }));
+}
+function validarBaixa(form) {
+    if (String(form.documento || '').trim().length < 3) throw new Error('Informe o documento ou número da autorização da baixa.');
+    if (form.motivo === 'Outro' && String(form.descricao || '').trim().length < 5) throw new Error('Descreva o motivo da baixa (mínimo de 5 caracteres).');
+    return dadosDoItem(operacaoItem(form, { permitirVencido: true, permissao: 'register' }));
+}
+function aplicarRemocao(acao) {
+    return (reg) => {
+        const pr = cadProdutoDe(reg.produto);
+        const lote = pr.produto.lotes.find(l => String(l.id) === String(reg.lote));
+        if (!lote || !removeFromBatch(pr.setor, pr.produto.id, lote.id, reg.quantidade)) throw new Error('Não foi possível baixar o estoque. Confira o saldo do lote.');
+        registrarHistoricoEstoque(acao, pr, reg.quantidade, reg.lote_codigo);
+    };
+}
+
+// ---- Devolução ao estoque (item voltando de setor/paciente) ----
+function validarDevolucao(form) {
+    const pr = cadProdutoDe(form.produto);
+    if (!pr) throw new Error('Selecione o produto.');
+    if (!hasPermission('update_stock', pr.setor)) throw new Error(`Seu perfil não pode movimentar o estoque ${rotuloSetorOps(pr.setor)}.`);
+    const qtd = Number(form.quantidade);
+    if (!Number.isInteger(qtd) || qtd < 1) throw new Error('Informe a quantidade (número inteiro, mínimo 1).');
+    if (String(form.lote_codigo || '').trim().length < 1) throw new Error('Informe o lote do item devolvido.');
+    if (!form.validade || form.validade < todayISO()) throw new Error('Informe a validade do lote. Itens vencidos não voltam ao estoque: use Perdas.');
+    return { setor: pr.setor, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}` };
+}
+function aplicarDevolucao(reg) {
+    const pr = cadProdutoDe(reg.produto);
+    const p = pr.produto;
+    addProductWithBatch(pr.setor, { barcode: p.barcode, lote: String(reg.lote_codigo).trim(), remessa: p.remessa || '', validade: reg.validade, quantidade: reg.quantidade, empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min });
+    registrarHistoricoEstoque('DEVOLUCAO', pr, reg.quantidade, reg.lote_codigo);
+}
+
+// ---- Devolução ao fornecedor (consignado) ----
+const ehConsignado = (p) => Boolean(p.cadastro && p.cadastro.opme && p.cadastro.opme.tipo_material === 'Consignado');
+function validarDevFornecedor(form) {
+    const it = operacaoItem(form, { permitirVencido: true });
+    if (!ehConsignado(it.produto)) throw new Error('Este produto não está marcado como consignado (aba OPME do cadastro do produto).');
+    return dadosDoItem(it);
+}
+
+// ---- Compras ----
+const somaItens = (itens, q = 'quantidade', v = 'valor_unit') => Math.round((itens || []).reduce((a, i) => a + (Number(i[q]) || 0) * (Number(i[v]) || 0), 0) * 100) / 100;
+
+function validarPedido(form) {
+    const itens = (form.itens || []).filter(i => String(i.descricao || '').trim());
+    if (!itens.length) throw new Error('Inclua ao menos um item no pedido.');
+    if (itens.some(i => !(Number(i.quantidade) > 0))) throw new Error('Todos os itens precisam de quantidade maior que zero.');
+    return { itens, valor_total: somaItens(itens) };
+}
+
+function validarRecebimento(form) {
+    if (form.data_recebimento > todayISO()) throw new Error('A data de recebimento não pode ser futura.');
+    const itens = (form.itens || []).filter(i => i.produto);
+    if (!itens.length) throw new Error('Inclua ao menos um item recebido.');
+    itens.forEach((i, n) => {
+        const pr = cadProdutoDe(i.produto);
+        if (!pr) throw new Error(`Item ${n + 1}: produto não encontrado.`);
+        if (!hasPermission('update_stock', pr.setor)) throw new Error(`Item ${n + 1}: seu perfil não pode dar entrada no estoque ${rotuloSetorOps(pr.setor)}.`);
+        if (!(Number(i.quantidade) > 0) || !Number.isInteger(Number(i.quantidade))) throw new Error(`Item ${n + 1}: quantidade inválida.`);
+        if (!String(i.lote || '').trim()) throw new Error(`Item ${n + 1}: informe o lote.`);
+        if (!i.validade || i.validade < todayISO()) throw new Error(`Item ${n + 1}: validade ausente ou vencida (produto vencido não entra no estoque).`);
+    });
+    return { itens, valor_total: somaItens(itens) };
+}
+
+async function aplicarRecebimento(reg) {
+    reg.itens.forEach(i => {
+        const pr = cadProdutoDe(i.produto);
+        const p = pr.produto;
+        addProductWithBatch(pr.setor, { barcode: p.barcode, lote: String(i.lote).trim(), remessa: reg.nota_fiscal, validade: i.validade, quantidade: Number(i.quantidade), empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min });
+        registrarHistoricoEstoque('RECEBIMENTO', pr, Number(i.quantidade), i.lote, `NF ${reg.nota_fiscal}`);
+    });
+    // O pedido muda de situação: recebido por completo ou parcialmente
+    if (reg.pedido) await db_cadSalvar('pedido', { id: reg.pedido, situacao: reg.recebimento_total ? 'Recebido' : 'Parcial', atualizado_em: nowISO(), atualizado_por: state.currentUser.username });
+}
+
+// ---- Conferência de estoque consignado: compara a contagem com o saldo do sistema ----
+function validarConferencia(form) {
+    const itens = (form.itens || []).filter(i => i.produto);
+    if (!itens.length) throw new Error('Inclua ao menos um item conferido.');
+    let divergencias = 0;
+    const conf = itens.map((i, n) => {
+        const pr = cadProdutoDe(i.produto);
+        if (!pr) throw new Error(`Item ${n + 1}: produto não encontrado.`);
+        if (i.quantidade_contada === '' || i.quantidade_contada === undefined || !(Number(i.quantidade_contada) >= 0)) throw new Error(`Item ${n + 1}: informe a quantidade contada.`);
+        const sistema = Number(pr.produto.qtd) || 0;
+        const dif = Number(i.quantidade_contada) - sistema;
+        if (dif !== 0) divergencias++;
+        return { ...i, quantidade_sistema: sistema, diferenca: dif };
+    });
+    return { itens: conf, divergencias, situacao: divergencias ? 'Concluída com divergência' : 'Concluída sem divergência' };
+}
+
+
+// ---- Cancelamento de operação (estorno) ----
+const OPERACOES_CANCELAVEIS = { saida: 'Saída', devolucao: 'Devolução ao estoque', perda: 'Perda', baixa: 'Baixa', consigdev: 'Devolução ao fornecedor', recebimento: 'Recebimento', entrega: 'Entrega' };
+const ESTORNO_ACAO = { saida: 'ESTORNO_SAIDA', perda: 'ESTORNO_PERDA', baixa: 'ESTORNO_BAIXA', consigdev: 'ESTORNO_DEV_FORNECEDOR', devolucao: 'ESTORNO_DEVOLUCAO', recebimento: 'ESTORNO_RECEBIMENTO' };
+const VOLTAM_AO_ESTOQUE = ['saida', 'perda', 'baixa', 'consigdev']; // cancelar devolve o item ao estoque
+
+function loteDoEstoque(setor, produto, codigo) { return (produto.lotes || []).find(l => String(l.lote) === String(codigo)); }
+
+/** Confere se dá para desfazer a operação (permissão, situação e saldo) e devolve os dados do estorno. */
+function validarCancelamento(form) {
+    if (!['ADMIN', 'CHEFE_OPME'].includes(state.currentUser.role)) throw new Error('Somente Administrador e Chefe OPME cancelam operações.');
+    if (!OPERACOES_CANCELAVEIS[form.tipo_operacao]) throw new Error('Escolha o tipo da operação.');
+    const op = (CAD_DATA[form.tipo_operacao] || []).find(r => r.id === form.operacao);
+    if (!op) throw new Error('Selecione a operação a cancelar.');
+    if (op.ativo === false) throw new Error('Esta operação já foi cancelada.');
+    if (String(form.motivo || '').trim().length < 10) throw new Error('Explique o motivo do cancelamento (mínimo de 10 caracteres).');
+    if (VOLTAM_AO_ESTOQUE.includes(form.tipo_operacao)) {
+        const pr = cadProdutoDe(op.produto);
+        if (!pr) throw new Error('O produto desta operação não existe mais no estoque. Faça um Recebimento para recompor.');
+        if (!hasPermission('register', pr.setor)) throw new Error('Seu perfil não pode movimentar este estoque.');
+    } else if (form.tipo_operacao === 'devolucao') {
+        const pr = cadProdutoDe(op.produto);
+        const l = pr && loteDoEstoque(pr.setor, pr.produto, op.lote_codigo);
+        if (!l || l.quantidade < op.quantidade) throw new Error('O item devolvido já saiu do estoque: não há saldo suficiente do lote para estornar.');
+    } else if (form.tipo_operacao === 'recebimento') {
+        op.itens.forEach((i, n) => {
+            const pr = cadProdutoDe(i.produto);
+            const l = pr && loteDoEstoque(pr.setor, pr.produto, i.lote);
+            if (!l || l.quantidade < Number(i.quantidade)) throw new Error(`Item ${n + 1} do recebimento já foi consumido: não há saldo do lote ${i.lote} para estornar.`);
+        });
+    }
+    return { tipo_rotulo: OPERACOES_CANCELAVEIS[form.tipo_operacao], operacao_codigo: op.codigo, operacao_desc: `${OPERACOES_CANCELAVEIS[form.tipo_operacao]} ${op.codigo}${op.produto_desc ? ' · ' + op.produto_desc : ''}` };
+}
+
+async function aplicarCancelamento(reg) {
+    const tipo = reg.tipo_operacao;
+    const op = (CAD_DATA[tipo] || []).find(r => r.id === reg.operacao);
+    if (VOLTAM_AO_ESTOQUE.includes(tipo)) {
+        const pr = cadProdutoDe(op.produto);
+        const p = pr.produto;
+        addProductWithBatch(pr.setor, { barcode: p.barcode, lote: op.lote_codigo, remessa: p.remessa || '', validade: op.validade_lote || 'N/A', quantidade: op.quantidade, empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min });
+        registrarHistoricoEstoque(ESTORNO_ACAO[tipo], pr, op.quantidade, op.lote_codigo, `Cancelamento ${reg.codigo}`);
+    } else if (tipo === 'devolucao') {
+        const pr = cadProdutoDe(op.produto);
+        const l = loteDoEstoque(pr.setor, pr.produto, op.lote_codigo);
+        removeFromBatch(pr.setor, pr.produto.id, l.id, op.quantidade);
+        registrarHistoricoEstoque(ESTORNO_ACAO[tipo], pr, op.quantidade, op.lote_codigo, `Cancelamento ${reg.codigo}`);
+    } else if (tipo === 'recebimento') {
+        op.itens.forEach(i => {
+            const pr = cadProdutoDe(i.produto);
+            const l = loteDoEstoque(pr.setor, pr.produto, i.lote);
+            removeFromBatch(pr.setor, pr.produto.id, l.id, Number(i.quantidade));
+            registrarHistoricoEstoque(ESTORNO_ACAO[tipo], pr, Number(i.quantidade), i.lote, `Cancelamento ${reg.codigo}`);
+        });
+        if (op.pedido) {
+            const outros = (CAD_DATA.recebimento || []).some(r => r.id !== op.id && r.pedido === op.pedido && r.ativo !== false);
+            await db_cadSalvar('pedido', { id: op.pedido, situacao: outros ? 'Parcial' : 'Emitido', atualizado_em: nowISO(), atualizado_por: state.currentUser.username });
+        }
+    }
+    // A operação original continua na consulta, marcada como cancelada (nada é apagado)
+    await db_cadSalvar(tipo, { id: op.id, ativo: false, cancelado_em: nowISO(), cancelado_por: state.currentUser.name, cancelamento: reg.id, motivo_cancelamento: reg.motivo });
+    await auditar({ entidade: 'cad_' + tipo, entidade_id: op.id, acao: 'CANCELAR', depois: { cancelamento: reg.codigo }, motivo: reg.motivo });
+}

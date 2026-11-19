@@ -119,6 +119,7 @@ function renderTopbar(open) {
 }
 
 function renderPagebar(ativa) {
+    if (typeof db_cadWatch === 'function') db_cadWatch('parametro'); // parâmetros do sistema (ex.: dias de alerta de validade)
     const showFilter = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'PACIENTES_REGISTRADOS'].includes(state.activeModule);
     return `
     <div class="pagebar">
