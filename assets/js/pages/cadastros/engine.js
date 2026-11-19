@@ -107,7 +107,10 @@ function renderCadList(def) {
         <header class="cd-head">
             <div class="cd-head__ico">${lucideIcon(def.icon, 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>${escapeHtml(def.label)}</h2><p>${escapeHtml(def.desc)}</p></div>
-            ${podeCriar ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="cadNovo()">${lucideIcon('plus', 'w-5 h-5')} Novo Cadastro</button>` : ''}
+            <div class="cd-head__btns">
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="cadImprimir()" title="Imprimir os dados desta consulta (com os filtros atuais)">${lucideIcon('printer', 'w-5 h-5')} Imprimir</button>
+                ${podeCriar ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="cadNovo()">${lucideIcon('plus', 'w-5 h-5')} Novo Cadastro</button>` : ''}
+            </div>
         </header>
 
         <div class="cd-kpis">${cadKpis(def, rows).map(k => `<div class="cd-kpi"><strong>${escapeHtml(k.valor)}</strong><span>${escapeHtml(k.rotulo)}</span></div>`).join('')}</div>
@@ -447,7 +450,8 @@ function cadValidar(def, form, id) {
         if (f.ro || f.type === 'lista') return;
         const v = form[f.k];
         const vazio = v === undefined || v === null || String(v).trim() === '';
-        if (f.req && vazio && !(f.type === 'password' && id)) erros.push({ campo: f.k, mensagem: `Informe ${cadRotuloCampo(f, form).toLowerCase()}.` });
+        const relaxa = def.key === 'paciente' && form.provisorio && f.k !== 'nome'; // paciente não identificado: só a descrição é obrigatória
+        if (f.req && vazio && !relaxa && !(f.type === 'password' && id)) erros.push({ campo: f.k, mensagem: `Informe ${cadRotuloCampo(f, form).toLowerCase()}.` });
         if (vazio) return;
         const s = String(v).trim();
         if (f.type === 'doc') {
@@ -603,13 +607,22 @@ const CAD_STORES = {
         toForm: (def, r) => cadFormatarParaForm(def, r),
         async save(def, form, id) {
             requirePermission_cad(def, id ? 'editar' : 'criar');
+            const provisorio = Boolean(form.provisorio);
+            if (provisorio) {
+                // Atendimento sem identificação: só a descrição é obrigatória; o prontuário provisório é gerado. Os dados reais entram depois, no MESMO registro.
+                if (String(form.nome || '').trim().length < 5) throw new Error('Descreva o paciente não identificado (ex.: "Homem adulto, vítima de acidente").');
+                if (!String(form.prontuario || '').trim()) form.prontuario = await db_cadProximoCodigo('paciente_provisorio', 'PROV');
+            }
             const base = buildPacientePayload(form);
-            const erros = validatePacienteForm(form);
-            if (erros.length) throw new Error(erros[0].mensagem);
-            const dup = (await findDuplicatePacientes(base, id)).filter(d => d.bloqueia);
-            if (dup.length) throw new Error(`Já existe paciente com ${dup[0].motivos.join(' / ').toLowerCase()}: ${dup[0].paciente.nome}.`);
+            if (!provisorio) {
+                const erros = validatePacienteForm(form);
+                if (erros.length) throw new Error(erros[0].mensagem);
+                const dup = (await findDuplicatePacientes(base, id)).filter(d => d.bloqueia);
+                if (dup.length) throw new Error(`Já existe paciente com ${dup[0].motivos.join(' / ').toLowerCase()}: ${dup[0].paciente.nome}.`);
+            }
+            base.provisorio = provisorio;
             const extras = {};
-            ['cns', 'sexo', 'nome_mae', 'email', 'celular', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio_id', 'uf', 'estado_civil', 'nacionalidade', 'naturalidade', 'profissao',
+            ['cns', 'sexo', 'nome_mae', 'email', 'celular', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio_id', 'uf', 'estado_civil', 'nacionalidade', 'naturalidade', 'profissao', 'raca_cor', 'etnia',
                 'responsavel_nome', 'responsavel_parentesco', 'responsavel_telefone', 'observacoes'].forEach(k => {
                 let v = String(form[k] ?? '').trim();
                 if (['cep', 'responsavel_telefone', 'celular', 'cns'].includes(k)) v = onlyDigits(v);
@@ -621,7 +634,7 @@ const CAD_STORES = {
             if (!id) {
                 const p = { id: newId('pac'), ...base, ...extras, ativo: true, criado_em: agora, criado_por: user.username, criado_por_nome: user.name, atualizado_em: agora, atualizado_por: user.username };
                 await db_savePaciente(p);
-                await auditar({ entidade: 'paciente', entidade_id: p.id, acao: 'CRIAR', depois: { nome: p.nome, prontuario: p.prontuario } });
+                await auditar({ entidade: 'paciente', entidade_id: p.id, acao: provisorio ? 'CRIAR_PROVISORIO' : 'CRIAR', depois: { nome: p.nome, prontuario: p.prontuario } });
                 return p;
             }
             const atual = CAD_DATA.paciente.find(r => r.id === id);
@@ -631,7 +644,7 @@ const CAD_STORES = {
             const diff = diffCampos(atual, novo, Object.keys(novo).filter(k => !['nome_busca', 'nome_palavras'].includes(k)));
             if (!diff.campos.length) throw new Error('Nenhuma informação foi alterada.');
             await db_savePaciente({ id, ...novo, atualizado_em: agora, atualizado_por: user.username });
-            await auditar({ entidade: 'paciente', entidade_id: id, acao: 'EDITAR', antes: diff.antes, depois: diff.depois });
+            await auditar({ entidade: 'paciente', entidade_id: id, acao: atual.provisorio && !provisorio ? 'IDENTIFICAR' : 'EDITAR', antes: diff.antes, depois: diff.depois });
             return { id, ...novo };
         },
         async setAtivo(def, id, ativo) {
@@ -675,7 +688,8 @@ const CAD_STORES = {
             if (!id) {
                 if (USERS_DB[username]) throw new Error('Já existe um usuário com este nome de usuário.');
                 if (!senha) throw new Error('Informe a senha do novo usuário.');
-                USERS_DB[username] = { password: senha, role: form.role, name: form.nome.trim(), setor: String(form.setor ?? '').trim(), email: String(form.email ?? '').trim(), ativo: true };
+                USERS_DB[username] = { role: form.role, name: form.nome.trim(), setor: String(form.setor ?? '').trim(), email: String(form.email ?? '').trim(), ativo: true };
+                await definirSenha(USERS_DB[username], senha);
                 await auditar({ entidade: 'usuario', entidade_id: username, acao: 'CRIAR', depois: { nome: form.nome.trim(), perfil: form.role } });
             } else {
                 const u = USERS_DB[id];
@@ -687,7 +701,7 @@ const CAD_STORES = {
                 const d = diffCampos(antes, depois, Object.keys(depois));
                 if (!d.campos.length && !senha) throw new Error('Nenhuma informação foi alterada.');
                 Object.assign(u, { name: depois.nome, role: depois.perfil, setor: depois.setor, email: depois.email, ativo: ativoNovo });
-                if (senha) u.password = senha;
+                if (senha) await definirSenha(u, senha);
                 await auditar({ entidade: 'usuario', entidade_id: id, acao: 'EDITAR', antes: d.antes, depois: { ...d.depois, ...(senha ? { senha: 'alterada' } : {}) } });
             }
             saveToLocalStorage();
@@ -869,6 +883,91 @@ document.addEventListener('keydown', (e) => {
 function cadSelecionar(k, v) {
     cadCampo(k, { value: v, type: 'select' });
     render();
+}
+
+
+// ============================================================ IMPRESSÃO DA CONSULTA
+
+/** Texto dos filtros aplicados, para constar no topo da impressão. */
+function cadResumoFiltros(def) {
+    const L = cadList(def);
+    const partes = [];
+    if (L.q) partes.push(`Pesquisa: "${L.q}"`);
+    (def.filters || []).forEach(f => {
+        const v = L.filtros[f.k];
+        if (!v) return;
+        const opts = f.ref ? cadRowsOf(f.ref).map(r => ({ id: r.id, rotulo: CAD_DEFS[f.ref].rotulo(r) })) : cadOptsOf(f);
+        const o = opts.find(x => cadOptId(x) === v);
+        partes.push(`${f.label}: ${o ? cadOptRotulo(o) : v}`);
+    });
+    partes.push(`Situação: ${{ ativos: 'Ativos', inativos: 'Inativos', todos: 'Todos' }[L.situacao]}`);
+    return partes.join(' · ');
+}
+
+/** HTML da listagem para impressão: TODOS os registros do filtro atual (não só a página), com cabeçalho e rodapé. */
+function cadHtmlImpressao(def) {
+    const rows = cadFiltrar(def);
+    const colunas = def.columns;
+    const hospital = APP_INFO.hospital;
+    const agora = new Date();
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Listagem de ${escapeHtml(def.label)}</title>
+<style>
+  @page { size: A4 ${colunas.length > 5 ? 'landscape' : 'portrait'}; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; }
+  h1 { margin: 0; font-size: 17px; } h2 { margin: 2px 0 0; font-size: 13px; font-weight: 600; }
+  .meta { margin: 8px 0 12px; color: #444; line-height: 1.5; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+  th { background: #e5e7eb; font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+  tr { page-break-inside: avoid; }
+  tr.off td { color: #666; }
+  .rodape { margin-top: 10px; color: #555; font-size: 10px; }
+</style></head><body>
+<h1>${escapeHtml(hospital)}</h1>
+<h2>Listagem de ${escapeHtml(def.label)}</h2>
+<div class="meta">${escapeHtml(cadResumoFiltros(def))}<br>
+Emitido em ${escapeHtml(formatDateTimeBR(agora.toISOString()))} por ${escapeHtml(state.currentUser.name)} · ${rows.length} registro(s)</div>
+<table><thead><tr>${colunas.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}<th>Situação</th></tr></thead>
+<tbody>${rows.map(r => `<tr class="${r.ativo ? '' : 'off'}">${colunas.map(c => `<td>${escapeHtml(c.get ? c.get(r) : (r[c.k] ?? '—'))}</td>`).join('')}<td>${r.ativo ? 'Ativo' : 'Inativo'}</td></tr>`).join('')}</tbody></table>
+<div class="rodape">Documento gerado pelo sistema de Gestão de Estoque. Contém dados de uso interno${def.sensivel ? ' e dados pessoais protegidos pela LGPD: guarde e descarte com segurança' : ''}.</div>
+</body></html>`;
+}
+
+/**
+ * Mostra o documento numa pré-visualização e só imprime quando o usuário clica em "Imprimir": assim o navegador abre a janela
+ * de impressão (escolha da impressora, ou "Salvar como PDF"). Um quadro invisível sendo impresso sozinho é bloqueado por alguns navegadores.
+ */
+function cadImprimirHtml(html, titulo = 'Pré-visualização de impressão') {
+    const dialog = openModal({
+        title: titulo, size: 'xl',
+        content: `<div class="modal__body prev-corpo">
+            <div class="prev-barra"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" data-imprimir>${lucideIcon('printer', 'w-4 h-4')} Imprimir / escolher impressora</button>
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" data-aba>${lucideIcon('external-link', 'w-4 h-4')} Abrir em outra aba</button>
+                <span class="at-hint">Na janela de impressão você escolhe a impressora ou "Salvar como PDF".</span></div>
+            <iframe class="prev-quadro" title="Documento para impressão"></iframe></div>`
+    });
+    const quadro = dialog.querySelector('.prev-quadro');
+    quadro.srcdoc = html;
+    dialog.querySelector('[data-imprimir]').addEventListener('click', () => {
+        try { quadro.contentWindow.focus(); quadro.contentWindow.print(); }
+        catch (err) { showMsg('Não foi possível abrir a impressão. Use "Abrir em outra aba" e imprima por lá (Ctrl+P).', 'error'); }
+    });
+    dialog.querySelector('[data-aba]').addEventListener('click', () => {
+        const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+        const w = window.open(url, '_blank');
+        if (!w) showMsg('O navegador bloqueou a nova aba. Libere pop-ups para este site.', 'error');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    });
+}
+
+function cadImprimir() {
+    const def = cadDef();
+    if (!cadCan(def, 'ver')) return showMsg('Seu perfil não pode imprimir esta consulta.', 'error');
+    if (!cadFiltrar(def).length) return showMsg('Não há registros para imprimir com os filtros atuais.', 'error');
+    if (def.sensivel && typeof registrarAcesso === 'function') registrarAcesso(def.key, 'listagem', 'Impressão da listagem de ' + def.label);
+    cadImprimirHtml(cadHtmlImpressao(def));
 }
 
 // ============================================================ ENTRADA

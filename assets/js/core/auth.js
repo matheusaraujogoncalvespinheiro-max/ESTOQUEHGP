@@ -1,6 +1,6 @@
 // Autenticação, logout e inatividade
 
-function handleLoginAction() {
+async function handleLoginAction() {
     const rawUsername = document.getElementById('login_user')?.value || '';
     // Normalize to lowercase and remove accents
     const username = rawUsername.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -11,16 +11,19 @@ function handleLoginAction() {
         return;
     }
 
-    if (USERS_DB[username] && USERS_DB[username].ativo === false && USERS_DB[username].password === password) {
+    const conferencia = await conferirSenha(USERS_DB[username], password);
+
+    if (conferencia.ok && USERS_DB[username].ativo === false) {
         showMsg('Usuário inativo. Procure o administrador do sistema.', 'error');
         return;
     }
 
-    if (USERS_DB[username] && USERS_DB[username].password === password) {
+    if (conferencia.ok) {
+        if (conferencia.legado) migrarSenhaLegada(username, password); // converte a conta antiga para hash, sem travar o login
         state.isAuthenticated = true;
         state.currentUser = {
             username: username,
-            ...USERS_DB[username]
+            ...semSenha(USERS_DB[username])
         };
 
         if (state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {

@@ -13,6 +13,11 @@ function homeModule(role) {
     if (role === 'FUNC_RECEPCAO') return 'RECEPCAO';
     if (role === 'FUNC_EMERGENCIA') return 'EMERGENCIA';
     if (role === 'COORD_TRIAGEM') return 'TRIAGEM';
+    if (role === 'MEDICO') return 'PRONTUARIO';
+    if (role === 'FUNC_IMAGENOLOGIA') return 'IMAGEM';
+    if (role === 'FUNC_ULTRASSOM') return 'ULTRASSOM';
+    if (role === 'AUTORIZADOR') return 'AUTORIZACOES';
+    if (role === 'FUNC_HIGIENIZACAO') return 'MAPA_LEITOS';
     return 'DASHBOARD';
 }
 

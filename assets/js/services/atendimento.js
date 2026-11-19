@@ -245,6 +245,7 @@ async function registrarOcorrencia(form) {
         protocolo: gerarProtocolo(agora),
         ...buildOcorrenciaPayload(form),
         status: 'REGISTRADA',
+        nsp_status: 'AVALIAR', nsp_protocolo: '', nsp_observacao: '', nsp_data: '', nsp_por: '',
         versao: 1,
         registrado_em: agora.toISOString(),
         registrado_por: user.username,
@@ -294,6 +295,30 @@ async function atualizarOcorrencia(id, form, motivo) {
     };
     await db_saveOcorrencia({ id, ...mudanca });
     await auditar({ entidade: 'ocorrencia', entidade_id: id, acao: 'EDITAR', antes: diff.antes, depois: diff.depois, motivo: String(motivo).trim() });
+    return { ...atual, ...mudanca };
+}
+
+// ---- Núcleo de Segurança do Paciente (NSP): toda ocorrência precisa ser avaliada; evento adverso é notificado ----
+const STATUS_NSP = {
+    AVALIAR: 'A avaliar pelo NSP',
+    NOTIFICADA: 'Notificada',
+    NAO_E_EVENTO: 'Não é evento adverso'
+};
+
+/** Registra a avaliação do NSP. Notificada exige protocolo e data; "não é evento" exige justificativa. Fica na auditoria. */
+async function registrarAvaliacaoNsp(id, { status, protocolo = '', data = '', observacao = '' }) {
+    requirePermission('nsp_gerenciar');
+    if (!['NOTIFICADA', 'NAO_E_EVENTO'].includes(status)) throw new Error('Escolha o resultado da avaliação.');
+    if (status === 'NOTIFICADA') {
+        if (String(protocolo).trim().length < 3) throw new Error('Informe o protocolo da notificação (ex.: número no Notivisa).');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data)) || data > todayISO()) throw new Error('Informe a data da notificação (não pode ser futura).');
+    } else if (String(observacao).trim().length < 5) throw new Error('Justifique por que não é evento adverso (mínimo de 5 caracteres).');
+    const atual = await db_getOcorrencia(id);
+    if (!atual) throw new Error('Ocorrência não encontrada.');
+    const user = state.currentUser;
+    const mudanca = { nsp_status: status, nsp_protocolo: status === 'NOTIFICADA' ? String(protocolo).trim() : '', nsp_data: status === 'NOTIFICADA' ? data : '', nsp_observacao: String(observacao || '').trim(), nsp_por: user.name };
+    await db_saveOcorrencia({ id, ...mudanca });
+    await auditar({ entidade: 'ocorrencia', entidade_id: id, acao: 'AVALIAR_NSP', antes: { nsp_status: atual.nsp_status || 'AVALIAR' }, depois: { nsp_status: status, nsp_protocolo: mudanca.nsp_protocolo }, motivo: mudanca.nsp_observacao });
     return { ...atual, ...mudanca };
 }
 

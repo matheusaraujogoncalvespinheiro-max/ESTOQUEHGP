@@ -29,7 +29,7 @@ const CAD_DEFS = {
         search: ['nome', 'prontuario', 'cpf', 'cns', 'telefone'],
         columns: [
             { k: 'prontuario', label: 'Prontuário', sort: true },
-            { k: 'nome', label: 'Paciente', sort: true },
+            { k: 'nome', label: 'Paciente', sort: true, get: (r) => r.nome + (r.provisorio ? ' (provisório)' : '') },
             { k: 'cpf', label: 'CPF', get: (r) => (r.cpf ? maskCPF(r.cpf) : '—') },
             { k: 'data_nascimento', label: 'Nascimento', sort: true, get: (r) => (r.data_nascimento ? formatDateBR(r.data_nascimento) : '—') },
             { k: 'telefone', label: 'Telefone', get: (r) => r.telefone || '—' }
@@ -43,6 +43,7 @@ const CAD_DEFS = {
         ],
         tabs: [
             { id: 'principal', label: 'Principal', fields: [
+                { k: 'provisorio', label: 'Cadastro provisório', type: 'check', checkLabel: 'Paciente não identificado (urgência): preencha só a descrição no campo Nome; identifique depois, no mesmo cadastro', col: 12 },
                 { k: 'data_nascimento', label: 'Data de nascimento', type: 'date', req: true, col: 3 },
                 { k: 'sexo', label: 'Sexo', type: 'select', col: 3, opts: [{ id: 'F', rotulo: 'Feminino' }, { id: 'M', rotulo: 'Masculino' }, { id: 'O', rotulo: 'Outro' }, { id: 'N', rotulo: 'Não informado' }] },
                 { k: 'cns', label: 'Cartão SUS (CNS)', type: 'digits', len: 15, col: 6, maxlen: 15, ph: '15 dígitos' },
@@ -67,7 +68,9 @@ const CAD_DEFS = {
                 { k: 'estado_civil', label: 'Estado civil', type: 'select', col: 3, opts: ['Solteiro(a)', 'Casado(a)', 'União estável', 'Divorciado(a)', 'Viúvo(a)'] },
                 { k: 'nacionalidade', label: 'Nacionalidade', type: 'text', col: 3 },
                 { k: 'naturalidade', label: 'Naturalidade', type: 'text', col: 3 },
-                { k: 'profissao', label: 'Profissão', type: 'text', col: 3 }
+                { k: 'profissao', label: 'Profissão', type: 'text', col: 3 },
+                { k: 'raca_cor', label: 'Raça/cor', type: 'select', col: 3, opts: ['Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Sem informação'] },
+                { k: 'etnia', label: 'Etnia', type: 'text', col: 3, help: 'Quando indígena.' }
             ] },
             { id: 'observacoes', label: 'Observações', fields: [
                 { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
@@ -507,6 +510,34 @@ const CAD_DEFS = {
             { k: 'periodo_inicio', label: 'Início do período', type: 'date', req: true },
             { k: 'periodo_fim', label: 'Fim do período', type: 'date', req: true },
             { k: 'centro_custo_id', label: 'Centro de custo', type: 'ref', ref: 'centrocusto' },
+            { ...OBS }
+        ] }]
+    },
+
+
+    // ============ ASSISTÊNCIA ============
+    tipoexame: {
+        key: 'tipoexame', label: 'Tipos de Exame', singular: 'Tipo de Exame', icon: 'scan-line', prefix: 'EXM',
+        desc: 'Exames que podem ser solicitados no prontuário. A lista é configurável: novos tipos entram aqui, sem alterar o sistema.',
+        roles: { ver: ['ADMIN', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM'], criar: ['ADMIN'], editar: ['ADMIN'], inativar: ['ADMIN'] },
+        rotulo: (r) => r.nome,
+        search: ['codigo', 'nome', 'codigo_procedimento'],
+        unique: ['nome'],
+        columns: [
+            { k: 'codigo', label: 'Código', sort: true },
+            { k: 'nome', label: 'Exame', sort: true },
+            { k: 'setor_destino', label: 'Setor responsável', sort: true, get: (r) => ({ IMAGENOLOGIA: 'Imagenologia', ULTRASSONOGRAFIA: 'Ultrassonografia' }[r.setor_destino] || '—') },
+            { k: 'codigo_procedimento', label: 'Cód. procedimento', get: (r) => r.codigo_procedimento || '—' },
+            { k: 'exige_autorizacao', label: 'Exige autorização', get: (r) => (r.exige_autorizacao ? 'Sim' : 'Não') }
+        ],
+        filters: [{ k: 'setor_destino', label: 'Setor', opts: [{ id: 'IMAGENOLOGIA', rotulo: 'Imagenologia' }, { id: 'ULTRASSONOGRAFIA', rotulo: 'Ultrassonografia' }] }],
+        header: ['codigo', 'nome'],
+        tabs: [{ id: 'dados', label: 'Dados', fields: [
+            { k: 'nome', label: 'Nome do exame', type: 'text', req: true, span2: true },
+            { k: 'setor_destino', label: 'Setor responsável', type: 'select', req: true, opts: [{ id: 'IMAGENOLOGIA', rotulo: 'Imagenologia' }, { id: 'ULTRASSONOGRAFIA', rotulo: 'Ultrassonografia' }] },
+            { k: 'exige_autorizacao', label: 'Autorização', type: 'check', checkLabel: 'Exige autorização/APAC antes de agendar' },
+            { k: 'codigo_procedimento', label: 'Código do procedimento', type: 'text', maxlen: 20, help: 'Informe conforme a tabela oficial (SIGTAP). Não é preenchido automaticamente.' },
+            { k: 'nome_procedimento', label: 'Nome do procedimento', type: 'text' },
             { ...OBS }
         ] }]
     },

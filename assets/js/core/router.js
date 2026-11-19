@@ -47,9 +47,25 @@ function renderContent() {
         case 'PROCEDIMENTOS_NAO_REALIZADOS':
             return renderProcedimentosNaoRealizados();
         case 'MEMBERS':
-            return renderMembers();
+            cadAbrir('usuario');
+            state.activeModule = 'CAD';
+            return renderCad();
         case 'CAD':
             return renderCad();
+        case 'RELATORIOS':
+            return renderRelatorios();
+        case 'MAPA_LEITOS':
+            return renderMapaLeitos();
+        case 'INTERNACOES':
+            return renderInternacoes();
+        case 'PRONTUARIO':
+            return renderProntuario();
+        case 'IMAGEM':
+            return renderCentralExames('IMAGENOLOGIA');
+        case 'ULTRASSOM':
+            return renderCentralExames('ULTRASSONOGRAFIA');
+        case 'AUTORIZACOES':
+            return renderAutorizacoes();
         case 'NOTIFICATIONS':
             return renderNotifications();
         case 'BACKUP':

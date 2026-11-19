@@ -1,6 +1,7 @@
 // Portaria: controle de acesso de visitantes e acompanhantes
 
 function renderPortariaPainel() {
+    if (typeof db_watch === 'function') { db_watch('leitos'); db_watch('internacoes'); }
     if (!state.activePortariaSetor) {
         state.activePortariaSetor = 'Pronto Socorro Adulto';
     }
@@ -507,61 +508,12 @@ function handlePisoChange(piso) {
         }
         if (leitoSelect) {
             leitoSelect.required = true;
+            // Estrutura Andar → Ala → Quarto → Leito: a mesma usada pela Internação e pelo Mapa de Ocupação
             let options = '<option value="">Selecione...</option>';
-            
-            let wing1Label = '';
-            let wing2Label = '';
-            
-            if (piso === '1') {
-                wing1Label = 'Ala A/B (Pediatria)';
-                wing2Label = ''; // Piso 1 has no Wing 2 based on description
-            } else if (piso === '2') {
-                wing1Label = 'Ala E/F (Neuro)';
-                wing2Label = 'Ala G/H (Clínica Médica)';
-            } else if (piso === '3') {
-                wing1Label = 'Ala I/J (Ortopedia)';
-                wing2Label = 'Ala K/L (Especialidades / Buco)';
-            } else if (piso === '4') {
-                wing1Label = 'Ala M/N (Oncologia / Nefrologia)';
-                wing2Label = 'Ala O/P (Especialidades)';
-            }
-            
-            // Wing 1 (Leitos 01 a 25)
-            if (wing1Label) {
-                options += `<optgroup label="${wing1Label} - Leitos 01 a 25">`;
-                for (let i = 1; i <= 25; i++) {
-                    const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
-                    const spec = getLeitoSpecialty(piso, i);
-                    const display = spec ? `${roomNum} (${spec})` : roomNum;
-                    options += `<option value="${roomNum}">${display}</option>`;
-                }
-                for (let i = 1; i <= 25; i++) {
-                    const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
-                    const spec = getLeitoSpecialty(piso, i);
-                    const display = spec ? `${roomNum} (${spec})` : roomNum;
-                    options += `<option value="${roomNum}">${display}</option>`;
-                }
-                options += '</optgroup>';
-            }
-            
-            // Wing 2 (Leitos 26 a 49)
-            if (wing2Label) {
-                options += `<optgroup label="${wing2Label} - Leitos 26 a 49">`;
-                for (let i = 26; i <= 49; i++) {
-                    const roomNum = `${piso}${String(i).padStart(2, '0')}A`;
-                    const spec = getLeitoSpecialty(piso, i);
-                    const display = spec ? `${roomNum} (${spec})` : roomNum;
-                    options += `<option value="${roomNum}">${display}</option>`;
-                }
-                for (let i = 26; i <= 49; i++) {
-                    const roomNum = `${piso}${String(i).padStart(2, '0')}B`;
-                    const spec = getLeitoSpecialty(piso, i);
-                    const display = spec ? `${roomNum} (${spec})` : roomNum;
-                    options += `<option value="${roomNum}">${display}</option>`;
-                }
-                options += '</optgroup>';
-            }
-            
+            const doAndar = arvoreHospital(estruturaHospital().filter(l => l.andar === piso))[0];
+            ((doAndar && doAndar.alas) || []).forEach(al => {
+                options += `<optgroup label="${al.ala}">${al.quartos.flatMap(q => q.leitos).map(l => `<option value="${l.id}">${l.id} (${l.ala})</option>`).join('')}</optgroup>`;
+            });
             leitoSelect.innerHTML = options;
         }
     }
@@ -614,9 +566,11 @@ function handleLeitoSelectChange(leitoValue) {
     }
     
     const patient = (MOCK_DATA.PACIENTES || []).find(p => p.leito && p.leito.toUpperCase().trim() === leitoValue.toUpperCase().trim());
-    if (patient) {
-        nameInput.value = patient.nome;
-        showMsg(`✓ Paciente ${patient.nome} encontrado no leito ${leitoValue}.`);
+    const internacao = typeof internacaoAtivaDoLeito === 'function' ? internacaoAtivaDoLeito(leitoValue) : null;
+    const nome = internacao ? internacao.paciente_nome : (patient && patient.nome);
+    if (nome) {
+        nameInput.value = nome;
+        showMsg(`✓ Paciente ${nome} encontrado no leito ${leitoValue}.`);
     } else {
         nameInput.value = '';
     }

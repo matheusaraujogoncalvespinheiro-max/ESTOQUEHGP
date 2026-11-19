@@ -100,12 +100,12 @@ function openPassword() {
             ${passwordField('confirmacao', 'Confirmar nova senha', 'new-password')}`,
         async onSubmit({ atual, nova, confirmacao }) {
             const record = USERS_DB[state.currentUser.username];
-            if (!record || record.password !== atual) return 'A senha atual está incorreta.';
+            if (!record || !(await conferirSenha(record, atual)).ok) return 'A senha atual está incorreta.';
             if (!nova || nova.length < 6) return 'A nova senha deve ter pelo menos 6 caracteres.';
             if (nova !== confirmacao) return 'A confirmação não confere com a nova senha.';
             if (nova === atual) return 'A nova senha deve ser diferente da atual.';
-            record.password = nova;
-            if (typeof db_saveMember === 'function') db_saveMember(state.currentUser.username, record);
+            await definirSenha(record, nova);
+            if (typeof db_saveMember === 'function') await db_saveMember(state.currentUser.username, record);
             showMsg('Senha alterada.');
             return null;
         }

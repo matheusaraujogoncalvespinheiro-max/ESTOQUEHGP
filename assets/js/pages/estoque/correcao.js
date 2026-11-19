@@ -92,7 +92,7 @@ function renderCorrecao() {
 
 /** Quem pode usar a tela: só o Chefe OPME (mesmo critério do menu). */
 function canUseCorrecao() {
-    return state.currentUser.role === 'CHEFE_OPME';
+    return state.currentUser.role === 'CHEFE_OPME' || state.currentUser.role === 'ADMIN';
 }
 
 /** Validade para exibição (datas ausentes ou "N/A" viram "-"). */
@@ -125,7 +125,7 @@ function promptDeleteCorrecao(productId, batchId) {
     render();
 }
 
-function handleDeleteCorrecao(e) {
+async function handleDeleteCorrecao(e) {
     e.preventDefault();
     if (!canUseCorrecao()) {
         showMsg("Acesso negado.", "error");
@@ -136,7 +136,7 @@ function handleDeleteCorrecao(e) {
     const username = state.currentUser.username;
 
     // Confere a senha do usuário logado
-    if (!(USERS_DB[username] && USERS_DB[username].password === password)) {
+    if (!(await conferirSenha(USERS_DB[username], password)).ok) {
         showMsg("Senha incorreta. Acesso negado.", "error");
         return;
     }

@@ -350,7 +350,10 @@ async function db_syncMembers() {
         data.forEach(user => {
             if (user.username) {
                 USERS_DB[user.username] = {
-                    password: user.password,
+                    password: user.password || '',
+                    password_hash: user.password_hash || '',
+                    password_salt: user.password_salt || '',
+                    password_iter: user.password_iter || 0,
                     role: user.role,
                     name: user.name,
                     ativo: user.ativo !== false,
@@ -630,7 +633,10 @@ async function db_saveMember(username, user) {
     try {
         await db.collection('app_users').doc(username).set({
             username: username,
-            password: user.password,
+            password: user.password || '',
+            password_hash: user.password_hash || '',
+            password_salt: user.password_salt || '',
+            password_iter: user.password_iter || 0,
             role: user.role,
             name: user.name,
             ativo: user.ativo !== false,

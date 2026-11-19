@@ -1,0 +1,119 @@
+// REGRAS DO FIRESTORE — projeto "opme-389fb" (Hospital Geral de Palmas)
+//
+// ATENÇÃO: NÃO PUBLIQUE ESTE ARQUIVO AGORA. Ele exige usuários autenticados no Firebase Auth com a "claim" `role`
+// (perfil) e `username`. O sistema atual ainda autentica pelo próprio cadastro de usuários (coleção app_users), sem
+// Firebase Auth; publicar estas regras BLOQUEARIA todo o sistema. Veja docs/seguranca-firebase.md (passo a passo da migração).
+//
+// Teste sempre no emulador antes de publicar:  firebase emulators:start --only firestore
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funções ----------
+    function logado() { return request.auth != null; }
+    function perfil() { return request.auth.token.role; }
+    function usuario() { return request.auth.token.username; }
+    function ehAdmin() { return logado() && perfil() == 'ADMIN'; }
+    function temPerfil(lista) { return logado() && (perfil() == 'ADMIN' || perfil() in lista); }
+
+    // Perfis por área
+    function clinico() { return ['MEDICO', 'FUNC_ENFERMAGEM']; }
+    function internacao() { return ['FUNC_ENFERMAGEM', 'FUNC_RECEPCAO']; }
+    function leitos() { return ['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO', 'MEDICO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA']; }
+    function exames() { return ['MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR']; }
+    function estoque() { return ['CHEFE_OPME', 'FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM']; }
+    function atendimento() { return ['FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM', 'FUNC_ENFERMAGEM', 'MEDICO']; }
+
+    // ---------- Usuários: só o administrador lê e altera (nunca expor hashes) ----------
+    match /app_users/{id} {
+      allow read: if ehAdmin() || (logado() && usuario() == id);
+      allow create, update: if ehAdmin();
+      allow delete: if false;
+    }
+
+    // ---------- Auditoria: qualquer usuário logado grava; só o administrador lê; ninguém altera ou apaga ----------
+    match /historico_alteracoes/{id} {
+      allow create: if logado();
+      allow read: if ehAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------- Prontuário: registros assinados só são CRIADOS (sem alterar nem apagar) ----------
+    match /registros_clinicos/{id} {
+      allow read: if temPerfil(clinico());
+      allow create: if temPerfil(clinico())
+        && request.resource.data.autor == usuario()
+        && request.resource.data.assinado == true;
+      allow update, delete: if false;
+    }
+
+    // ---------- Leitos e internações ----------
+    match /leitos_estado/{id} {
+      allow read: if temPerfil(leitos());
+      allow create, update: if temPerfil(['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO']);
+      allow delete: if false;
+    }
+    match /prontuarios_abertos/{id} {
+      allow read: if temPerfil(clinico()) || temPerfil(['FUNC_RECEPCAO']);
+      allow create: if temPerfil(clinico());
+      allow update, delete: if false;
+    }
+    match /internacoes/{id} {
+      allow read: if temPerfil(leitos());
+      allow create, update: if temPerfil(internacao());
+      allow delete: if false;
+    }
+    match /internacao_ativa/{id} {
+      allow read, create, update: if temPerfil(internacao());
+      allow delete: if false;
+    }
+
+    // ---------- Exames e autorizações ----------
+    match /solicitacoes_exame/{id} {
+      allow read: if temPerfil(exames());
+      allow create: if temPerfil(['MEDICO']);
+      allow update: if temPerfil(exames());
+      allow delete: if false;
+    }
+    match /agenda_vagas/{id} {
+      allow read: if temPerfil(exames());
+      allow create, update: if temPerfil(['FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM']);
+      allow delete: if false;
+    }
+    match /autorizacoes/{id} {
+      allow read: if temPerfil(exames());
+      allow create, update: if temPerfil(['AUTORIZADOR']);
+      allow delete: if false;
+    }
+    match /config_hospital/{id} {
+      allow read: if logado();
+      allow write: if temPerfil(['AUTORIZADOR']);
+    }
+
+    // ---------- Pacientes e atendimento (dados pessoais: LGPD) ----------
+    match /pacientes/{id} {
+      allow read: if temPerfil(atendimento());
+      allow create, update: if temPerfil(['FUNC_RECEPCAO']);
+      allow delete: if false;
+    }
+    match /{col}/{id} {
+      allow read: if logado() && col in ['registros_recepcao', 'ocorrencias_emergencia', 'funcionarios', 'equipes_triagem', 'composicoes_mensais', 'integrantes_equipes'] && temPerfil(atendimento());
+      allow create, update: if logado() && col in ['registros_recepcao', 'ocorrencias_emergencia', 'funcionarios', 'equipes_triagem', 'composicoes_mensais', 'integrantes_equipes'] && temPerfil(atendimento());
+    }
+
+    // ---------- Cadastros (coleções cad_*): contadores e demais cadastros ----------
+    match /{col}/{id} {
+      allow read: if logado() && col.matches('cad_.*');
+      allow create, update: if col == 'cad_contadores' ? logado() : (col.matches('cad_.*') && temPerfil(['CHEFE_OPME']));
+    }
+
+    // ---------- Estoque e demais módulos já existentes ----------
+    match /{col}/{id} {
+      allow read: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
+      allow create, update: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
+      allow delete: if temPerfil(estoque());
+    }
+
+    // Tudo o que não foi listado acima fica NEGADO (padrão do Firestore).
+  }
+}

@@ -36,6 +36,13 @@ const item = (ordem, label, module, extra = {}) => ({ ordem, label, module, ...e
 const soon = (ordem, label) => ({ ordem, label, soon: true });
 const group = (ordem, label, children) => ({ ordem, label, children });
 
+// Item do menu Relatórios: abre o relatório escolhido (pages/relatorios.js)
+const relItem = (ordem, label, tipo, access) => item(ordem, label, 'RELATORIOS', {
+    icon: 'file-bar-chart', access,
+    before: () => relatorioAbrir(tipo),
+    active: () => state.activeModule === 'RELATORIOS' && Boolean(state.relatorio) && state.relatorio.tipo === tipo
+});
+
 // Item do menu Cadastro: abre a CONSULTA da entidade (a tela de cadastro abre a partir dela)
 const cadItem = (ordem, label, key) => item(ordem, label, 'CAD', {
     icon: CAD_DEFS[key].icon,
@@ -52,7 +59,7 @@ const historyTab = (tab) => ({
 
 const MENU_TREE = [
     // 1. INÍCIO (opção única)
-    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA') },
+    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO') },
 
     // 2. CADASTRO: cada opção tem tela de CONSULTA e tela de CADASTRO (pages/cadastros/engine.js; campos em data/cadastros.js)
     {
@@ -63,6 +70,7 @@ const MENU_TREE = [
                 cadItem(50, 'Fabricante', 'fabricante'), cadItem(60, 'Unidade', 'unidade'), cadItem(70, 'Etiqueta', 'etiqueta')]),
             group(30, 'Financeiro', [cadItem(10, 'Centro de Custo', 'centrocusto'), cadItem(20, 'Plano de Contas', 'plano'), cadItem(30, 'Sub-Plano de Contas', 'subplano'),
                 cadItem(40, 'Contas', 'conta'), cadItem(50, 'Metas', 'metas')]),
+            group(35, 'Assistência', [cadItem(10, 'Tipos de Exame', 'tipoexame')]),
             group(40, 'Usuário', [cadItem(10, 'Cadastros de Usuários', 'usuario')])
         ]
     },
@@ -134,6 +142,26 @@ const MENU_TREE = [
         ]
     },
 
+    // 7B. ASSISTÊNCIA: leitos, internações e prontuário
+    {
+        id: 'assistencia', ordem: 75, label: 'Assistência', icon: 'bed-double',
+        children: [
+            item(10, 'Mapa de Ocupação', 'MAPA_LEITOS', { icon: 'layout-grid', access: byPermission('mapa_ver') }),
+            item(20, 'Internações', 'INTERNACOES', { icon: 'bed-double', access: byPermission('internacao_gerenciar') }),
+            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', { icon: 'clipboard-list', access: byPermission('prontuario_ver') })
+        ]
+    },
+
+    // 7C. EXAMES: central de Imagenologia, Ultrassonografia e autorizações
+    {
+        id: 'exames', ordem: 76, label: 'Exames', icon: 'scan-line',
+        children: [
+            item(10, 'Imagenologia', 'IMAGEM', { icon: 'scan-line', access: byPermission('imagem_gerenciar') }),
+            item(20, 'Ultrassonografia', 'ULTRASSOM', { icon: 'activity', access: byPermission('ultrassom_gerenciar') }),
+            item(30, 'Autorizações', 'AUTORIZACOES', { icon: 'file-check', access: byPermission('autorizacao_ver') })
+        ]
+    },
+
     // 8. PORTARIA (inclui os módulos de atendimento: Recepção e Emergência abrem em tela cheia da janela)
     {
         id: 'portaria', ordem: 80, label: 'Portaria', icon: 'door-open',
@@ -148,17 +176,28 @@ const MENU_TREE = [
         ]
     },
 
-    // 9. RELATÓRIOS
+    // 9. RELATÓRIOS (assistência, estoque, OPME e auditoria; os demais seguem "em breve")
     {
         id: 'relatorios', ordem: 90, label: 'Relatórios', icon: 'bar-chart-3',
         children: [
-            soon(10, 'Estoque'),
-            soon(20, 'OPME'),
-            soon(30, 'Consumo'),
-            soon(40, 'Compras'),
-            soon(50, 'Procedimentos'),
-            soon(60, 'Perdas'),
-            soon(70, 'Auditoria')
+            group(10, 'Assistência', [
+                relItem(10, 'Ocupação de leitos', 'OCUPACAO', byPermission('mapa_ver')),
+                relItem(20, 'Internações', 'INTERNACOES', byPermission('internacao_gerenciar')),
+                relItem(30, 'Exames', 'EXAMES', anyOf(byPermission('imagem_gerenciar'), byPermission('ultrassom_gerenciar'), byPermission('prontuario_ver'))),
+                relItem(40, 'Autorizações', 'AUTORIZACOES', byPermission('autorizacao_ver')),
+                relItem(50, 'Eventos e segurança do paciente', 'EVENTOS_NSP', byPermission('nsp_gerenciar'))
+            ]),
+            group(20, 'Estoque', [
+                relItem(10, 'Curva ABC', 'CURVA_ABC', byRole('ADMIN', 'CHEFE_OPME')),
+                relItem(20, 'Reposição', 'REPOSICAO', byRole('ADMIN', 'CHEFE_OPME')),
+                relItem(30, 'Validade dos lotes', 'VALIDADE', byRole('ADMIN', 'CHEFE_OPME'))
+            ]),
+            group(30, 'OPME', [relItem(10, 'Rastreabilidade', 'OPME_RASTREIO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA'))]),
+            soon(40, 'Consumo'),
+            soon(50, 'Compras'),
+            soon(60, 'Procedimentos'),
+            soon(70, 'Perdas'),
+            relItem(80, 'Auditoria', 'AUDITORIA', byPermission('auditoria_ver'))
         ]
     },
 
@@ -184,7 +223,7 @@ const MENU_TREE = [
                     item(20, 'Hemodinâmica', 'HEMODINAMICA', { access: byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA') }),
                     item(30, 'Centro Cirúrgico', 'CENTRO_CIRURGICO', { access: byRole('ADMIN', 'CHEFE_OPME', 'FUNC_CENTRO_CIRURGICO') }),
                     item(40, 'Adicionar Estoque', 'ADD_EXISTING', { access: anyOf(byPermission('update_stock', 'OPME'), byPermission('update_stock', 'HEMODINAMICA')) }),
-                    item(50, 'Correção OPME', 'CORRECAO', { access: byRole('CHEFE_OPME') })
+                    item(50, 'Correção OPME', 'CORRECAO', { access: byRole('ADMIN', 'CHEFE_OPME') })
                 ]),
                 group(20, 'Pacientes', [
                     item(5, 'Registrar Internação', 'ENFERMAGEM', { access: byPermission('register_patient') }),

@@ -29,6 +29,7 @@ function showMsg(text, type = 'success') {
 }
 
 function getModuleTitle() {
+    if (state.activeModule === 'RELATORIOS') return 'Relatórios';
     if (state.activeModule === 'CAD') { const d = state.cad && CAD_DEFS[state.cad.key]; return d ? `Cadastro de ${d.label}` : 'Cadastro'; }
     const titles = {
         'DASHBOARD': 'Dashboard Principal',
@@ -65,7 +66,13 @@ function getModuleTitle() {
         'RECEPCAO': 'Recepção',
         'EMERGENCIA': 'Emergência',
         'TRIAGEM': 'Gestão das Triagens',
-        'TRIAGEM_GESTAO': 'Gerenciar Equipes de Triagem'
+        'TRIAGEM_GESTAO': 'Gerenciar Equipes de Triagem',
+        'MAPA_LEITOS': 'Mapa de Ocupação Hospitalar',
+        'INTERNACOES': 'Internações',
+        'PRONTUARIO': 'Prontuário Eletrônico',
+        'IMAGEM': 'Central de Imagenologia',
+        'ULTRASSOM': 'Ultrassonografia',
+        'AUTORIZACOES': 'Controle de Autorizações'
     };
     return titles[state.activeModule] || 'Módulo Desconhecido';
 }

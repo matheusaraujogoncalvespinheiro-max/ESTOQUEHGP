@@ -162,3 +162,5 @@ Cobrem as validações (CPF, telefone, datas) e as regras puras da Gestão das T
 - O Tailwind via CDN é indicado apenas para desenvolvimento; para produção, compilar o CSS.
 
 Menu Cadastro (consulta e cadastro separados para as 17 opções): [docs/cadastros.md](docs/cadastros.md).
+
+Assistência hospitalar (leitos, internação, prontuário, exames e autorizações): [docs/assistencia.md](docs/assistencia.md).

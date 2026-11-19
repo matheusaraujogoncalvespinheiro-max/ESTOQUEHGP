@@ -41,6 +41,7 @@ function renderImmersiveHeader({ tone, icon, title, subtitle }) {
             <p>${escapeHtml(subtitle)}</p>
         </div>
         <div class="imm-header__meta">
+            <button type="button" class="imm-home" onclick="imprimirTelaAtual()" aria-label="Imprimir esta tela" title="Imprimir esta tela" style="min-height:36px;padding:0 12px">${lucideIcon('printer', 'w-5 h-5')}<span>Imprimir</span></button>
             <span class="imm-clock" data-clock>${escapeHtml(formatDateTimeBR(new Date().toISOString()))}</span>
             <span class="imm-user">${lucideIcon('user', 'w-4 h-4')} ${escapeHtml(user ? user.name : '')}</span>
         </div>

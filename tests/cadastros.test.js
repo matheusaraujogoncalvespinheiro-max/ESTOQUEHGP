@@ -20,8 +20,8 @@ test('CNPJ: valida dígitos verificadores e formata', () => {
     assert.equal(call("validateEmail('a@b')"), false);
 });
 
-test('definições: todas as 17 telas do menu Cadastro existem e são coerentes', () => {
-    const esperadas = ['paciente', 'fornecedor', 'funcionario', 'municipio', 'produto', 'classe', 'grupo', 'subgrupo', 'fabricante', 'unidade', 'etiqueta', 'centrocusto', 'plano', 'subplano', 'conta', 'metas', 'usuario'];
+test('definições: todas as 18 telas do menu Cadastro existem e são coerentes', () => {
+    const esperadas = ['paciente', 'fornecedor', 'funcionario', 'municipio', 'produto', 'classe', 'grupo', 'subgrupo', 'fabricante', 'unidade', 'etiqueta', 'centrocusto', 'plano', 'subplano', 'conta', 'metas', 'usuario', 'tipoexame'];
     assert.deepEqual(Array.from(call('Object.keys(CAD_DEFS)')).sort(), [...esperadas].sort());
 });
 

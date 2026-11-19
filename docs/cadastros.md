@@ -1,7 +1,7 @@
 # Menu Cadastro: consulta e cadastro separados
 
 Cada opção do menu **Cadastro** abre uma **tela de consulta** (pesquisa, filtros, ordenação, paginação, situação, ver/editar/inativar).
-**Clicar em qualquer parte da linha da grid abre o cadastro para edição** (só para visualização, se o perfil não puder editar); a única ação na linha é Inativar/Reativar. Os seletores (combobox) usam uma lista própria no mesmo visual dos campos, com busca quando há muitas opções. A partir dela abrem as telas de **cadastro** (novo/editar) e de **visualização** (somente leitura).
+O botão **Imprimir** no topo de cada consulta imprime todos os registros do filtro atual (não só a página), com hospital, filtros, data, usuário e total; a impressão de dados de pacientes fica registrada no log de acesso. **Clicar em qualquer parte da linha da grid abre o cadastro para edição** (só para visualização, se o perfil não puder editar); a única ação na linha é Inativar/Reativar. Os seletores (combobox) usam uma lista própria no mesmo visual dos campos, com busca quando há muitas opções. A partir dela abrem as telas de **cadastro** (novo/editar) e de **visualização** (somente leitura).
 
 A experiência é padronizada; os dados não. Campos, abas, colunas e filtros de cada entidade estão em
 [`assets/js/data/cadastros.js`](../assets/js/data/cadastros.js). O motor (consulta, formulário, validação, gravação) está em

@@ -166,6 +166,7 @@ function renderEmergenciaLista(lista) {
                 <span class="at-item__name">${escapeHtml(o.paciente_nome)}</span>
                 <span class="at-badge at-badge--${String(o.classificacao).toLowerCase()}">${escapeHtml(rotuloClassificacao(o.classificacao))}</span>
                 ${badgeEspera(o)}
+                ${(o.nsp_status || 'AVALIAR') === 'AVALIAR' ? '<span class="at-badge at-badge--urgente" title="Aguardando avaliação do Núcleo de Segurança do Paciente">NSP pendente</span>' : ''}
             </div>
             <div class="at-item__meta">
                 <span>${escapeHtml(o.protocolo)}</span>
@@ -367,6 +368,16 @@ async function emergenciaDetalhes(id) {
             ${linha('Data e hora da ocorrência', `${formatDateBR(o.data_ocorrencia)} ${o.hora_ocorrencia}`)}
             ${linha('Registrada em', `${formatDateTimeBR(o.registrado_em)} por ${o.profissional_responsavel}`)}
             ${linha('Complementares', o.complementares)}
+            <h3 class="at-label" style="margin:16px 0 8px">Segurança do paciente (NSP)</h3>
+            <p><span class="at-badge ${(o.nsp_status || 'AVALIAR') === 'AVALIAR' ? 'at-badge--urgente' : 'at-badge--ok'}">${escapeHtml(STATUS_NSP[o.nsp_status || 'AVALIAR'])}</span>
+               ${o.nsp_protocolo ? ' Protocolo ' + escapeHtml(o.nsp_protocolo) + ' em ' + escapeHtml(formatDateBR(o.nsp_data)) : ''} ${o.nsp_por ? '· avaliado por ' + escapeHtml(o.nsp_por) : ''}</p>
+            ${o.nsp_observacao ? `<p class="at-hint">${escapeHtml(o.nsp_observacao)}</p>` : ''}
+            ${hasPermission('nsp_gerenciar') ? `<div class="at-form" style="margin:8px 0">
+                <div class="at-field"><label class="at-label" for="nsp_st">Avaliação</label><select class="at-select" id="nsp_st"><option value="NOTIFICADA">Evento adverso notificado</option><option value="NAO_E_EVENTO">Não é evento adverso</option></select></div>
+                <div class="at-field"><label class="at-label" for="nsp_prot">Protocolo da notificação</label><input class="at-input" id="nsp_prot" maxlength="40" autocomplete="off"></div>
+                <div class="at-field"><label class="at-label" for="nsp_data">Data da notificação</label><input class="at-input" id="nsp_data" type="date" max="${todayISO()}"></div>
+                <div class="at-field"><label class="at-label" for="nsp_obs">Observação / justificativa</label><input class="at-input" id="nsp_obs" maxlength="200" autocomplete="off"></div></div>
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="emergenciaAvaliarNsp(${escapeHtml(JSON.stringify(o.id))})">Registrar avaliação</button>` : ''}
             <h3 class="at-label" style="margin:16px 0 8px">Histórico de alterações</h3>
             <div id="emg-auditoria"><div class="at-hint">Carregando...</div></div>
         </div>
@@ -387,6 +398,15 @@ async function emergenciaDetalhes(id) {
         const box = dialog.querySelector('#emg-auditoria');
         if (box) box.innerHTML = `<div class="at-hint">${escapeHtml(err.message)}</div>`;
     }
+}
+
+async function emergenciaAvaliarNsp(id) {
+    try {
+        await registrarAvaliacaoNsp(id, { status: document.getElementById('nsp_st').value, protocolo: document.getElementById('nsp_prot').value, data: document.getElementById('nsp_data').value, observacao: document.getElementById('nsp_obs').value });
+        fecharModaisAbertos();
+        showMsg('Avaliação do NSP registrada.');
+        db_getOcorrencia(id).then(o => { const i = MOCK_DATA.OCORRENCIAS_EMERGENCIA.findIndex(x => x.id === id); if (i >= 0 && o) MOCK_DATA.OCORRENCIAS_EMERGENCIA[i] = o; render(); });
+    } catch (err) { showMsg(err.message, 'error'); }
 }
 
 async function emergenciaEditar(id) {

@@ -81,7 +81,7 @@ function tryRestoreSession() {
     if (!record) return false; // ainda não chegou do banco (ou o usuário foi removido)
 
     state.isAuthenticated = true;
-    state.currentUser = { username: saved.username, ...record };
+    state.currentUser = { username: saved.username, ...semSenha(record) };
     state.isMobileMenuOpen = false;
     state.menuPath = [];
     state.sessionPending = false;

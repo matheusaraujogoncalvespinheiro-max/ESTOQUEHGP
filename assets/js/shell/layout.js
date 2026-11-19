@@ -126,6 +126,7 @@ function renderPagebar(ativa) {
             <h1>${escapeHtml(getModuleTitle())}</h1>
             <nav class="breadcrumb" aria-label="Você está em">${renderBreadcrumb(ativa)}</nav>
         </div>
+        ${telaTemImpressaoPropria() ? '' : `<button type="button" class="at-btn at-btn--ghost at-btn--sm pagebar__imprimir" onclick="imprimirTelaAtual()" title="Imprimir esta tela">${lucideIcon('printer', 'w-4 h-4')} Imprimir</button>`}
         ${showFilter ? `
         <div class="pagebar__filtro">
             ${lucideIcon('filter', 'w-4 h-4')}
@@ -162,7 +163,7 @@ function renderShell(contentHtml) {
             </div>
 
             ${renderTopbar(open)}
-            ${state.activeModule === 'DASHBOARD' ? '' : renderPagebar(ativa)}
+            ${state.activeModule === 'DASHBOARD' ? `<div class="pagebar" style="justify-content:flex-end"><button type="button" class="at-btn at-btn--ghost at-btn--sm pagebar__imprimir" onclick="imprimirTelaAtual()" title="Imprimir esta tela">${lucideIcon('printer', 'w-4 h-4')} Imprimir</button></div>` : renderPagebar(ativa)}
 
             <main class="shell__content">${contentHtml}</main>
         </div>
