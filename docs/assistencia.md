@@ -1,6 +1,6 @@
-# Assistência hospitalar: leitos, internação, prontuário digital, exames, autorizações e transporte (NIR)
+# Assistência hospitalar: leitos, internação, prontuário digital, exames, autorizações, NIR e Setor de Transporte
 
-Módulos: **Assistência** (Mapa de Ocupação, Internações, Prontuário Eletrônico Digital, Gestão de Transporte NIR) e **Exames** (Imagenologia, Ultrassonografia, Autorizações).
+Módulos: **Assistência** (Mapa de Ocupação, Internações, Prontuário Eletrônico Digital, NIR — Regulação e Documentação, e Setor de Transporte) e **Exames** (Imagenologia, Ultrassonografia, Autorizações).
 Cadastro: **Cadastro › Assistência › Tipos de Exame** (lista configurável). Regras em `services/hospital.js`, dados e seed em `services/db-hospital.js`, telas em `pages/hospital/` (`mapa.js`, `prontuario.js`, `exames.js`, `transporte.js`).
 
 ## Estrutura única de localização
@@ -39,7 +39,7 @@ Aprovar libera para a fila do setor, mas **nunca agenda nem aprova sozinho**. Al
 
 ## Perfis novos
 
-Médico(a), Funcionário Imagenologia, Funcionário Ultrassonografia, Autorizador (Regulação) e Funcionário Higienização; Enfermagem e Recepção ganharam acesso a leitos/internação.
+Médico(a) (`MEDICO`), Funcionário Imagenologia (`FUNC_IMAGENOLOGIA`), Funcionário Ultrassonografia (`FUNC_ULTRASSOM`), Autorizador (`AUTORIZADOR`), Funcionário Higienização (`FUNC_HIGIENIZACAO`), Regulador do NIR (`FUNC_NIR` — organiza demandas e encaminha a documentação necessária) e Setor de Transporte (`FUNC_TRANSPORTE` — recebe a demanda documentada pelo NIR, designa maqueiro/motorista e executa o transporte); Enfermagem e Recepção ganharam acesso a leitos/internação.
 
 ## Pontos que dependem de validação institucional
 
