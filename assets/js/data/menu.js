@@ -59,7 +59,7 @@ const historyTab = (tab) => ({
 
 const MENU_TREE = [
     // 1. INÍCIO (opção única)
-    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR') },
+    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR', 'FUNC_TRANSPORTE') },
 
     // 2. CADASTRO: cada opção tem tela de CONSULTA e tela de CADASTRO (pages/cadastros/engine.js; campos em data/cadastros.js)
     {
@@ -150,14 +150,15 @@ const MENU_TREE = [
         ]
     },
 
-    // 7B. ASSISTÊNCIA: leitos, internações, prontuário e transporte (NIR)
+    // 7B. ASSISTÊNCIA: leitos, internações, prontuário, NIR (Regulação e Documentação) e Setor de Transporte
     {
         id: 'assistencia', ordem: 75, label: 'Assistência', icon: 'bed-double',
         children: [
             item(10, 'Mapa de Ocupação', 'MAPA_LEITOS', { icon: 'layout-grid', access: byPermission('mapa_ver') }),
             item(20, 'Internações', 'INTERNACOES', { icon: 'bed-double', access: byPermission('internacao_gerenciar') }),
             item(30, 'Prontuário Eletrônico', 'PRONTUARIO', { icon: 'clipboard-list', access: byPermission('prontuario_ver') }),
-            item(40, 'Gestão de Transporte (NIR)', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
+            item(40, 'NIR (Regulação e Documentação)', 'NIR_REGULACAO', { icon: 'file-check', access: byPermission('nir_ver') }),
+            item(50, 'Setor de Transporte', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
         ]
     },
 

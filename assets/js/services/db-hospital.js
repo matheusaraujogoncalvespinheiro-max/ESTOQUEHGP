@@ -785,7 +785,7 @@ async function garantirSeedAssistencia() {
         }
     });
 
-    // 6. Demandas de Transporte do NIR (1 Paciente EM_TRANSITO, 1 Paciente SOLICITADO_NIR, 1 Medicamento/Insumo EQUIPE_DESIGNADA)
+    // 6. Demandas entre o NIR (Regulação e Documentação) e o Setor de Transporte
     const transportesSeed = [
         {
             id: 'nir_seed_01',
@@ -803,21 +803,29 @@ async function garantirSeedAssistencia() {
             meio_transporte: 'MACA',
             suporte: ['OXIGENIO', 'MONITOR'],
             solicitacao_exame_id: 'exa_seed_01',
+            documentacao_nir: {
+                encaminhada: true,
+                numero_guia: `DOC-NIR-${hoje.replace(/-/g, '')}-0001`,
+                documentos: ['FICHA_REGULACAO_NIR', 'RESUMO_CLINICO', 'GUIA_EXAME_APAC', 'VAGA_CONFIRMADA'],
+                observacoes: 'Guia de TC de Crânio sem contraste (alergia a iodo), resumo clínico e confirmação de horário na Sala 01 conferidos e encaminhados ao Setor de Transporte.',
+                organizado_por: 'Regulador Lucas Mendes (NIR)',
+                encaminhado_em: duasHorasAtras
+            },
             status: 'EM_TRANSITO',
             equipe: {
                 motorista_maqueiro: 'Maqueiro Roberto Alves',
                 veiculo_maca: 'Maca Hidráulica #04',
                 designado_em: umaHoraAtras,
-                designado_por: 'Regulador Lucas Mendes (NIR)'
+                designado_por: 'Coord. Roberto Alves (Setor de Transporte)'
             },
             inicio_transito_em: agora,
             solicitante_nome: 'Téc. Mariana Costa (Imagenologia)',
             criado_em: duasHorasAtras,
             criado_por: 'nir',
             historico: [
-                { status: 'SOLICITADO_NIR', em: duasHorasAtras, por: 'Regulador Lucas Mendes (NIR)', detalhe: 'Demanda gerada a partir do agendamento da Tomografia de Crânio' },
-                { status: 'EQUIPE_DESIGNADA', em: umaHoraAtras, por: 'Regulador Lucas Mendes (NIR)', detalhe: 'Maqueiro Roberto Alves · Maca Hidráulica #04' },
-                { status: 'EM_TRANSITO', em: agora, por: 'Regulador Lucas Mendes (NIR)', detalhe: 'Paciente em deslocamento do Leito 204-A para Imagenologia - Sala 01 (Tomografia)' }
+                { status: 'SOLICITADO_NIR', em: duasHorasAtras, por: 'Regulador Lucas Mendes (NIR)', detalhe: `NIR conferiu e encaminhou a documentação (DOC-NIR-${hoje.replace(/-/g, '')}-0001) para o Setor de Transporte` },
+                { status: 'EQUIPE_DESIGNADA', em: umaHoraAtras, por: 'Coord. Roberto Alves (Setor de Transporte)', detalhe: 'Setor de Transporte designou: Maqueiro Roberto Alves · Maca Hidráulica #04' },
+                { status: 'EM_TRANSITO', em: agora, por: 'Coord. Roberto Alves (Setor de Transporte)', detalhe: 'Setor de Transporte iniciou deslocamento do Leito 204-A para Imagenologia - Sala 01 (Tomografia)' }
             ]
         },
         {
@@ -836,13 +844,21 @@ async function garantirSeedAssistencia() {
             meio_transporte: 'CADEIRA_RODAS',
             suporte: ['OXIGENIO'],
             solicitacao_exame_id: 'exa_seed_02',
-            status: 'SOLICITADO_NIR',
+            documentacao_nir: {
+                encaminhada: false,
+                numero_guia: '',
+                documentos: ['RESUMO_CLINICO', 'GUIA_EXAME_APAC'],
+                observacoes: 'Aguardando o setor NIR conferir a documentação necessária e encaminhar ao Setor de Transporte.',
+                organizado_por: '',
+                encaminhado_em: ''
+            },
+            status: 'AGUARDANDO_NIR',
             equipe: null,
             solicitante_nome: 'Dr. Carlos Eduardo Silva',
             criado_em: umaHoraAtras,
             criado_por: 'medico',
             historico: [
-                { status: 'SOLICITADO_NIR', em: umaHoraAtras, por: 'Dr. Carlos Eduardo Silva', detalhe: 'Solicitação de transporte interno aguardando designação de maqueiro pelo NIR' }
+                { status: 'AGUARDANDO_NIR', em: umaHoraAtras, por: 'Dr. Carlos Eduardo Silva', detalhe: 'Demanda enviada ao NIR para organização e encaminhamento da documentação necessária ao Transporte' }
             ]
         },
         {
@@ -858,19 +874,21 @@ async function garantirSeedAssistencia() {
             motivo: 'Reposição imediata para procedimento de urgência cardiovascular',
             meio_transporte: 'MALOTE_TERMICO',
             suporte: [],
-            status: 'EQUIPE_DESIGNADA',
-            equipe: {
-                motorista_maqueiro: 'Mensageiro Marcos Vinícius',
-                veiculo_maca: 'Carrinho Fechado / Malote #02',
-                designado_em: umaHoraAtras,
-                designado_por: 'Regulador Lucas Mendes (NIR)'
+            documentacao_nir: {
+                encaminhada: true,
+                numero_guia: `DOC-NIR-${hoje.replace(/-/g, '')}-0003`,
+                documentos: ['FICHA_REGULACAO_NIR', 'TERMO_TRANSFERENCIA'],
+                observacoes: 'Guia de remessa de OPME de emergência conferida pelo NIR e liberada para o Setor de Transporte.',
+                organizado_por: 'Regulador Lucas Mendes (NIR)',
+                encaminhado_em: umaHoraAtras
             },
+            status: 'SOLICITADO_NIR',
+            equipe: null,
             solicitante_nome: 'Dr. Carlos Eduardo Silva',
             criado_em: umaHoraAtras,
             criado_por: 'nir',
             historico: [
-                { status: 'SOLICITADO_NIR', em: umaHoraAtras, por: 'Dr. Carlos Eduardo Silva', detalhe: 'Demanda emergencial de insumo hospitalar' },
-                { status: 'EQUIPE_DESIGNADA', em: umaHoraAtras, por: 'Regulador Lucas Mendes (NIR)', detalhe: 'Mensageiro Marcos Vinícius · Carrinho Fechado / Malote #02' }
+                { status: 'SOLICITADO_NIR', em: umaHoraAtras, por: 'Regulador Lucas Mendes (NIR)', detalhe: `NIR encaminhou a documentação (DOC-NIR-${hoje.replace(/-/g, '')}-0003) ao Setor de Transporte` }
             ]
         }
     ];

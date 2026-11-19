@@ -17,7 +17,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return false;
         if (action === 'view_laudos') return true;
         if (action === 'manage_members') return true;
-        return ['transporte_ver', 'transporte_solicitar'].includes(action);
+        return ['nir_ver', 'transporte_ver', 'transporte_solicitar'].includes(action);
     }
 
     if (role === 'CHEFE_HEMODINAMICA') {
@@ -28,7 +28,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return ['transporte_ver', 'transporte_solicitar'].includes(action);
+        return ['nir_ver', 'transporte_ver', 'transporte_solicitar'].includes(action);
     }
 
     if (role === 'FUNC_HEMODINAMICA') {
@@ -37,7 +37,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return ['transporte_ver'].includes(action);
+        return ['nir_ver', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_OPME') {
@@ -46,7 +46,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'OPME') return true;
         if (action === 'view_laudos') return true;
-        return ['transporte_ver'].includes(action);
+        return ['nir_ver', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_CENTRO_CIRURGICO') {
@@ -56,7 +56,7 @@ function hasPermission(action, setor = null) {
         if (action === 'create_laudo' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_laudos') return true;
         if (action === 'manage_salas') return true;
-        return ['transporte_ver'].includes(action);
+        return ['nir_ver', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_ENFERMAGEM') {
@@ -71,7 +71,7 @@ function hasPermission(action, setor = null) {
         return [
             'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'prontuario_evoluir',
             'evolucao_enfermagem', 'sinais_vitais_registrar', 'preparo_exame_checar', 'alergia_gerenciar',
-            'pacientes_consultar', 'transporte_ver', 'transporte_solicitar'
+            'pacientes_consultar', 'nir_ver', 'transporte_ver', 'transporte_solicitar'
         ].includes(action);
     }
 
@@ -90,7 +90,7 @@ function hasPermission(action, setor = null) {
     // ---- Recepção, Emergência e Gestão das Triagens ----
     // O Administrador tem tudo (retorno no início da função). Os demais perfis só recebem o que está listado.
     if (role === 'FUNC_RECEPCAO') {
-        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar', 'transporte_ver'].includes(action);
+        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar', 'nir_ver', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_EMERGENCIA') {
@@ -102,21 +102,21 @@ function hasPermission(action, setor = null) {
         return ['triagem_ver'].includes(action);
     }
 
-    // ---- Assistência: leitos, prontuário, exames, autorizações e transporte NIR ----
+    // ---- Assistência: leitos, prontuário, exames, autorizações, NIR e Setor de Transporte ----
     if (role === 'MEDICO') {
         return [
             'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'evolucao_medica', 'prescrever', 'diagnosticar',
             'alergia_gerenciar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver',
-            'transporte_ver', 'transporte_solicitar'
+            'nir_ver', 'transporte_ver', 'transporte_solicitar'
         ].includes(action);
     }
 
     if (role === 'FUNC_IMAGENOLOGIA') {
-        return ['imagem_gerenciar', 'exame_resultado', 'autorizacao_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
+        return ['imagem_gerenciar', 'exame_resultado', 'autorizacao_ver', 'nir_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
     }
 
     if (role === 'FUNC_ULTRASSOM') {
-        return ['ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
+        return ['ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver', 'nir_ver', 'transporte_ver', 'transporte_solicitar', 'prontuario_ver', 'mapa_ver'].includes(action);
     }
 
     if (role === 'AUTORIZADOR') {
@@ -127,8 +127,17 @@ function hasPermission(action, setor = null) {
         return ['mapa_ver', 'leito_gerenciar'].includes(action);
     }
 
+    // Setor 1: NIR (Núcleo Interno de Regulação) — organiza a demanda, confere e encaminha a documentação necessária ao Transporte
     if (role === 'FUNC_NIR') {
-        return ['mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'pacientes_consultar', 'transporte_ver', 'transporte_solicitar', 'transporte_gerenciar'].includes(action);
+        return [
+            'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'pacientes_consultar',
+            'nir_ver', 'nir_gerenciar', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
+    }
+
+    // Setor 2: Setor de Transporte — recebe a demanda já documentada pelo NIR, designa equipe (maqueiro/motorista) e executa o transporte
+    if (role === 'FUNC_TRANSPORTE') {
+        return ['mapa_ver', 'nir_ver', 'transporte_ver', 'transporte_gerenciar'].includes(action);
     }
 
     return false;
@@ -153,7 +162,8 @@ function getRoleLabel(role) {
         "FUNC_ULTRASSOM": "Funcionário Ultrassonografia",
         "AUTORIZADOR": "Autorizador (Regulação)",
         "FUNC_HIGIENIZACAO": "Funcionário Higienização",
-        "FUNC_NIR": "Regulador / Transporte (NIR)"
+        "FUNC_NIR": "Regulador do NIR (Regulação e Documentação)",
+        "FUNC_TRANSPORTE": "Setor de Transporte (Maqueiros / Frota)"
     };
     return labels[role] || "Colaborador";
 }
@@ -177,7 +187,7 @@ const anyOf = (...checks) => () => checks.some(check => check());
 const ASSIGNABLE_ROLES = [
     'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
     'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
-    'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR'
+    'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NIR', 'FUNC_TRANSPORTE'
 ];
 
 /** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */

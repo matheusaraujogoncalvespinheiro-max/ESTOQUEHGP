@@ -62,6 +62,8 @@ function renderContent() {
             return renderInternacoes();
         case 'PRONTUARIO':
             return renderProntuario();
+        case 'NIR_REGULACAO':
+            return renderPainelNIR();
         case 'TRANSPORTE_NIR':
             return renderTransporteNIR();
         case 'IMAGEM':

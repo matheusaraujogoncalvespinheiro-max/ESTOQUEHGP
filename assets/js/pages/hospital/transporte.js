@@ -1,14 +1,20 @@
-// Gestão de Transporte (Demandas do NIR - Núcleo Interno de Regulação): logística integrada de Pacientes e Medicamentos/Insumos.
-// Conecta-se em tempo real ao Mapa de Leitos (selo "Em Transporte"), à Imagenologia (exames agendados) e à Linha do Tempo do Prontuário Digital.
+// Dois Setores Integrados:
+// 1. NIR (Núcleo Interno de Regulação - módulo NIR_REGULACAO): organiza a demanda, confere e encaminha a documentação necessária ao Setor de Transporte.
+// 2. Setor de Transporte (módulo TRANSPORTE_NIR): recebe a demanda com a documentação encaminhada pelo NIR, designa equipe (maqueiro/motorista + maca/ambulância) e executa o transporte.
+
+function nirRegulacaoState() {
+    if (!state.nirRegulacao) state.nirRegulacao = { aba: 'pendentes_doc', tipo: '', prioridade: '', q: '' };
+    return state.nirRegulacao;
+}
 
 function transporteNirState() {
-    if (!state.transporteNir) state.transporteNir = { aba: 'ativas', tipo: '', prioridade: '', status: '', q: '' };
+    if (!state.transporteNir) state.transporteNir = { aba: 'fila_transporte', tipo: '', prioridade: '', status: '', q: '' };
     return state.transporteNir;
 }
 
 function ordenarDemandasNIR(lista) {
     const pesoPrior = { EMERGENCIA: 0, URGENTE: 1, ELETIVA: 2 };
-    const pesoStatus = { EM_TRANSITO: 0, EQUIPE_DESIGNADA: 1, SOLICITADO_NIR: 2, CONCLUIDO: 3, CANCELADO: 4 };
+    const pesoStatus = { AGUARDANDO_NIR: 0, EM_TRANSITO: 1, EQUIPE_DESIGNADA: 2, SOLICITADO_NIR: 3, CONCLUIDO: 4, CANCELADO: 5 };
     return [...lista].sort((a, b) =>
         (pesoStatus[a.status] ?? 9) - (pesoStatus[b.status] ?? 9)
         || (pesoPrior[a.prioridade] ?? 9) - (pesoPrior[b.prioridade] ?? 9)
@@ -16,27 +22,175 @@ function ordenarDemandasNIR(lista) {
     );
 }
 
+function resumoDocumentacaoBadge(t) {
+    const doc = t.documentacao_nir;
+    if (doc && doc.encaminhada) {
+        const qtd = (doc.documentos || []).length;
+        return `<span class="at-badge at-badge--ok" title="${escapeHtml((doc.documentos || []).map(rotuloDocumentoNIR).join(' · '))}">✔ Doc. NIR: ${escapeHtml(doc.numero_guia || 'Conferida')} (${qtd} doc.)</span>`;
+    }
+    return `<span class="at-badge at-badge--urgente">⏳ Pendente Documentação no NIR</span>`;
+}
+
+// ============================================================ SETOR 1: TELA DO NIR (REGULAÇÃO, ORGANIZAÇÃO E DOCUMENTAÇÃO)
+
+function renderPainelNIR() {
+    if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
+    db_watch('transportes_nir'); db_watch('internacoes'); db_watch('leitos'); db_watch('solicitacoes');
+    const st = nirRegulacaoState();
+    const todas = MOCK_DATA.TRANSPORTES_NIR || [];
+    const aguardandoDoc = todas.filter(t => t.status === 'AGUARDANDO_NIR' || !(t.documentacao_nir && t.documentacao_nir.encaminhada));
+    const encaminhadasAoTransporte = todas.filter(t => ['SOLICITADO_NIR', 'EQUIPE_DESIGNADA', 'EM_TRANSITO'].includes(t.status));
+    const historico = todas.filter(t => ['CONCLUIDO', 'CANCELADO'].includes(t.status));
+
+    const base = st.aba === 'pendentes_doc'
+        ? aguardandoDoc
+        : st.aba === 'encaminhadas'
+            ? encaminhadasAoTransporte
+            : st.aba === 'historico'
+                ? historico
+                : todas;
+
+    const termo = searchKey(st.q);
+    const filtradas = ordenarDemandasNIR(base.filter(t =>
+        (!st.tipo || t.tipo === st.tipo)
+        && (!st.prioridade || t.prioridade === st.prioridade)
+        && (!termo || searchKey(`${t.protocolo} ${(t.documentacao_nir && t.documentacao_nir.numero_guia) || ''} ${t.paciente_nome || ''} ${t.prontuario || ''} ${t.insumo_descricao || ''} ${t.setor_origem || ''} ${t.setor_destino || ''} ${t.motivo || ''}`).includes(termo))
+    ));
+
+    const podeRegularNIR = hasPermission('nir_gerenciar');
+    const podeSolicitar = hasPermission('transporte_solicitar');
+    const sel = (k, val, opts, vazio) => `<select class="at-select hs-sel" onchange="nirRegFiltro('${k}', this.value)" data-keep="nirreg_${k}"><option value="">${vazio}</option>${opts.map(o => `<option value="${escapeHtml(o.id)}" ${o.id === val ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
+
+    return `
+    <div class="at-stack tone-teal">
+        <header class="cd-head">
+            <div class="cd-head__ico">${lucideIcon('file-check', 'w-7 h-7')}</div>
+            <div class="cd-head__txt">
+                <h2>Setor NIR — Núcleo Interno de Regulação (Documentação e Organização)</h2>
+                <p>O NIR recebe e organiza as demandas de Pacientes e Medicamentos/Insumos, confere a documentação obrigatória (Guias, Prontuário, Vaga Confirmada) e encaminha ao <strong>Setor de Transporte</strong> para execução.</p>
+            </div>
+            <div class="cd-head__btns">
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('TRANSPORTE_NIR')">${lucideIcon('ambulance', 'w-5 h-5')} Ir ao Setor de Transporte</button>
+                ${podeSolicitar ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="nirAbrirModalNovaDemanda()">${lucideIcon('plus', 'w-5 h-5')} Nova Regulação / Demanda (NIR)</button>` : ''}
+            </div>
+        </header>
+
+        <div class="cd-kpis">
+            <div class="cd-kpi"><strong>${aguardandoDoc.length}</strong><span>Aguardando Documentação no NIR</span></div>
+            <div class="cd-kpi"><strong>${todas.filter(t => t.status === 'SOLICITADO_NIR').length}</strong><span>Doc. Encaminhada ao Transporte</span></div>
+            <div class="cd-kpi"><strong>${todas.filter(t => ['EQUIPE_DESIGNADA', 'EM_TRANSITO'].includes(t.status)).length}</strong><span>Em Execução pelo Transporte</span></div>
+            <div class="cd-kpi"><strong>${todas.filter(t => t.status === 'CONCLUIDO').length}</strong><span>Concluídas pelo Transporte</span></div>
+        </div>
+
+        <nav class="at-tabs">
+            <button type="button" class="at-tab ${st.aba === 'pendentes_doc' ? 'is-active' : ''}" onclick="nirRegFiltro('aba', 'pendentes_doc')">1. Para Organizar e Documentar no NIR (${aguardandoDoc.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'encaminhadas' ? 'is-active' : ''}" onclick="nirRegFiltro('aba', 'encaminhadas')">2. Já Encaminhadas ao Setor de Transporte (${encaminhadasAoTransporte.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'todas' ? 'is-active' : ''}" onclick="nirRegFiltro('aba', 'todas')">Todas (${todas.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'historico' ? 'is-active' : ''}" onclick="nirRegFiltro('aba', 'historico')">Histórico (${historico.length})</button>
+        </nav>
+
+        <section class="at-card cd-filters">
+            <label class="cd-filter"><span>Tipo</span>${sel('tipo', st.tipo, TIPOS_TRANSPORTE_NIR, 'Todos')}</label>
+            <label class="cd-filter"><span>Prioridade</span>${sel('prioridade', st.prioridade, PRIORIDADES_TRANSPORTE_NIR, 'Todas')}</label>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Protocolo NIR, Nº Guia Documental, Paciente, Insumo ou Destino)</span>
+                <input class="at-input hs-sel" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: NIR-2026, DOC-NIR, Maria, João ou Tomografia" oninput="nirRegFiltro('q', this.value)" data-keep="nirreg_q" autocomplete="off">
+            </label>
+        </section>
+
+        <section class="at-card" style="padding:0;overflow:hidden">
+            <div class="cd-tablewrap">
+                <table class="tri-table cd-table">
+                    <thead>
+                        <tr>
+                            <th>Protocolo NIR / Prioridade</th>
+                            <th>Tipo</th>
+                            <th>Paciente / Medicamento ou Insumo</th>
+                            <th>Origem → Destino Organizado</th>
+                            <th>Documentação do NIR</th>
+                            <th>Situação com o Transporte</th>
+                            <th>Ações do Setor NIR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filtradas.length ? filtradas.map(t => {
+                            const stCfg = STATUS_TRANSPORTE_NIR[t.status] || STATUS_TRANSPORTE_NIR.AGUARDANDO_NIR;
+                            const prCfg = PRIORIDADES_TRANSPORTE_NIR.find(p => p.id === t.prioridade) || PRIORIDADES_TRANSPORTE_NIR[0];
+                            const doc = t.documentacao_nir || {};
+                            return `<tr class="cd-row" tabindex="0" onclick="nirDetalheDemanda('${t.id}')" onkeydown="if (event.key === 'Enter') nirDetalheDemanda('${t.id}')">
+                                <td data-label="Protocolo">
+                                    <strong>${escapeHtml(t.protocolo)}</strong><br>
+                                    <span class="at-badge ${prCfg.badge}">${escapeHtml(prCfg.rotulo)}</span>
+                                </td>
+                                <td data-label="Tipo">
+                                    <span class="at-badge ${t.tipo === 'PACIENTE' ? 'at-badge--ok' : 'at-badge--outros'}">${t.tipo === 'PACIENTE' ? '🧑 Paciente' : '💊 Insumo'}</span>
+                                </td>
+                                <td data-label="Paciente / Insumo">
+                                    ${t.tipo === 'PACIENTE'
+                                        ? `<strong>${escapeHtml(t.paciente_nome)}</strong><br><small>Pront. ${escapeHtml(t.prontuario || '—')}</small>`
+                                        : `<strong>${escapeHtml(t.insumo_descricao)}</strong><br><small>${t.insumo_lote ? 'Lote: ' + escapeHtml(t.insumo_lote) + ' · ' : ''}Qtd: ${escapeHtml(t.insumo_qtd || 1)}</small>`}
+                                    <br><small class="at-hint">Motivo: ${escapeHtml(t.motivo)}</small>
+                                </td>
+                                <td data-label="Trajeto">
+                                    <small><strong>De:</strong> ${escapeHtml(t.setor_origem)}</small><br>
+                                    <small><strong>Para:</strong> <span style="color:#0d9488;font-weight:700">${escapeHtml(t.setor_destino)}</span></small><br>
+                                    <small class="at-hint">Meio: ${escapeHtml(rotuloMeioTransporteNIR(t.meio_transporte))}</small>
+                                </td>
+                                <td data-label="Documentação NIR">
+                                    ${resumoDocumentacaoBadge(t)}
+                                    ${doc.documentos && doc.documentos.length ? `<br><small class="at-hint">${escapeHtml(doc.documentos.map(rotuloDocumentoNIR).join(', '))}</small>` : ''}
+                                </td>
+                                <td data-label="Status">
+                                    <span class="at-badge" style="background:${stCfg.fundo};color:${stCfg.cor}">${escapeHtml(stCfg.rotulo)}</span>
+                                    ${t.equipe ? `<br><small>Transporte: ${escapeHtml(t.equipe.motorista_maqueiro)}</small>` : ''}
+                                </td>
+                                <td data-label="Ações NIR" onclick="event.stopPropagation()">
+                                    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                                        ${podeRegularNIR && !['CONCLUIDO', 'CANCELADO'].includes(t.status)
+                                            ? `<button type="button" class="at-btn ${doc.encaminhada ? 'at-btn--ghost' : 'at-btn--primary'} at-btn--sm" onclick="nirModalEncaminharDocumentacao('${t.id}')">${lucideIcon('file-Output', 'w-4 h-4')} ${doc.encaminhada ? 'Revisar Doc. NIR' : 'Organizar e Encaminhar ao Transporte'}</button>` : ''}
+                                        ${t.tipo === 'PACIENTE' && t.paciente_id && hasPermission('prontuario_ver')
+                                            ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrir('${t.paciente_id}')">Abrir Prontuário</button>` : ''}
+                                    </div>
+                                </td>
+                            </tr>`;
+                        }).join('') : '<tr><td colspan="7" class="at-empty">Nenhuma demanda nesta fila do NIR.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>`;
+}
+
+function nirRegFiltro(k, v) { nirRegulacaoState()[k] = v; render(); }
+
+// ============================================================ SETOR 2: TELA DO SETOR DE TRANSPORTE (EXECUÇÃO OPERACIONAL)
+
 function renderTransporteNIR() {
     if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
     db_watch('transportes_nir'); db_watch('internacoes'); db_watch('leitos'); db_watch('solicitacoes');
     const st = transporteNirState();
     const todas = MOCK_DATA.TRANSPORTES_NIR || [];
-    const ativas = todas.filter(t => !['CONCLUIDO', 'CANCELADO'].includes(t.status));
+
+    // O Setor de Transporte opera sobre as viagens cuja documentação já foi encaminhada pelo NIR
+    const filaTransporte = todas.filter(t => ['SOLICITADO_NIR', 'EQUIPE_DESIGNADA', 'EM_TRANSITO'].includes(t.status));
+    const aguardandoNIR = todas.filter(t => t.status === 'AGUARDANDO_NIR');
     const encerradas = todas.filter(t => ['CONCLUIDO', 'CANCELADO'].includes(t.status));
 
+    const base = st.aba === 'historico'
+        ? encerradas
+        : st.aba === 'aguardando_nir'
+            ? aguardandoNIR
+            : filaTransporte;
+
     const termo = searchKey(st.q);
-    const base = st.aba === 'historico' ? encerradas : ativas;
     const filtradas = ordenarDemandasNIR(base.filter(t =>
         (!st.tipo || t.tipo === st.tipo)
         && (!st.prioridade || t.prioridade === st.prioridade)
         && (!st.status || t.status === st.status)
-        && (!termo || searchKey(`${t.protocolo} ${t.paciente_nome || ''} ${t.prontuario || ''} ${t.insumo_descricao || ''} ${t.setor_origem || ''} ${t.setor_destino || ''} ${t.motivo || ''}`).includes(termo))
+        && (!termo || searchKey(`${t.protocolo} ${(t.documentacao_nir && t.documentacao_nir.numero_guia) || ''} ${t.paciente_nome || ''} ${t.prontuario || ''} ${t.insumo_descricao || ''} ${t.setor_origem || ''} ${t.setor_destino || ''} ${t.motivo || ''}`).includes(termo))
     ));
 
     const cont = (s) => todas.filter(t => t.status === s).length;
-    const podeSolicitar = hasPermission('transporte_solicitar');
-    const podeGerenciar = hasPermission('transporte_gerenciar');
-
+    const podeGerenciarTransporte = hasPermission('transporte_gerenciar');
     const sel = (k, val, opts, vazio) => `<select class="at-select hs-sel" onchange="nirFiltro('${k}', this.value)" data-keep="nir_${k}"><option value="">${vazio}</option>${opts.map(o => `<option value="${escapeHtml(o.id)}" ${o.id === val ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
 
     return `
@@ -44,33 +198,34 @@ function renderTransporteNIR() {
         <header class="cd-head">
             <div class="cd-head__ico">${lucideIcon('ambulance', 'w-7 h-7')}</div>
             <div class="cd-head__txt">
-                <h2>Gestão de Transporte (Demandas do NIR)</h2>
-                <p>Controle logístico de transporte de Pacientes e Medicamentos/Insumos regulado pelo NIR. Pacientes em trânsito recebem selo automático no Mapa de Leitos e no Prontuário Digital.</p>
+                <h2>Setor de Transporte — Logística, Maqueiros e Frota</h2>
+                <p>Recebe as demandas com documentação já conferida e encaminhada pelo <strong>Setor NIR</strong>, designa a equipe (motorista/maqueiro e maca/ambulância) e executa o transporte até o destino.</p>
             </div>
             <div class="cd-head__btns">
-                ${podeSolicitar ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="nirAbrirModalNovaDemanda()">${lucideIcon('plus', 'w-5 h-5')} Nova Demanda (NIR)</button>` : ''}
+                ${hasPermission('nir_ver') ? `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('NIR_REGULACAO')">${lucideIcon('file-check', 'w-5 h-5')} Ver Painel do NIR (Documentação)</button>` : ''}
             </div>
         </header>
 
         <div class="cd-kpis">
-            <div class="cd-kpi"><strong>${cont('SOLICITADO_NIR')}</strong><span>Solicitados pelo NIR</span></div>
-            <div class="cd-kpi"><strong>${cont('EQUIPE_DESIGNADA')}</strong><span>Equipe Designada</span></div>
+            <div class="cd-kpi"><strong>${cont('SOLICITADO_NIR')}</strong><span>Doc. Recebida do NIR (Aguardando Equipe)</span></div>
+            <div class="cd-kpi"><strong>${cont('EQUIPE_DESIGNADA')}</strong><span>Equipe Designada (Pronto p/ Saída)</span></div>
             <div class="cd-kpi"><strong>${cont('EM_TRANSITO')}</strong><span>Em Trânsito Agora</span></div>
-            <div class="cd-kpi"><strong>${ativas.filter(t => ['URGENTE', 'EMERGENCIA'].includes(t.prioridade)).length}</strong><span>Urgentes / Emergência</span></div>
-            <div class="cd-kpi"><strong>${cont('CONCLUIDO')}</strong><span>Viagens Concluídas</span></div>
+            <div class="cd-kpi"><strong>${cont('AGUARDANDO_NIR')}</strong><span>Ainda em Documentação no NIR</span></div>
+            <div class="cd-kpi"><strong>${cont('CONCLUIDO')}</strong><span>Transportes Concluídos</span></div>
         </div>
 
         <nav class="at-tabs">
-            <button type="button" class="at-tab ${st.aba === 'ativas' ? 'is-active' : ''}" onclick="nirFiltro('aba', 'ativas')">Demandas em Andamento (${ativas.length})</button>
-            <button type="button" class="at-tab ${st.aba === 'historico' ? 'is-active' : ''}" onclick="nirFiltro('aba', 'historico')">Concluídos e Cancelados (${encerradas.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'fila_transporte' ? 'is-active' : ''}" onclick="nirFiltro('aba', 'fila_transporte')">Fila Operacional do Transporte — Liberadas pelo NIR (${filaTransporte.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'aguardando_nir' ? 'is-active' : ''}" onclick="nirFiltro('aba', 'aguardando_nir')">Aguardando Documentação do NIR (${aguardandoNIR.length})</button>
+            <button type="button" class="at-tab ${st.aba === 'historico' ? 'is-active' : ''}" onclick="nirFiltro('aba', 'historico')">Viagens Concluídas / Canceladas (${encerradas.length})</button>
         </nav>
 
         <section class="at-card cd-filters">
             <label class="cd-filter"><span>Tipo de Transporte</span>${sel('tipo', st.tipo, TIPOS_TRANSPORTE_NIR, 'Todos')}</label>
             <label class="cd-filter"><span>Prioridade</span>${sel('prioridade', st.prioridade, PRIORIDADES_TRANSPORTE_NIR, 'Todas')}</label>
-            <label class="cd-filter"><span>Status do Fluxo</span>${sel('status', st.status, Object.entries(STATUS_TRANSPORTE_NIR).map(([id, s]) => ({ id, rotulo: s.rotulo })), 'Todos')}</label>
-            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Protocolo, Paciente, Insumo, Leito ou Destino)</span>
-                <input class="at-input hs-sel" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: NIR-2026, Maria, 204-A, Tomografia ou Introdutor" oninput="nirFiltro('q', this.value)" data-keep="nir_q" autocomplete="off">
+            <label class="cd-filter"><span>Etapa do Transporte</span>${sel('status', st.status, Object.entries(STATUS_TRANSPORTE_NIR).map(([id, s]) => ({ id, rotulo: s.rotulo })), 'Todas')}</label>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Protocolo, Guia NIR, Paciente, Insumo, Leito ou Destino)</span>
+                <input class="at-input hs-sel" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: NIR-2026, DOC-NIR, Maria, 204-A, Tomografia ou Introdutor" oninput="nirFiltro('q', this.value)" data-keep="nir_q" autocomplete="off">
             </label>
         </section>
 
@@ -80,12 +235,12 @@ function renderTransporteNIR() {
                     <thead>
                         <tr>
                             <th>Protocolo / Prioridade</th>
-                            <th>Tipo</th>
+                            <th>Documentação Encaminhada pelo NIR</th>
                             <th>Paciente ou Medicamento/Insumo</th>
                             <th>Origem → Destino</th>
-                            <th>Meio / Suporte & Equipe</th>
-                            <th>Status</th>
-                            <th>Workflow NIR</th>
+                            <th>Meio / Suporte & Equipe Designada</th>
+                            <th>Status do Transporte</th>
+                            <th>Execução (Setor de Transporte)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,13 +248,17 @@ function renderTransporteNIR() {
                             const stCfg = STATUS_TRANSPORTE_NIR[t.status] || STATUS_TRANSPORTE_NIR.SOLICITADO_NIR;
                             const prCfg = PRIORIDADES_TRANSPORTE_NIR.find(p => p.id === t.prioridade) || PRIORIDADES_TRANSPORTE_NIR[0];
                             const supLabels = (t.suporte || []).map(id => (SUPORTES_TRANSPORTE_NIR.find(x => x.id === id) || { rotulo: id }).rotulo);
+                            const doc = t.documentacao_nir || {};
                             return `<tr class="cd-row" tabindex="0" onclick="nirDetalheDemanda('${t.id}')" onkeydown="if (event.key === 'Enter') nirDetalheDemanda('${t.id}')">
                                 <td data-label="Protocolo">
                                     <strong>${escapeHtml(t.protocolo)}</strong><br>
-                                    <span class="at-badge ${prCfg.badge}">${escapeHtml(prCfg.rotulo)}</span>
+                                    <span class="at-badge ${prCfg.badge}">${escapeHtml(prCfg.rotulo)}</span><br>
+                                    <small>${t.tipo === 'PACIENTE' ? '🧑 Paciente' : '💊 Insumo'}</small>
                                 </td>
-                                <td data-label="Tipo">
-                                    <span class="at-badge ${t.tipo === 'PACIENTE' ? 'at-badge--ok' : 'at-badge--outros'}">${t.tipo === 'PACIENTE' ? '🧑 Paciente' : '💊 Insumo'}</span>
+                                <td data-label="Doc. NIR">
+                                    ${resumoDocumentacaoBadge(t)}
+                                    ${doc.organizado_por ? `<br><small>Por: ${escapeHtml(doc.organizado_por)}</small>` : ''}
+                                    ${doc.observacoes ? `<br><small class="at-hint">${escapeHtml(doc.observacoes)}</small>` : ''}
                                 </td>
                                 <td data-label="Alvo">
                                     ${t.tipo === 'PACIENTE'
@@ -114,25 +273,27 @@ function renderTransporteNIR() {
                                 <td data-label="Meio / Equipe">
                                     <strong>${escapeHtml(rotuloMeioTransporteNIR(t.meio_transporte))}</strong>
                                     ${supLabels.length ? `<br><small>Suporte: ${escapeHtml(supLabels.join(', '))}</small>` : ''}
-                                    ${t.equipe ? `<br><small style="color:#0284c7"><strong>Equipe:</strong> ${escapeHtml(t.equipe.motorista_maqueiro)} (${escapeHtml(t.equipe.veiculo_maca)})</small>` : '<br><small class="at-hint">Aguardando designação</small>'}
+                                    ${t.equipe ? `<br><small style="color:#0284c7"><strong>Equipe:</strong> ${escapeHtml(t.equipe.motorista_maqueiro)} (${escapeHtml(t.equipe.veiculo_maca)})</small>` : '<br><small class="at-hint">Aguardando designação da equipe</small>'}
                                 </td>
                                 <td data-label="Status">
                                     <span class="at-badge" style="background:${stCfg.fundo};color:${stCfg.cor}">${escapeHtml(stCfg.rotulo)}</span>
                                 </td>
-                                <td data-label="Workflow" onclick="event.stopPropagation()">
+                                <td data-label="Execução" onclick="event.stopPropagation()">
                                     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
-                                        ${podeGerenciar && t.status === 'SOLICITADO_NIR'
-                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirModalDesignarEquipe('${t.id}')">1. Designar Equipe</button>` : ''}
-                                        ${podeGerenciar && t.status === 'EQUIPE_DESIGNADA'
-                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirAcaoIniciarTransito('${t.id}')">2. Iniciar Trânsito</button>` : ''}
-                                        ${podeGerenciar && t.status === 'EM_TRANSITO'
-                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirModalConcluir('${t.id}')">3. Concluir Viagem</button>` : ''}
+                                        ${t.status === 'AGUARDANDO_NIR'
+                                            ? `<span class="at-hint">Aguardando o NIR encaminhar documentação</span>${hasPermission('nir_gerenciar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="nirModalEncaminharDocumentacao('${t.id}')">Encaminhar pelo NIR</button>` : ''}` : ''}
+                                        ${podeGerenciarTransporte && t.status === 'SOLICITADO_NIR'
+                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirModalDesignarEquipe('${t.id}')">1. Designar Maqueiro / Veículo</button>` : ''}
+                                        ${podeGerenciarTransporte && t.status === 'EQUIPE_DESIGNADA'
+                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirAcaoIniciarTransito('${t.id}')">2. Iniciar Transporte (Trânsito)</button>` : ''}
+                                        ${podeGerenciarTransporte && t.status === 'EM_TRANSITO'
+                                            ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirModalConcluir('${t.id}')">3. Concluir Entrega no Destino</button>` : ''}
                                         ${t.tipo === 'PACIENTE' && t.paciente_id && hasPermission('prontuario_ver')
                                             ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrir('${t.paciente_id}')">Ver Prontuário</button>` : ''}
                                     </div>
                                 </td>
                             </tr>`;
-                        }).join('') : '<tr><td colspan="7" class="at-empty">Nenhuma demanda de transporte encontrada com estes filtros.</td></tr>'}
+                        }).join('') : '<tr><td colspan="7" class="at-empty">Nenhuma viagem nesta aba do Setor de Transporte.</td></tr>'}
                     </tbody>
                 </table>
             </div>
@@ -142,7 +303,82 @@ function renderTransporteNIR() {
 
 function nirFiltro(k, v) { transporteNirState()[k] = v; render(); }
 
-// ============================================================ MODAL: NOVA DEMANDA DE TRANSPORTE (NIR)
+// ============================================================ MODAL DO SETOR NIR: ORGANIZAR E ENCAMINHAR DOCUMENTAÇÃO AO TRANSPORTE
+
+function nirModalEncaminharDocumentacao(id) {
+    const t = (MOCK_DATA.TRANSPORTES_NIR || []).find(x => x.id === id);
+    if (!t) return showMsg('Demanda não encontrada.', 'error');
+    const doc = t.documentacao_nir || {};
+    const selecionados = new Set(doc.documentos || ['FICHA_REGULACAO_NIR', 'RESUMO_CLINICO', 'GUIA_EXAME_APAC', 'VAGA_CONFIRMADA']);
+    const guiaSugerida = doc.numero_guia || `DOC-${t.protocolo}`;
+
+    const d = hModal(`Setor NIR — Organizar e Encaminhar Documentação ao Transporte (${t.protocolo})`, `
+        <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
+            <strong>Demanda:</strong> ${t.tipo === 'PACIENTE' ? `Paciente ${escapeHtml(t.paciente_nome)} (Pront. ${escapeHtml(t.prontuario || '—')})` : `Insumo: ${escapeHtml(t.insumo_descricao)}`}<br>
+            <strong>Trajeto:</strong> ${escapeHtml(t.setor_origem)} → <strong>${escapeHtml(t.setor_destino)}</strong> · <strong>Motivo:</strong> ${escapeHtml(t.motivo)}
+        </div>
+        <div class="at-form">
+            <div class="at-field">
+                <label class="at-label" for="doc_guia">Nº da Guia / Despacho Documental do NIR *</label>
+                <input class="at-input" id="doc_guia" value="${escapeHtml(guiaSugerida)}" maxlength="60" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="doc_prior">Prioridade Regulada pelo NIR *</label>
+                <select class="at-select" id="doc_prior">
+                    ${PRIORIDADES_TRANSPORTE_NIR.map(p => `<option value="${p.id}" ${p.id === t.prioridade ? 'selected' : ''}>${escapeHtml(p.rotulo)}</option>`).join('')}
+                </select>
+            </div>
+            <div class="at-field at-span-2">
+                <label class="at-label" for="doc_meio">Meio de Transporte Determinado pelo NIR *</label>
+                <select class="at-select" id="doc_meio">
+                    ${MEIOS_TRANSPORTE_NIR.map(m => `<option value="${m.id}" ${m.id === t.meio_transporte ? 'selected' : ''}>${escapeHtml(m.rotulo)}</option>`).join('')}
+                </select>
+            </div>
+        </div>
+
+        <div class="at-field" style="margin-top:12px">
+            <span class="at-label">Checklist de Documentação Necessária Conferida pelo NIR *</span>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;padding:10px 12px;border:1px solid var(--sh-line);border-radius:10px;background:var(--sh-surface-2)">
+                ${DOCUMENTOS_NIR_OPCOES.map(op => `
+                    <label class="cd-check">
+                        <input type="checkbox" class="nir-doc-chk" value="${op.id}" ${selecionados.has(op.id) ? 'checked' : ''}>
+                        <span><strong>${escapeHtml(op.rotulo)}</strong></span>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="at-field" style="margin-top:12px">
+            <label class="at-label" for="doc_obs">Orientações Documentais e Regulatórias para o Setor de Transporte</label>
+            <textarea class="at-textarea" id="doc_obs" rows="2" maxlength="400" placeholder="Ex.: Prontuário, guia do exame e confirmação da Sala 01 prontos na bancada para o maqueiro retirar.">${escapeHtml(doc.observacoes || '')}</textarea>
+        </div>
+
+        <p class="at-error" id="doc_erro"></p>
+        <div class="at-actions" style="margin-top:14px">
+            <button type="button" class="at-btn at-btn--primary" id="doc_ok">${lucideIcon('send', 'w-4 h-4')} Confirmar Documentação e Encaminhar ao Setor de Transporte</button>
+        </div>`, 'lg');
+
+    d.querySelector('#doc_ok').onclick = async () => {
+        d.querySelector('#doc_erro').textContent = '';
+        try {
+            const documentos = [...d.querySelectorAll('.nir-doc-chk:checked')].map(c => c.value);
+            await encaminharDocumentacaoNIR(id, {
+                numero_guia_nir: d.querySelector('#doc_guia').value,
+                prioridade: d.querySelector('#doc_prior').value,
+                meio_transporte: d.querySelector('#doc_meio').value,
+                documentos,
+                observacoes_nir: d.querySelector('#doc_obs').value
+            });
+            d.close();
+            showMsg('Documentação organizada e encaminhada com sucesso para a fila do Setor de Transporte!');
+            render();
+        } catch (err) {
+            d.querySelector('#doc_erro').textContent = err.message;
+        }
+    };
+}
+
+// ============================================================ MODAL: NOVA DEMANDA / SOLICITAÇÃO AO NIR
 
 function nirAbrirModalNovaDemanda(prefill = {}) {
     try { requirePermission('transporte_solicitar'); } catch (err) { return showMsg(err.message, 'error'); }
@@ -151,18 +387,19 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
     const tipoInicial = prefill.tipo || 'PACIENTE';
     const internados = (MOCK_DATA.INTERNACOES || []).filter(i => i.status === 'ATIVA');
     const estoqueItens = [...(MOCK_DATA.OPME || []), ...(MOCK_DATA.HEMODINAMICA || [])];
+    const ehReguladorNIR = hasPermission('nir_gerenciar');
 
-    const d = hModal('Nova Solicitação de Transporte (Demanda NIR)', `
-        <p class="at-hint">O NIR regula e autoriza as viagens internas e externas de Pacientes e Medicamentos/Insumos.</p>
+    const d = hModal('Nova Solicitação de Regulação (NIR) e Transporte', `
+        <p class="at-hint">O <strong>Setor NIR</strong> organiza a viagem e prepara a documentação necessária antes de encaminhar a ordem para o <strong>Setor de Transporte</strong> executar.</p>
         <div class="at-form">
             <div class="at-field">
-                <label class="at-label" for="nir_tipo">Tipo de Transporte *</label>
+                <label class="at-label" for="nir_tipo">Tipo de Demanda *</label>
                 <select class="at-select" id="nir_tipo" onchange="nirAlternarTipoModal(this.value)">
                     ${TIPOS_TRANSPORTE_NIR.map(t => `<option value="${t.id}" ${t.id === tipoInicial ? 'selected' : ''}>${escapeHtml(t.rotulo)}</option>`).join('')}
                 </select>
             </div>
             <div class="at-field">
-                <label class="at-label" for="nir_prior">Prioridade da Demanda *</label>
+                <label class="at-label" for="nir_prior">Prioridade *</label>
                 <select class="at-select" id="nir_prior">
                     ${PRIORIDADES_TRANSPORTE_NIR.map(p => `<option value="${p.id}" ${p.id === (prefill.prioridade || 'URGENTE') ? 'selected' : ''}>${escapeHtml(p.rotulo)}</option>`).join('')}
                 </select>
@@ -198,7 +435,7 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
                 </div>
             </div>
             <div class="at-field" style="margin-top:10px">
-                <span class="at-label">Suporte Clínico Necessário Durante o Transporte</span>
+                <span class="at-label">Suporte Clínico Necessário</span>
                 <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px">
                     ${SUPORTES_TRANSPORTE_NIR.map(s => `<label class="cd-check"><input type="checkbox" class="nir-sup-chk" value="${s.id}" ${['OXIGENIO', 'MONITOR'].includes(s.id) && prefill.prioridade === 'URGENTE' ? 'checked' : ''}> <span>${escapeHtml(s.rotulo)}</span></label>`).join('')}
                 </div>
@@ -251,12 +488,22 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
             </div>
         </div>
 
+        ${ehReguladorNIR ? `
+        <div class="at-card" style="margin-top:12px;background:var(--sh-surface-2)">
+            <label class="cd-check">
+                <input type="checkbox" id="nir_encaminhar_ja" checked>
+                <span><strong>Setor NIR: Já conferir documentação agora e encaminhar direto ao Setor de Transporte</strong></span>
+            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">
+                ${DOCUMENTOS_NIR_OPCOES.map(op => `<label class="cd-check"><input type="checkbox" class="nir-new-doc-chk" value="${op.id}" checked> <small>${escapeHtml(op.rotulo)}</small></label>`).join('')}
+            </div>
+        </div>` : `<div class="tri-banner tri-banner--info" style="margin-top:12px">Esta solicitação será enviada ao <strong>Setor NIR</strong> para conferência e encaminhamento da documentação ao <strong>Setor de Transporte</strong>.</div>`}
+
         <p class="at-error" id="nir_erro" role="alert"></p>
         <div class="at-actions" style="margin-top:14px">
-            <button type="button" class="at-btn at-btn--primary" id="nir_ok">${lucideIcon('check', 'w-4 h-4')} Registrar e Autorizar Demanda no NIR</button>
+            <button type="button" class="at-btn at-btn--primary" id="nir_ok">${lucideIcon('check', 'w-4 h-4')} ${ehReguladorNIR ? 'Registrar no NIR e Encaminhar Documentação' : 'Enviar Solicitação para o Setor NIR'}</button>
         </div>`, 'lg');
 
-    // Inicializa origem caso já venha com paciente selecionado
     nirSelecionouPacienteInternado(d.querySelector('#nir_pac_sel').value);
 
     d.querySelector('#nir_ok').onclick = async () => {
@@ -265,6 +512,8 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
         const prioridade = d.querySelector('#nir_prior').value;
         const motivo = d.querySelector('#nir_motivo').value;
         const solicitante_nome = d.querySelector('#nir_solic').value;
+        const encaminhar_agora = ehReguladorNIR ? Boolean(d.querySelector('#nir_encaminhar_ja')?.checked) : false;
+        const documentos_nir = ehReguladorNIR ? [...d.querySelectorAll('.nir-new-doc-chk:checked')].map(c => c.value) : [];
 
         try {
             const payload = tipo === 'PACIENTE'
@@ -278,7 +527,9 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
                     suporte: [...d.querySelectorAll('.nir-sup-chk:checked')].map(c => c.value),
                     motivo,
                     solicitante_nome,
-                    solicitacao_exame_id: prefill.solicitacao_exame_id || ''
+                    solicitacao_exame_id: prefill.solicitacao_exame_id || '',
+                    encaminhar_agora,
+                    documentos_nir
                 }
                 : {
                     tipo,
@@ -290,11 +541,15 @@ function nirAbrirModalNovaDemanda(prefill = {}) {
                     setor_destino: d.querySelector('#nir_destino_ins').value,
                     meio_transporte: 'MALOTE_TERMICO',
                     motivo,
-                    solicitante_nome
+                    solicitante_nome,
+                    encaminhar_agora,
+                    documentos_nir
                 };
             const nova = await criarDemandaTransporteNIR(payload);
             d.close();
-            showMsg(`Demanda ${nova.protocolo} criada e autorizada pelo NIR!`);
+            showMsg(nova.status === 'SOLICITADO_NIR'
+                ? `Demanda ${nova.protocolo} documentada pelo NIR e encaminhada para o Setor de Transporte!`
+                : `Demanda ${nova.protocolo} enviada ao Setor NIR para organização e documentação!`);
             render();
         } catch (err) {
             d.querySelector('#nir_erro').textContent = err.message;
@@ -326,17 +581,21 @@ function nirSelecionouInsumoEstoque(idx) {
     if (opt && opt.dataset.lote) document.getElementById('nir_ins_lote').value = opt.dataset.lote;
 }
 
-// ============================================================ WORKFLOW NIR: DESIGNAR EQUIPE, INICIAR TRÂNSITO, CONCLUIR E CANCELAR
+// ============================================================ AÇÕES DO SETOR DE TRANSPORTE (DESIGNAR EQUIPE, INICIAR TRÂNSITO, CONCLUIR)
 
 function nirModalDesignarEquipe(id) {
     const t = (MOCK_DATA.TRANSPORTES_NIR || []).find(x => x.id === id);
     if (!t) return;
-    const d = hModal(`Designar Equipe de Transporte · ${t.protocolo}`, `
-        <p><strong>${t.tipo === 'PACIENTE' ? escapeHtml(t.paciente_nome) : escapeHtml(t.insumo_descricao)}</strong><br>
-        Trajeto: <strong>${escapeHtml(t.setor_origem)}</strong> → <strong>${escapeHtml(t.setor_destino)}</strong></p>
+    const doc = t.documentacao_nir || {};
+    const d = hModal(`Setor de Transporte — Designar Equipe (${t.protocolo})`, `
+        <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
+            <strong>Documentação Recebida do NIR:</strong> ${escapeHtml(doc.numero_guia || 'Conferida')} · Organizada por ${escapeHtml(doc.organizado_por || 'NIR')}<br>
+            <strong>Documentos:</strong> ${escapeHtml((doc.documentos || []).map(rotuloDocumentoNIR).join(' · ') || 'Documentação padrão')}<br>
+            <strong>Trajeto:</strong> ${escapeHtml(t.setor_origem)} → <strong>${escapeHtml(t.setor_destino)}</strong>
+        </div>
         <div class="at-form">
             <div class="at-field">
-                <label class="at-label" for="eq_prof">Motorista / Maqueiro Responsável *</label>
+                <label class="at-label" for="eq_prof">Motorista / Maqueiro do Setor de Transporte *</label>
                 <input class="at-input" id="eq_prof" value="Maqueiro Roberto Alves" placeholder="Nome do maqueiro ou motorista" maxlength="120">
             </div>
             <div class="at-field">
@@ -346,7 +605,7 @@ function nirModalDesignarEquipe(id) {
         </div>
         <p class="at-error" id="eq_erro"></p>
         <div class="at-actions" style="margin-top:14px">
-            <button type="button" class="at-btn at-btn--primary" id="eq_ok">Confirmar Equipe Designada</button>
+            <button type="button" class="at-btn at-btn--primary" id="eq_ok">Confirmar Equipe do Setor de Transporte</button>
         </div>`, 'md');
     d.querySelector('#eq_ok').onclick = async () => {
         try {
@@ -355,7 +614,7 @@ function nirModalDesignarEquipe(id) {
                 veiculo_maca: d.querySelector('#eq_veic').value
             });
             d.close();
-            showMsg('Equipe designada com sucesso.');
+            showMsg('Equipe do Setor de Transporte designada com sucesso.');
             render();
         } catch (err) { d.querySelector('#eq_erro').textContent = err.message; }
     };
@@ -365,18 +624,18 @@ const nirAcaoIniciarTransito = aviso(async (id) => {
     const t = await iniciarTransitoNIR(id);
     fecharModais();
     showMsg(t.tipo === 'PACIENTE'
-        ? `Trânsito iniciado! O selo "Em Transporte (Destino: ${t.setor_destino})" foi ativado no Mapa de Leitos e no Prontuário.`
-        : 'Transporte de insumo em trânsito.');
+        ? `Setor de Transporte iniciou o deslocamento! Selo "Em Transporte (Destino: ${t.setor_destino})" ativado no Mapa de Leitos e no Prontuário.`
+        : 'Setor de Transporte iniciou o deslocamento do insumo.');
     render();
 });
 
 function nirModalConcluir(id) {
     const t = (MOCK_DATA.TRANSPORTES_NIR || []).find(x => x.id === id);
     if (!t) return;
-    const d = hModal(`Concluir Transporte (NIR) · ${t.protocolo}`, `
+    const d = hModal(`Setor de Transporte — Concluir Entrega no Destino (${t.protocolo})`, `
         <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
             <strong>Origem:</strong> ${escapeHtml(t.setor_origem)} → <strong>Destino:</strong> ${escapeHtml(t.setor_destino)}<br>
-            ${t.tipo === 'PACIENTE' ? `Ao concluir, o sistema registrará automaticamente esta viagem na <strong>Linha do Tempo do Prontuário Digital</strong> de <strong>${escapeHtml(t.paciente_nome)}</strong>.` : `Confirme a entrega do medicamento/insumo no setor de destino.`}
+            ${t.tipo === 'PACIENTE' ? `Ao concluir a entrega, o sistema registrará automaticamente esta viagem na <strong>Linha do Tempo do Prontuário Digital</strong> de <strong>${escapeHtml(t.paciente_nome)}</strong>.` : `Confirme a entrega do medicamento/insumo e documentação no setor de destino.`}
         </div>
         <div class="at-form">
             <div class="at-field">
@@ -384,13 +643,13 @@ function nirModalConcluir(id) {
                 <input class="at-input" id="conc_rec" value="${t.setor_destino.includes('Imagenologia') ? 'Téc. Mariana Costa (Imagenologia)' : 'Equipe Assistencial do Setor'}" maxlength="120">
             </div>
             <div class="at-field">
-                <label class="at-label" for="conc_obs">Observações de Entrega</label>
-                <input class="at-input" id="conc_obs" placeholder="Ex.: Paciente entregue estável, sem intercorrências no trajeto." maxlength="250">
+                <label class="at-label" for="conc_obs">Observações de Entrega do Transporte</label>
+                <input class="at-input" id="conc_obs" placeholder="Ex.: Paciente e documentação do NIR entregues sem intercorrências." maxlength="250">
             </div>
         </div>
         <p class="at-error" id="conc_erro"></p>
         <div class="at-actions" style="margin-top:14px">
-            <button type="button" class="at-btn at-btn--primary" id="conc_ok">${lucideIcon('check-circle-2', 'w-4 h-4')} Confirmar Conclusão da Viagem</button>
+            <button type="button" class="at-btn at-btn--primary" id="conc_ok">${lucideIcon('check-circle-2', 'w-4 h-4')} Confirmar Entrega pelo Setor de Transporte</button>
         </div>`, 'md');
     d.querySelector('#conc_ok').onclick = async () => {
         try {
@@ -400,8 +659,8 @@ function nirModalConcluir(id) {
             });
             d.close();
             showMsg(t.tipo === 'PACIENTE'
-                ? 'Viagem concluída! Registro gravado automaticamente na linha do tempo do Prontuário Digital do paciente.'
-                : 'Entrega de medicamento/insumo concluída.');
+                ? 'Transporte concluído! Registro gravado automaticamente na linha do tempo do Prontuário Digital do paciente.'
+                : 'Entrega de medicamento/insumo concluída pelo Setor de Transporte.');
             render();
         } catch (err) { d.querySelector('#conc_erro').textContent = err.message; }
     };
@@ -413,15 +672,17 @@ function nirDetalheDemanda(id) {
     const stCfg = STATUS_TRANSPORTE_NIR[t.status] || STATUS_TRANSPORTE_NIR.SOLICITADO_NIR;
     const prCfg = PRIORIDADES_TRANSPORTE_NIR.find(p => p.id === t.prioridade) || PRIORIDADES_TRANSPORTE_NIR[0];
     const supLabels = (t.suporte || []).map(s => (SUPORTES_TRANSPORTE_NIR.find(x => x.id === s) || { rotulo: s }).rotulo);
-    const podeGerenciar = hasPermission('transporte_gerenciar');
+    const doc = t.documentacao_nir || {};
+    const podeNIR = hasPermission('nir_gerenciar');
+    const podeTransporte = hasPermission('transporte_gerenciar');
     const aberta = !['CONCLUIDO', 'CANCELADO'].includes(t.status);
     const linha = (r, v) => `<div><dt>${escapeHtml(r)}</dt><dd>${escapeHtml(v || '—')}</dd></div>`;
 
-    hModal(`Demanda de Transporte NIR · ${t.protocolo}`, `
+    hModal(`Regulação NIR & Transporte · ${t.protocolo}`, `
         <p style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
             <span class="at-badge" style="background:${stCfg.fundo};color:${stCfg.cor}">${escapeHtml(stCfg.rotulo)}</span>
             <span class="at-badge ${prCfg.badge}">${escapeHtml(prCfg.rotulo)}</span>
-            <span class="at-badge ${t.tipo === 'PACIENTE' ? 'at-badge--ok' : 'at-badge--outros'}">${t.tipo === 'PACIENTE' ? 'Transporte de Paciente' : 'Transporte de Medicamento / Insumo'}</span>
+            ${resumoDocumentacaoBadge(t)}
         </p>
         <dl class="about-list">
             ${t.tipo === 'PACIENTE'
@@ -432,38 +693,56 @@ function nirDetalheDemanda(id) {
             ${linha('Motivo da Viagem', t.motivo)}
             ${linha('Meio de Transporte', rotuloMeioTransporteNIR(t.meio_transporte))}
             ${t.tipo === 'PACIENTE' ? linha('Suporte Clínico', supLabels.join(', ') || 'Sem suporte adicional') : ''}
-            ${linha('Solicitante', t.solicitante_nome)}
-            ${linha('Equipe Designada', t.equipe ? `${t.equipe.motorista_maqueiro} · ${t.equipe.veiculo_maca}` : 'Aguardando designação')}
+            ${linha('Solicitante Inicial', t.solicitante_nome)}
+            ${linha('Nº Guia Documental (Setor NIR)', doc.numero_guia || 'Aguardando emissão pelo NIR')}
+            ${linha('Documentos Conferidos (Setor NIR)', (doc.documentos || []).map(rotuloDocumentoNIR).join(' · ') || 'Pendente')}
+            ${linha('Observações Documentais do NIR', doc.observacoes || '—')}
+            ${linha('Equipe Designada (Setor de Transporte)', t.equipe ? `${t.equipe.motorista_maqueiro} · ${t.equipe.veiculo_maca}` : 'Aguardando Setor de Transporte')}
             ${t.recebido_por ? linha('Recebido no destino por', t.recebido_por) : ''}
             ${t.motivo_cancelamento ? linha('Motivo do Cancelamento', t.motivo_cancelamento) : ''}
         </dl>
 
-        ${aberta && podeGerenciar ? `
-        <h3 class="at-label" style="margin:14px 0 6px">Avançar Workflow do NIR</h3>
-        <div class="at-actions">
-            ${t.status === 'SOLICITADO_NIR' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); nirModalDesignarEquipe('${t.id}')">1. Designar Equipe (Motorista/Maqueiro)</button>` : ''}
-            ${t.status === 'EQUIPE_DESIGNADA' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirAcaoIniciarTransito('${t.id}')">2. Iniciar Trânsito (Em Transporte)</button>` : ''}
-            ${t.status === 'EM_TRANSITO' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); nirModalConcluir('${t.id}')">3. Concluir Viagem no Destino</button>` : ''}
+        ${aberta ? `
+        <div class="at-form" style="margin-top:14px">
+            <div class="at-card">
+                <strong>1. Ações do Setor NIR (Regulação e Documentação)</strong>
+                <p class="at-hint" style="margin:4px 0 10px">Organiza a viagem, confere os documentos necessários e encaminha a ordem ao Setor de Transporte.</p>
+                ${podeNIR
+                    ? `<button type="button" class="at-btn ${doc.encaminhada ? 'at-btn--ghost' : 'at-btn--primary'} at-btn--sm" onclick="fecharModais(); nirModalEncaminharDocumentacao('${t.id}')">${doc.encaminhada ? 'Revisar Documentação Encaminhada' : 'Organizar e Encaminhar Documentação ao Transporte'}</button>`
+                    : `<span class="at-hint">Somente o perfil do Setor NIR organiza e encaminha a documentação.</span>`}
+            </div>
+            <div class="at-card">
+                <strong>2. Ações do Setor de Transporte (Execução Logística)</strong>
+                <p class="at-hint" style="margin:4px 0 10px">Recebe a documentação do NIR, designa motorista/maqueiro e realiza o transporte.</p>
+                ${!doc.encaminhada
+                    ? `<span class="at-badge at-badge--urgente">⏳ Aguardando o NIR encaminhar a documentação</span>`
+                    : (podeTransporte ? `<div class="at-actions">
+                        ${t.status === 'SOLICITADO_NIR' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); nirModalDesignarEquipe('${t.id}')">1. Designar Maqueiro / Veículo</button>` : ''}
+                        ${t.status === 'EQUIPE_DESIGNADA' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="nirAcaoIniciarTransito('${t.id}')">2. Iniciar Trânsito</button>` : ''}
+                        ${t.status === 'EM_TRANSITO' ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); nirModalConcluir('${t.id}')">3. Concluir Entrega</button>` : ''}
+                    </div>` : `<span class="at-hint">Somente o perfil do Setor de Transporte executa a viagem.</span>`)}
+            </div>
         </div>
+        ${(podeNIR || podeTransporte) ? `
         <div class="at-field" style="margin-top:12px">
             <label class="at-label" for="nir_canc_motivo">Cancelar Demanda (justificativa obrigatória)</label>
             <div class="cd-inputbtn has-btn">
                 <input class="at-input" id="nir_canc_motivo" maxlength="200" placeholder="Informe o motivo do cancelamento...">
                 <button type="button" class="cd-searchbtn" style="background:#dc2626;border-color:#dc2626" onclick="nirAcaoCancelar('${t.id}')" title="Cancelar Demanda">${lucideIcon('ban', 'w-5 h-5')}</button>
             </div>
-        </div>` : ''}
+        </div>` : ''}` : ''}
 
-        <h3 class="at-label" style="margin:14px 0 6px">Histórico de Movimentação (NIR)</h3>
+        <h3 class="at-label" style="margin:14px 0 6px">Histórico Integrado (Setor NIR → Setor de Transporte)</h3>
         <ol class="at-timeline">${(t.historico || []).map(h => `<li><strong>${escapeHtml(rotuloStatusTransporteNIR(h.status))}</strong> · ${escapeHtml(formatDateTimeBR(h.em))} · ${escapeHtml(h.por)}${h.detalhe ? '<br><small>' + escapeHtml(h.detalhe) + '</small>' : ''}</li>`).join('')}</ol>
         <div class="at-actions" style="margin-top:14px">
             ${t.tipo === 'PACIENTE' && t.paciente_id && hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="fecharModais(); prontuarioAbrir('${t.paciente_id}')">${lucideIcon('clipboard-list', 'w-4 h-4')} Abrir Prontuário Digital</button>` : ''}
-        </div>`, 'lg');
+        </div>`, 'xl');
 }
 
 const nirAcaoCancelar = aviso(async (id) => {
     const motivo = document.getElementById('nir_canc_motivo')?.value;
     await cancelarTransporteNIR(id, motivo);
     fecharModais();
-    showMsg('Demanda de transporte cancelada.');
+    showMsg('Demanda cancelada.');
     render();
 });

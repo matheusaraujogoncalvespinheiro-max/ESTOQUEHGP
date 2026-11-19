@@ -728,7 +728,7 @@ async function garantirTiposExamePadrao() {
     }
 }
 
-// ============================================================ MÓDULO 3: GESTÃO DE TRANSPORTE (DEMANDAS DO NIR)
+// ============================================================ MÓDULO 3: DOIS SETORES INTEGRADOS — NIR (REGULAÇÃO E DOCUMENTAÇÃO) & SETOR DE TRANSPORTE
 
 const TIPOS_TRANSPORTE_NIR = [
     { id: 'PACIENTE', rotulo: 'Paciente' },
@@ -756,6 +756,15 @@ const SUPORTES_TRANSPORTE_NIR = [
     { id: 'BOMBA_INFUSAO', rotulo: 'Bomba de Infusão Contínua' }
 ];
 
+/** Documentos que o NIR organiza, confere e encaminha obrigatoriamente ao Setor de Transporte. */
+const DOCUMENTOS_NIR_OPCOES = [
+    { id: 'FICHA_REGULACAO_NIR', rotulo: 'Ficha de Regulação e Autorização do NIR Assinada' },
+    { id: 'RESUMO_CLINICO', rotulo: 'Resumo Clínico / Prontuário / Evolução Atualizada' },
+    { id: 'GUIA_EXAME_APAC', rotulo: 'Guia de Solicitação Médica / Pedido de Exame ou APAC' },
+    { id: 'VAGA_CONFIRMADA', rotulo: 'Confirmação de Vaga / Sala no Setor de Destino' },
+    { id: 'TERMO_TRANSFERENCIA', rotulo: 'Termo de Consentimento / Guia de Remessa de Insumo' }
+];
+
 const DESTINOS_TRANSPORTE_NIR = [
     'Imagenologia - Sala 01 (Tomografia)',
     'Imagenologia - Sala 02 (Raio-X Digital)',
@@ -772,14 +781,16 @@ const DESTINOS_TRANSPORTE_NIR = [
 ];
 
 const STATUS_TRANSPORTE_NIR = {
-    SOLICITADO_NIR: { rotulo: 'Solicitado pelo NIR', cor: '#d97706', fundo: '#fef3c7', badge: 'at-badge--urgente' },
-    EQUIPE_DESIGNADA: { rotulo: 'Equipe Designada', cor: '#0284c7', fundo: '#e0f2fe', badge: 'at-badge--outros' },
-    EM_TRANSITO: { rotulo: 'Em Trânsito', cor: '#ea580c', fundo: '#ffedd5', badge: 'at-badge--emergencia' },
-    CONCLUIDO: { rotulo: 'Concluído', cor: '#16a34a', fundo: '#dcfce7', badge: 'at-badge--ok' },
-    CANCELADO: { rotulo: 'Cancelado', cor: '#64748b', fundo: '#f1f5f9', badge: 'at-badge--off' }
+    AGUARDANDO_NIR: { rotulo: 'Em Organização / Documentação no NIR', setor: 'NIR', cor: '#7c3aed', fundo: '#f3e8ff', badge: 'at-badge--outros' },
+    SOLICITADO_NIR: { rotulo: 'Doc. Encaminhada pelo NIR (Aguardando Transporte)', setor: 'TRANSPORTE', cor: '#d97706', fundo: '#fef3c7', badge: 'at-badge--urgente' },
+    EQUIPE_DESIGNADA: { rotulo: 'Equipe Designada (Setor de Transporte)', setor: 'TRANSPORTE', cor: '#0284c7', fundo: '#e0f2fe', badge: 'at-badge--outros' },
+    EM_TRANSITO: { rotulo: 'Em Trânsito (Setor de Transporte)', setor: 'TRANSPORTE', cor: '#ea580c', fundo: '#ffedd5', badge: 'at-badge--emergencia' },
+    CONCLUIDO: { rotulo: 'Concluído (Entregue pelo Transporte)', setor: 'TRANSPORTE', cor: '#16a34a', fundo: '#dcfce7', badge: 'at-badge--ok' },
+    CANCELADO: { rotulo: 'Cancelado', setor: 'NIR', cor: '#64748b', fundo: '#f1f5f9', badge: 'at-badge--off' }
 };
 
 const TRANSICOES_TRANSPORTE_NIR = {
+    AGUARDANDO_NIR: ['SOLICITADO_NIR', 'CANCELADO'],
     SOLICITADO_NIR: ['EQUIPE_DESIGNADA', 'CANCELADO'],
     EQUIPE_DESIGNADA: ['EM_TRANSITO', 'CANCELADO'],
     EM_TRANSITO: ['CONCLUIDO', 'CANCELADO'],
@@ -790,10 +801,11 @@ const TRANSICOES_TRANSPORTE_NIR = {
 const rotuloStatusTransporteNIR = (s) => (STATUS_TRANSPORTE_NIR[s] || { rotulo: s || '—' }).rotulo;
 const rotuloMeioTransporteNIR = (id) => (MEIOS_TRANSPORTE_NIR.find(m => m.id === id) || { rotulo: id || '—' }).rotulo;
 const rotuloPrioridadeTransporteNIR = (id) => (PRIORIDADES_TRANSPORTE_NIR.find(p => p.id === id) || { rotulo: id || '—' }).rotulo;
+const rotuloDocumentoNIR = (id) => (DOCUMENTOS_NIR_OPCOES.find(d => d.id === id) || { rotulo: id || '—' }).rotulo;
 const transicaoTransportePermitida = (de, para) => (TRANSICOES_TRANSPORTE_NIR[de] || []).includes(para);
 
 /**
- * Retorna a demanda de transporte do NIR que está EM_TRANSITO para o paciente informado (se houver).
+ * Retorna a demanda de transporte que está EM_TRANSITO para o paciente informado (se houver).
  * Usado pelo Mapa de Leitos e pelo Cabeçalho do Prontuário para exibir o selo "Em Transporte (Destino: X)".
  */
 function transporteAtivoDoPaciente(pacienteId) {
@@ -803,7 +815,7 @@ function transporteAtivoDoPaciente(pacienteId) {
     ) || null;
 }
 
-/** Retorna a última demanda de transporte vinculada a um exame agendado. */
+/** Retorna a última demanda vinculada a um exame agendado. */
 function transporteDoExame(solId) {
     if (!solId) return null;
     return (MOCK_DATA.TRANSPORTES_NIR || []).find(t =>
@@ -828,7 +840,13 @@ function validarDemandaTransporteNIR(f) {
     return erros;
 }
 
-/** Cria uma nova demanda de transporte do NIR (para Paciente ou Medicamento/Insumo). */
+/**
+ * Cria uma demanda no NIR (para Paciente ou Medicamento/Insumo).
+ * - Se for criada por um setor solicitante (Médico/Enfermagem/Imagenologia) sem documentação NIR anexada (`encaminhar_agora === false`),
+ *   entra como `AGUARDANDO_NIR` para o setor NIR organizar e encaminhar a documentação necessária ao Setor de Transporte.
+ * - Se for criada pelo próprio NIR já com a documentação conferida (`encaminhar_agora !== false`), já encaminha a documentação
+ *   para o Setor de Transporte (`SOLICITADO_NIR`).
+ */
 async function criarDemandaTransporteNIR(f) {
     requirePermission('transporte_solicitar');
     const erros = validarDemandaTransporteNIR(f);
@@ -869,6 +887,35 @@ async function criarDemandaTransporteNIR(f) {
         };
     }
 
+    const podeRegularNIR = hasPermission('nir_gerenciar');
+    const jaEncaminha = f.encaminhar_agora !== undefined ? Boolean(f.encaminhar_agora && podeRegularNIR) : podeRegularNIR;
+    const docsLista = Array.isArray(f.documentos_nir) && f.documentos_nir.length
+        ? f.documentos_nir
+        : (f.tipo === 'PACIENTE'
+            ? ['FICHA_REGULACAO_NIR', 'RESUMO_CLINICO', 'GUIA_EXAME_APAC', 'VAGA_CONFIRMADA']
+            : ['FICHA_REGULACAO_NIR', 'TERMO_TRANSFERENCIA']);
+    const guiaNum = String(f.numero_guia_nir || `DOC-NIR-${hoje}-${seq}`).trim();
+
+    const documentacao_nir = jaEncaminha
+        ? {
+            encaminhada: true,
+            numero_guia: guiaNum,
+            documentos: docsLista,
+            observacoes: String(f.observacoes_nir || 'Documentação conferida, organizada pelo NIR e encaminhada ao Setor de Transporte.').trim(),
+            organizado_por: u.por_nome,
+            encaminhado_em: agora
+        }
+        : {
+            encaminhada: false,
+            numero_guia: '',
+            documentos: docsLista,
+            observacoes: String(f.observacoes_nir || 'Aguardando conferência e encaminhamento documental pelo NIR.').trim(),
+            organizado_por: '',
+            encaminhado_em: ''
+        };
+
+    const statusInicial = jaEncaminha ? 'SOLICITADO_NIR' : 'AGUARDANDO_NIR';
+
     const demanda = {
         id: newId('nir'),
         protocolo,
@@ -879,12 +926,20 @@ async function criarDemandaTransporteNIR(f) {
         motivo: String(f.motivo).trim(),
         solicitacao_exame_id: f.solicitacao_exame_id || '',
         solicitante_nome: String(f.solicitante_nome || u.por_nome).trim(),
-        status: 'SOLICITADO_NIR',
+        documentacao_nir,
+        status: statusInicial,
         equipe: null,
         criado_em: agora,
         criado_por: u.por,
         historico: [
-            { status: 'SOLICITADO_NIR', em: agora, por: u.por_nome, detalhe: `Solicitação de transporte registrada pelo NIR (${f.tipo === 'PACIENTE' ? dadosPaciente.paciente_nome : dadosPaciente.insumo_descricao})` }
+            {
+                status: statusInicial,
+                em: agora,
+                por: u.por_nome,
+                detalhe: jaEncaminha
+                    ? `NIR organizou e encaminhou a documentação (${guiaNum}) para o Setor de Transporte`
+                    : `Demanda enviada ao NIR para organização e encaminhamento da documentação necessária`
+            }
         ]
     };
 
@@ -896,22 +951,77 @@ async function criarDemandaTransporteNIR(f) {
             await setDocH(COLH.SOLICITACOES, {
                 ...sol,
                 transporte_nir_id: demanda.id,
-                historico: [...(sol.historico || []), { status: sol.status, em: agora, por: u.por_nome, motivo: `Transporte solicitado ao NIR (${demanda.protocolo})` }]
+                historico: [...(sol.historico || []), { status: sol.status, em: agora, por: u.por_nome, motivo: `Encaminhado ao NIR (${demanda.protocolo})` }]
             });
         }
     }
 
     if (typeof auditar === 'function') {
-        await auditar({ entidade: 'transporte_nir', entidade_id: demanda.id, acao: 'CRIAR', depois: { protocolo: demanda.protocolo, tipo: demanda.tipo, destino: demanda.setor_destino } });
+        await auditar({ entidade: 'transporte_nir', entidade_id: demanda.id, acao: 'CRIAR', depois: { protocolo: demanda.protocolo, tipo: demanda.tipo, status: statusInicial, destino: demanda.setor_destino } });
     }
     return demanda;
 }
 
-/** Etapa 2 do NIR: Designar equipe (motorista/maqueiro e veículo/maca). */
+/**
+ * SETOR 1 (NIR): Organiza a demanda, confere/anexa a documentação necessária e encaminha formalmente ao Setor de Transporte.
+ */
+async function encaminharDocumentacaoNIR(id, { numero_guia_nir = '', documentos = [], observacoes_nir = '', meio_transporte = '', prioridade = '', suporte = null } = {}) {
+    requirePermission('nir_gerenciar');
+    const atual = await getDocH(COLH.TRANSPORTES, id);
+    if (!atual) throw new Error('Demanda do NIR não encontrada.');
+    if (['CONCLUIDO', 'CANCELADO'].includes(atual.status)) throw new Error('Esta demanda já foi encerrada.');
+    const docsValidos = (Array.isArray(documentos) ? documentos : []).filter(Boolean);
+    if (!docsValidos.length) throw new Error('Selecione ao menos um documento conferido pelo NIR para encaminhar ao Setor de Transporte.');
+    const guia = String(numero_guia_nir || (atual.documentacao_nir && atual.documentacao_nir.numero_guia) || `DOC-${atual.protocolo}`).trim();
+    if (guia.length < 3) throw new Error('Informe o número da Guia / Protocolo Documental do NIR.');
+
+    const u = quem();
+    const agora = agoraISO();
+    const documentacao_nir = {
+        encaminhada: true,
+        numero_guia: guia,
+        documentos: docsValidos,
+        observacoes: String(observacoes_nir || 'Documentação conferida e encaminhada ao Setor de Transporte.').trim(),
+        organizado_por: u.por_nome,
+        encaminhado_em: agora
+    };
+
+    const novoStatus = atual.status === 'AGUARDANDO_NIR' ? 'SOLICITADO_NIR' : atual.status;
+    const novo = {
+        ...atual,
+        prioridade: prioridade || atual.prioridade,
+        meio_transporte: meio_transporte || atual.meio_transporte,
+        suporte: Array.isArray(suporte) ? suporte : atual.suporte,
+        documentacao_nir,
+        status: novoStatus,
+        historico: [
+            ...(atual.historico || []),
+            {
+                status: novoStatus,
+                em: agora,
+                por: `${u.por_nome} (NIR)`,
+                detalhe: `Documentação organizada e encaminhada ao Setor de Transporte · Guia: ${guia} (${docsValidos.map(rotuloDocumentoNIR).join(', ')})`
+            }
+        ]
+    };
+    await setDocH(COLH.TRANSPORTES, novo);
+    if (typeof auditar === 'function') {
+        await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'ENCAMINHAR_DOCUMENTACAO_NIR', depois: documentacao_nir });
+    }
+    return novo;
+}
+
+/**
+ * SETOR 2 (SETOR DE TRANSPORTE): Etapa 1 — Designar equipe (motorista/maqueiro e veículo/maca).
+ * Exige que o NIR já tenha encaminhado a documentação (`SOLICITADO_NIR`).
+ */
 async function designarEquipeTransporteNIR(id, { motorista_maqueiro, veiculo_maca }) {
     requirePermission('transporte_gerenciar');
     const atual = await getDocH(COLH.TRANSPORTES, id);
     if (!atual) throw new Error('Demanda de transporte não encontrada.');
+    if (atual.status === 'AGUARDANDO_NIR' || (atual.documentacao_nir && atual.documentacao_nir.encaminhada === false)) {
+        throw new Error('Aguardando o setor NIR organizar e encaminhar a documentação necessária antes de designar a equipe de transporte.');
+    }
     if (!transicaoTransportePermitida(atual.status, 'EQUIPE_DESIGNADA')) {
         throw new Error(`Não é possível designar equipe para uma demanda "${rotuloStatusTransporteNIR(atual.status)}".`);
     }
@@ -930,14 +1040,14 @@ async function designarEquipeTransporteNIR(id, { motorista_maqueiro, veiculo_mac
         ...atual,
         status: 'EQUIPE_DESIGNADA',
         equipe,
-        historico: [...(atual.historico || []), { status: 'EQUIPE_DESIGNADA', em: agora, por: u.por_nome, detalhe: `${equipe.motorista_maqueiro} · ${equipe.veiculo_maca}` }]
+        historico: [...(atual.historico || []), { status: 'EQUIPE_DESIGNADA', em: agora, por: `${u.por_nome} (Transporte)`, detalhe: `Equipe de Transporte designada: ${equipe.motorista_maqueiro} · ${equipe.veiculo_maca}` }]
     };
     await setDocH(COLH.TRANSPORTES, novo);
     if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'DESIGNAR_EQUIPE', depois: equipe });
     return novo;
 }
 
-/** Etapa 3 do NIR: Iniciar trânsito (viagem em andamento -> ativa o selo "Em Transporte" no Mapa de Leitos e no Prontuário). */
+/** SETOR 2 (SETOR DE TRANSPORTE): Etapa 2 — Iniciar trânsito (ativa o selo "Em Transporte" no Mapa de Leitos e no Prontuário). */
 async function iniciarTransitoNIR(id) {
     requirePermission('transporte_gerenciar');
     const atual = await getDocH(COLH.TRANSPORTES, id);
@@ -951,7 +1061,7 @@ async function iniciarTransitoNIR(id) {
         ...atual,
         status: 'EM_TRANSITO',
         inicio_transito_em: agora,
-        historico: [...(atual.historico || []), { status: 'EM_TRANSITO', em: agora, por: u.por_nome, detalhe: `Em deslocamento: ${atual.setor_origem} → ${atual.setor_destino}` }]
+        historico: [...(atual.historico || []), { status: 'EM_TRANSITO', em: agora, por: `${u.por_nome} (Transporte)`, detalhe: `Setor de Transporte iniciou o deslocamento: ${atual.setor_origem} → ${atual.setor_destino}` }]
     };
     await setDocH(COLH.TRANSPORTES, novo);
     if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'INICIAR_TRANSITO', depois: { status: 'EM_TRANSITO', destino: atual.setor_destino } });
@@ -959,7 +1069,7 @@ async function iniciarTransitoNIR(id) {
 }
 
 /**
- * Etapa 4 do NIR: Concluir transporte.
+ * SETOR 2 (SETOR DE TRANSPORTE): Etapa 3 — Concluir transporte no destino.
  * Se for transporte de PACIENTE, grava automaticamente na linha do tempo do Prontuário Digital do paciente!
  */
 async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' } = {}) {
@@ -971,7 +1081,7 @@ async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' }
     }
     const u = quem();
     const agora = agoraISO();
-    const det = [recebido_por && `Recebido por: ${String(recebido_por).trim()}`, observacoes && String(observacoes).trim()].filter(Boolean).join(' · ') || 'Entregue no destino';
+    const det = [recebido_por && `Recebido por: ${String(recebido_por).trim()}`, observacoes && String(observacoes).trim()].filter(Boolean).join(' · ') || 'Entregue no destino pelo Setor de Transporte';
     const novo = {
         ...atual,
         status: 'CONCLUIDO',
@@ -979,7 +1089,7 @@ async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' }
         concluido_por: u.por_nome,
         recebido_por: String(recebido_por || '').trim(),
         observacoes_conclusao: String(observacoes || '').trim(),
-        historico: [...(atual.historico || []), { status: 'CONCLUIDO', em: agora, por: u.por_nome, detalhe: det }]
+        historico: [...(atual.historico || []), { status: 'CONCLUIDO', em: agora, por: `${u.por_nome} (Transporte)`, detalhe: det }]
     };
     await setDocH(COLH.TRANSPORTES, novo);
 
@@ -987,8 +1097,9 @@ async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' }
     if (atual.tipo === 'PACIENTE' && atual.paciente_id) {
         const internacao = internacaoAtivaDoPaciente(atual.paciente_id) || (atual.internacao_id ? MOCK_DATA.INTERNACOES.find(i => i.id === atual.internacao_id) : null);
         const leitoRot = atual.leito_origem_id ? ((leitoPorId(atual.leito_origem_id) || { rotulo: atual.leito_origem_id }).rotulo) : atual.setor_origem;
-        const eqInfo = atual.equipe ? ` · Equipe: ${atual.equipe.motorista_maqueiro} (${atual.equipe.veiculo_maca})` : '';
-        const textoTimeline = `Transporte concluído via NIR (${atual.protocolo}): Leito ${leitoRot} (${atual.setor_origem}) → ${atual.setor_destino} - Motivo: ${atual.motivo}${eqInfo}${recebido_por ? ' · Recebido por: ' + String(recebido_por).trim() : ''}.`;
+        const eqInfo = atual.equipe ? ` · Equipe de Transporte: ${atual.equipe.motorista_maqueiro} (${atual.equipe.veiculo_maca})` : '';
+        const guiaInfo = atual.documentacao_nir && atual.documentacao_nir.numero_guia ? ` · Doc. NIR: ${atual.documentacao_nir.numero_guia}` : '';
+        const textoTimeline = `Transporte concluído via NIR (${atual.protocolo}${guiaInfo}): Leito ${leitoRot} (${atual.setor_origem}) → ${atual.setor_destino} - Motivo: ${atual.motivo}${eqInfo}${recebido_por ? ' · Recebido por: ' + String(recebido_por).trim() : ''}.`;
         await registrarClinico({
             internacao,
             paciente_id: atual.paciente_id,
@@ -1002,10 +1113,10 @@ async function concluirTransporteNIR(id, { recebido_por = '', observacoes = '' }
     return novo;
 }
 
-/** Cancelar demanda de transporte do NIR (com justificativa obrigatória). */
+/** Cancelar demanda (pelo NIR ou Setor de Transporte, com justificativa obrigatória). */
 async function cancelarTransporteNIR(id, motivo) {
-    if (!hasPermission('transporte_gerenciar') && !hasPermission('transporte_solicitar')) {
-        throw new Error('Acesso negado: seu perfil não pode cancelar demandas de transporte.');
+    if (!hasPermission('transporte_gerenciar') && !hasPermission('nir_gerenciar') && !hasPermission('transporte_solicitar')) {
+        throw new Error('Acesso negado: seu perfil não pode cancelar demandas.');
     }
     const atual = await getDocH(COLH.TRANSPORTES, id);
     if (!atual) throw new Error('Demanda de transporte não encontrada.');

@@ -94,9 +94,11 @@ test('sinais vitais: valida parâmetros clínicos da enfermagem e gera resumo as
 
 test('transporte NIR: valida demandas de paciente e insumo, transições de status e selo Em Transporte', () => {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/pages/hospital/transporte.js'), 'utf8'), ctx);
+    assert.equal(call("transicaoTransportePermitida('AGUARDANDO_NIR', 'SOLICITADO_NIR')"), true);
     assert.equal(call("transicaoTransportePermitida('SOLICITADO_NIR', 'EQUIPE_DESIGNADA')"), true);
     assert.equal(call("transicaoTransportePermitida('EQUIPE_DESIGNADA', 'EM_TRANSITO')"), true);
     assert.equal(call("transicaoTransportePermitida('EM_TRANSITO', 'CONCLUIDO')"), true);
+    assert.equal(call("transicaoTransportePermitida('AGUARDANDO_NIR', 'EQUIPE_DESIGNADA')"), false); // transporte só depois da documentação do NIR
     assert.equal(call("transicaoTransportePermitida('SOLICITADO_NIR', 'CONCLUIDO')"), false);
     assert.equal(call("transicaoTransportePermitida('CONCLUIDO', 'CANCELADO')"), false);
 
@@ -113,7 +115,7 @@ test('transporte NIR: valida demandas de paciente e insumo, transições de stat
     assert.equal(call("transporteAtivoDoPaciente('pac_2')"), null);
 });
 
-test('integração completa: seed populado renderiza Mapa, Prontuário Digital, Imagenologia e Transporte NIR sem erros', async () => {
+test('integração completa: seed populado renderiza Mapa, Prontuário Digital, Imagenologia, Setor NIR e Setor de Transporte', async () => {
     ['assets/js/core/icons.js', 'assets/js/core/permissions.js', 'assets/js/services/db-atendimento.js', 'assets/js/services/db-cadastros.js', 'assets/js/services/db-hospital.js', 'assets/js/shell/layout.js']
         .forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f }));
     call("state.isAuthenticated = true; state.currentUser = { username: 'admin', role: 'ADMIN', name: 'Administrador Geral' };");
@@ -136,11 +138,22 @@ test('integração completa: seed populado renderiza Mapa, Prontuário Digital, 
     assert.ok(htmlImg.includes('TOMOGRAFIA COMPUTADORIZADA DE CRÂNIO'));
     assert.ok(htmlImg.includes('RADIOGRAFIA DE TÓRAX'));
 
-    const htmlNir = call("renderTransporteNIR()");
-    assert.ok(htmlNir.includes('Maqueiro Roberto Alves'));
-    assert.ok(htmlNir.includes('Introdutor Femoral 6FR 18G'));
+    // Setor 1: Painel do NIR (Regulação e Documentação) mostra demanda aguardando documentação
+    const htmlPainelNir = call("renderPainelNIR()");
+    assert.ok(htmlPainelNir.includes('Setor NIR — Núcleo Interno de Regulação'));
+    assert.ok(htmlPainelNir.includes('JOÃO BATISTA PEREIRA'));
 
-    // Concluir viagem do NIR deve gravar automaticamente na linha do tempo do prontuário do paciente
+    // O NIR organiza e encaminha a documentação da demanda nir_seed_02 para o Setor de Transporte
+    await call("encaminharDocumentacaoNIR('nir_seed_02', { numero_guia_nir: 'DOC-NIR-2026-0002', documentos: ['FICHA_REGULACAO_NIR', 'RESUMO_CLINICO'] })");
+    assert.equal(call("MOCK_DATA.TRANSPORTES_NIR.find(t => t.id === 'nir_seed_02').status"), 'SOLICITADO_NIR');
+
+    // Setor 2: Painel do Setor de Transporte mostra as viagens liberadas pelo NIR
+    const htmlTransporte = call("renderTransporteNIR()");
+    assert.ok(htmlTransporte.includes('Setor de Transporte — Logística, Maqueiros e Frota'));
+    assert.ok(htmlTransporte.includes('Maqueiro Roberto Alves'));
+    assert.ok(htmlTransporte.includes('Introdutor Femoral 6FR 18G'));
+
+    // Concluir viagem no Setor de Transporte grava automaticamente na linha do tempo do prontuário do paciente
     await call("concluirTransporteNIR('nir_seed_01', { recebido_por: 'Téc. Mariana Costa' })");
     const regsMaria = call("MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01']");
     assert.ok(regsMaria.some(r => r.tipo === 'TRANSPORTE_NIR' && r.texto.includes('Transporte concluído via NIR')));
