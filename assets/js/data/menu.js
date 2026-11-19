@@ -150,13 +150,24 @@ const MENU_TREE = [
         ]
     },
 
-    // 7B. ASSISTÊNCIA: leitos, internações, prontuário, NIR (Regulação e Documentação) e Setor de Transporte
+    // 7B. ASSISTÊNCIA: leitos, internações, prontuário, Farmácia por pisos, NIR e Setor de Transporte
     {
         id: 'assistencia', ordem: 75, label: 'Assistência', icon: 'bed-double',
         children: [
             item(10, 'Mapa de Ocupação', 'MAPA_LEITOS', { icon: 'layout-grid', access: byPermission('mapa_ver') }),
             item(20, 'Internações', 'INTERNACOES', { icon: 'bed-double', access: byPermission('internacao_gerenciar') }),
-            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', { icon: 'clipboard-list', access: byPermission('prontuario_ver') }),
+            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', {
+                icon: 'clipboard-list',
+                access: byPermission('prontuario_ver'),
+                before: () => { if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'prontuarios'; },
+                active: () => state.activeModule === 'PRONTUARIO' && (Boolean(state.prontuario && state.prontuario.pacienteId) || !state.prontuarioLista || state.prontuarioLista.modo !== 'farmacia_pisos')
+            }),
+            item(35, 'Farmácia (Distribuição p/ Pisos)', 'PRONTUARIO', {
+                icon: 'pill',
+                access: byPermission('prontuario_ver'),
+                before: () => { state.prontuario = null; if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'farmacia_pisos'; },
+                active: () => state.activeModule === 'PRONTUARIO' && !(state.prontuario && state.prontuario.pacienteId) && Boolean(state.prontuarioLista && state.prontuarioLista.modo === 'farmacia_pisos')
+            }),
             item(40, 'NIR (Regulação e Documentação)', 'NIR_REGULACAO', { icon: 'file-check', access: byPermission('nir_ver') }),
             item(50, 'Setor de Transporte', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
         ]

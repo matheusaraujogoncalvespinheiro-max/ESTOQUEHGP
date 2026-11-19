@@ -69,7 +69,8 @@ function renderProntuarioConsulta() {
             </div>
             <div class="cd-head__btns">
                 ${L.modo === 'farmacia_pisos'
-                    ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="farmaciaAbrirModalNovaDispensacao()">${lucideIcon('pill', 'w-5 h-5')} Nova Distribuição p/ Piso</button>`
+                    ? `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="farmaciaImprimirRelatorioPisos()">${lucideIcon('printer', 'w-5 h-5')} Imprimir Quem Pegou por Piso</button>
+                       <button type="button" class="at-btn at-btn--primary cd-new" onclick="farmaciaAbrirModalNovaDispensacao()">${lucideIcon('pill', 'w-5 h-5')} Nova Distribuição p/ Piso</button>`
                     : `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="prontuarioImprimirLista()">${lucideIcon('printer', 'w-5 h-5')} Imprimir</button>
                        <button type="button" class="at-btn at-btn--primary cd-new" onclick="prontuarioNovo()">${lucideIcon('plus', 'w-5 h-5')} Abrir Prontuário</button>`}
             </div>
@@ -306,6 +307,33 @@ function renderTabelaFarmaciaPisos(lista, mostrarColunaPaciente = true) {
 function prontuarioFiltro(k, v) { const L = prontuarioLista(); L[k] = v; if (k !== 'page') L.page = 1; render(); }
 function prontuarioPagina(n) { prontuarioLista().page = Math.max(1, n); render(); }
 function prontuarioLimparFiltros() { Object.assign(prontuarioLista(), { q: '', situacao: '', andar: '', page: 1 }); renderFresh(); }
+
+function farmaciaImprimirRelatorioPisos() {
+    const L = prontuarioLista();
+    const termo = searchKey(L.farQ);
+    const lista = [...(MOCK_DATA.FARMACIA_DISPENSACOES || [])].filter(f =>
+        (!L.farPiso || String(f.piso_andar) === String(L.farPiso))
+        && (!L.farStatus || f.status === L.farStatus)
+        && (!termo || searchKey(`${f.codigo} ${f.medicamento} ${f.dose} ${f.lote || ''} ${f.paciente_nome} ${f.prontuario} ${f.leito_rotulo} ${f.ala_setor} ${(f.retirada && f.retirada.quem_pegou_nome) || ''}`).includes(termo))
+    );
+    if (!lista.length) return showMsg('Nenhum registro de distribuição para imprimir com os filtros atuais.', 'error');
+    const e = escapeHtml;
+    cadImprimirHtml(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Controle de Distribuição da Farmácia por Pisos</title><style>
+        @page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111}h1{font-size:16px;margin:0}h2{font-size:13px;margin:2px 0 8px}
+        table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#e5e7eb;font-size:10px;text-transform:uppercase}</style></head><body>
+        <h1>${e(APP_INFO.hospital)}</h1><h2>Farmácia Hospitalar — Controle de Medicamentos Distribuídos para os Pisos e Quem Pegou</h2>
+        <p>${e([L.farPiso && `${L.farPiso}º Andar (Piso ${L.farPiso})`, L.farStatus && rotuloStatusFarmacia(L.farStatus), L.farQ && `Pesquisa: ${L.farQ}`].filter(Boolean).join(' · ') || 'Todos os Pisos')} · Emitido em ${e(formatDateTimeBR(new Date().toISOString()))} por ${e(state.currentUser.name)} · ${lista.length} item(ns).</p>
+        <table><thead><tr><th>Código</th><th>Piso / Ala / Leito</th><th>Paciente / Pront.</th><th>Medicamento / Dose / Lote / Qtd</th><th>Situação</th><th>Quem Pegou na Farmácia (Nome, Cargo, COREN/Mat. e Hora)</th><th>Dispensado por</th></tr></thead>
+        <tbody>${lista.map(f => `<tr>
+            <td><b>${e(f.codigo)}</b></td>
+            <td><b>${e(f.piso_rotulo)}</b><br>${e(f.ala_setor)} · Leito <b>${e(f.leito_rotulo)}</b></td>
+            <td>${e(f.paciente_nome)}<br><small>Pront. ${e(f.prontuario || '—')}</small></td>
+            <td><b>${e(f.medicamento)}</b><br>${e(f.dose)} (${e(f.via)}) · Qtd: ${e(f.quantidade)}${f.lote ? ' · Lote: ' + e(f.lote) : ''}</td>
+            <td>${e(rotuloStatusFarmacia(f.status))}</td>
+            <td>${f.retirada ? `<b>${e(f.retirada.quem_pegou_nome)}</b><br>${e(f.retirada.quem_pegou_cargo)}<br>${e(f.retirada.quem_pegou_documento)}<br>Retirado em: ${e(formatDateTimeBR(f.retirada.retirado_em))}` : 'Aguardando retirada'}</td>
+            <td>${f.retirada ? e(f.retirada.dispensado_por) : '—'}</td>
+        </tr>`).join('')}</tbody></table></body></html>`);
+}
 
 function prontuarioImprimirLista() {
     const lista = prontuariosFiltrados();
