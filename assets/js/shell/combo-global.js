@@ -38,8 +38,9 @@
         combo.dataset.cdxFor = novoId;
         combo.innerHTML = `<button type="button" class="cd-combo__btn" aria-haspopup="listbox" aria-expanded="false"><span class="cd-combo__txt"></span>${lucideIcon('chevron-down', 'w-4 h-4')}</button><div class="cd-combo__pop" role="listbox"></div>`;
         // Mantém a altura e a largura que o campo tinha, para não bagunçar o alinhamento da tela
+        const emCampo = Boolean(sel.closest('.at-field, .cd-cell, .erp-campo, .hs-field, .cd-filter'));
         if (r.height > 0) { const b = combo.querySelector('.cd-combo__btn'); b.style.height = r.height + 'px'; b.style.minHeight = r.height + 'px'; }
-        if (r.width > 0 && pai > 0 && r.width < pai * 0.95) { combo.style.width = r.width + 'px'; combo.style.maxWidth = '100%'; }
+        if (!emCampo && r.width > 0 && pai > 0 && r.width < pai * 0.95) { combo.style.width = r.width + 'px'; combo.style.maxWidth = '100%'; }
         const btn = combo.querySelector('.cd-combo__btn');
         if (sel.id) btn.dataset.forSelect = sel.id;
         const rot = sel.closest('label');

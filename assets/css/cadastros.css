@@ -88,10 +88,10 @@
 .cd-erpbar__t { font-size: 15px; color: var(--sh-muted); }
 .cd-erpbar__t strong { color: var(--sh-ink); }
 
-.cd-grid12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px 14px; }
-.cd-cell { grid-column: span var(--col, 3); min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.cd-cell .at-label { font-size: 13.5px; font-weight: 600; }
-.cd-cell .at-input, .cd-cell .at-select, .cd-cell .cd-ro { min-height: 44px; font-size: 15px; }
+.cd-grid12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
+.cd-cell { grid-column: span var(--col, 3); min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; }
+.cd-cell .at-label { font-size: 13.5px; font-weight: 600; min-height: 20px; line-height: 20px; margin: 0; }
+.cd-cell .at-input, .cd-cell .at-select, .cd-cell .cd-ro { min-height: 44px; font-size: 15px; width: 100%; }
 .cd-cell .at-error:empty { display: none; }
 .cd-top--erp { padding: 14px 18px; }
 
@@ -188,9 +188,15 @@
 .cd-filter > span { min-height: 18px; line-height: 18px; }
 .cd-clear { height: 46px; }
 .cd-filters .cd-inputbtn .at-input { height: 46px !important; }
-.at-form { align-items: end; }
-.at-form .at-field { justify-content: flex-end; }
-.at-form .at-field > .at-label { min-height: 20px; line-height: 20px; }
+.at-form { align-items: start; }
+.at-form .at-field { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; width: 100%; min-width: 0; }
+.at-form .at-field > .at-label { min-height: 20px; line-height: 20px; margin: 0; }
+.at-form .at-field .at-input,
+.at-form .at-field .at-select,
+.at-form .at-field .cd-combo,
+.at-form .at-field .cd-combo__btn,
+.at-form .at-field .cdx,
+.at-form .at-field .cd-ro { width: 100%; }
 
 /* Combobox global (shell/combo-global.js): o <select> nativo fica escondido e a lista é desenhada pelo sistema */
 .cdx-native { display: none !important; }

@@ -310,7 +310,7 @@ const CAD_DEFS = {
         usedBy: [{ key: 'produto', field: 'fabricante_id', label: 'produto(s)' }],
         tabs: [
             { id: 'dados', label: 'Dados', fields: [
-                { k: 'nome', label: 'Nome do fabricante', type: 'upper', req: true, span2: true },
+                { k: 'nome', label: 'Nome do fabricante', type: 'upper', req: true },
                 { k: 'cnpj', label: 'CNPJ', type: 'cnpj', help: 'Opcional para fabricantes estrangeiros.' },
                 { k: 'pais', label: 'País', type: 'select', opts: ['Brasil', 'Outro'] },
                 { k: 'afe', label: 'Autorização de funcionamento (AFE/ANVISA)', type: 'text' }
@@ -374,7 +374,7 @@ const CAD_DEFS = {
             { id: 'impressao', label: 'Impressão', fields: [
                 { k: 'largura_mm', label: 'Largura (mm)', type: 'number', max: 300 },
                 { k: 'altura_mm', label: 'Altura (mm)', type: 'number', max: 300 },
-                { k: 'impressora', label: 'Impressora / modelo', type: 'text' },
+                { k: 'impressora', label: 'Impressora / modelo', type: 'text', span2: true },
                 { k: 'campos_impressos', label: 'Informações impressas', type: 'textarea', span2: true, ph: 'Ex.: nome do produto, lote, validade, código de barras', maxlen: 500 },
                 { ...OBS }
             ] }
@@ -399,7 +399,7 @@ const CAD_DEFS = {
         header: ['codigo', 'descricao', 'tipo'],
         usedBy: [{ key: 'metas', field: 'centro_custo_id', label: 'meta(s)' }],
         tabs: [{ id: 'dados', label: 'Dados', fields: [
-            { k: 'descricao', label: 'Descrição', type: 'upper', req: true, span2: true },
+            { k: 'descricao', label: 'Descrição', type: 'upper', req: true },
             { k: 'tipo', label: 'Tipo', type: 'select', req: true, opts: ['Assistencial', 'Administrativo', 'Apoio'] },
             { k: 'responsavel', label: 'Responsável', type: 'text' },
             { k: 'setor', label: 'Setor vinculado', type: 'text' },
@@ -559,14 +559,14 @@ const CAD_DEFS = {
         header: ['nome', 'username', 'role'],
         tabs: [
             { id: 'dados', label: 'Identificação e acesso', fields: [
-                { k: 'nome', label: 'Nome completo', type: 'text', req: true, span2: true },
-                { k: 'username', label: 'Nome de usuário', type: 'text', req: true, maxlen: 30, help: 'Somente letras e números. Não muda depois de salvo.' },
+                { k: 'nome', label: 'Nome completo', type: 'text', req: true, ph: 'Digite o nome completo' },
                 { k: 'role', label: 'Perfil de acesso', type: 'select', req: true, opts: () => ASSIGNABLE_ROLES.map(r => ({ id: r, rotulo: getRoleLabel(r) })) },
-                { k: 'senha', label: 'Senha', type: 'password', help: 'Na edição, deixe em branco para manter a senha atual. Nunca é exibida.' }
+                { k: 'username', label: 'Nome de usuário', type: 'text', req: true, maxlen: 30, ph: 'Ex.: joaosilva', help: 'Somente letras e números. Não muda depois de salvo.' },
+                { k: 'senha', label: 'Senha', type: 'password', ph: 'Digite a senha de acesso', help: 'Na edição, deixe em branco para manter a senha atual. Nunca é exibida.' }
             ] },
             { id: 'contato', label: 'Contato e setor', fields: [
-                { k: 'setor', label: 'Setor', type: 'text' },
-                { k: 'email', label: 'E-mail', type: 'email' }
+                { k: 'setor', label: 'Setor', type: 'text', ph: 'Ex.: UTI Adulto, Farmácia, NIR' },
+                { k: 'email', label: 'E-mail', type: 'email', ph: 'usuario@hgp.to.gov.br' }
             ] }
         ]
     }

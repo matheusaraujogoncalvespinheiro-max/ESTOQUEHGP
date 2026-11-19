@@ -412,8 +412,8 @@ function cadControle(def, f, st, readonly) {
             return cadComboHtml({ id, valor: String(val || ''), opts: lista, placeholder: uf ? 'Selecione o município' : 'Selecione o estado primeiro', vazio: uf ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !uf });
         }
         case 'digits': return `<input class="at-input" type="text" inputmode="numeric" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="${f.maxlen || 20}" placeholder="${escapeHtml(f.ph || '')}" autocomplete="off" ${on} ${keep}>`;
-        case 'password': return `<input class="at-input" type="password" id="${id}" name="${f.k}" value="${escapeHtml(val)}" autocomplete="new-password" ${on} ${keep}>`;
-        case 'email': return `<input class="at-input" type="email" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="120" autocomplete="off" ${on} ${keep}>`;
+        case 'password': return `<input class="at-input" type="password" id="${id}" name="${f.k}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" autocomplete="new-password" ${on} ${keep}>`;
+        case 'email': return `<input class="at-input" type="email" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="120" placeholder="${escapeHtml(f.ph || '')}" autocomplete="off" ${on} ${keep}>`;
         default: return `<input class="at-input" type="text" id="${id}" name="${f.k}" value="${escapeHtml(val)}" maxlength="${f.maxlen || 120}" placeholder="${escapeHtml(f.ph || '')}" autocomplete="off" ${on} ${keep}>`;
     }
 }
