@@ -157,4 +157,22 @@ test('integração completa: seed populado renderiza Mapa, Prontuário Digital, 
     await call("concluirTransporteNIR('nir_seed_01', { recebido_por: 'Téc. Mariana Costa' })");
     const regsMaria = call("MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01']");
     assert.ok(regsMaria.some(r => r.tipo === 'TRANSPORTE_NIR' && r.texto.includes('Transporte concluído via NIR')));
+
+    // Aba Farmácia do Prontuário: controle de medicamentos distribuídos para os pisos e quem pegou o quê
+    call("state.prontuario = { pacienteId: 'pac_seed_01', paciente: MOCK_DATA.PACIENTES_SEED_MAP['pac_seed_01'], tab: 'farmacia' }");
+    const htmlFarmaciaPac = call("renderProntuario()");
+    assert.ok(htmlFarmaciaPac.includes('Téc. Enf. Juliana Martins'));
+    assert.ok(htmlFarmaciaPac.includes('2º Andar (Piso 2)'));
+
+    // Registrar quem pegou um medicamento pendente (far_seed_03 - Sinvastatina)
+    await call("registrarRetiradaFarmaciaPiso('far_seed_03', { quem_pegou_nome: 'Téc. Enf. Camila Souza', quem_pegou_cargo: 'Técnica 2º Piso', quem_pegou_documento: 'COREN-TO 310442', dispensado_por: 'Farm. Patrícia' })");
+    assert.equal(call("MOCK_DATA.FARMACIA_DISPENSACOES.find(f => f.id === 'far_seed_03').status"), 'DISTRIBUIDO_PISO');
+    assert.equal(call("MOCK_DATA.FARMACIA_DISPENSACOES.find(f => f.id === 'far_seed_03').retirada.quem_pegou_nome"), 'Téc. Enf. Camila Souza');
+    assert.ok(call("MOCK_DATA.REGISTROS_CLINICOS_CACHE['pac_seed_01']").some(r => r.tipo === 'FARMACIA_PISO' && r.texto.includes('QUEM PEGOU: Téc. Enf. Camila Souza')));
+
+    // Visão geral da Farmácia por Pisos dentro do Prontuário Eletrônico
+    call("state.prontuario = null; state.prontuarioLista.modo = 'farmacia_pisos';");
+    const htmlFarmaciaGeral = call("renderProntuario()");
+    assert.ok(htmlFarmaciaGeral.includes('Ceftriaxona Dissódica'));
+    assert.ok(htmlFarmaciaGeral.includes('Enf. Marcos Paulo Ribeiro'));
 });

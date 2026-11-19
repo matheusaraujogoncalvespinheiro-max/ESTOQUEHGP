@@ -91,10 +91,15 @@ service cloud.firestore {
       allow write: if temPerfil(['AUTORIZADOR']);
     }
 
-    // ---------- Gestão de Transporte (Demandas do NIR) ----------
+    // ---------- Gestão de Transporte (Demandas do NIR) e Farmácia por Pisos ----------
     match /demandas_transporte/{id} {
       allow read: if logado();
       allow create, update: if temPerfil(transporte());
+      allow delete: if false;
+    }
+    match /farmacia_dispensacoes/{id} {
+      allow read: if logado();
+      allow create, update: if temPerfil(clinico()) || temPerfil(estoque());
       allow delete: if false;
     }
 

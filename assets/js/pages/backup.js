@@ -79,7 +79,7 @@ const COLECOES_BACKUP = [
     'products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule',
     'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config', 'app_users',
     'pacientes', 'registros_recepcao', 'ocorrencias_emergencia', 'funcionarios', 'equipes_triagem', 'composicoes_mensais', 'integrantes_equipes', 'historico_alteracoes',
-    'leitos_estado', 'prontuarios_abertos', 'internacoes', 'internacao_ativa', 'registros_clinicos', 'solicitacoes_exame', 'autorizacoes', 'agenda_vagas', 'config_hospital', 'demandas_transporte', 'cad_contadores'
+    'leitos_estado', 'prontuarios_abertos', 'internacoes', 'internacao_ativa', 'registros_clinicos', 'solicitacoes_exame', 'autorizacoes', 'agenda_vagas', 'config_hospital', 'demandas_transporte', 'farmacia_dispensacoes', 'cad_contadores'
 ];
 
 /** Exporta o banco inteiro em JSON (somente leitura: nada é alterado). Campos de senha nunca saem. */

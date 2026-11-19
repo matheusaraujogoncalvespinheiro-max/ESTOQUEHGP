@@ -57,6 +57,24 @@ html[data-tema='escuro'] .pr-info-box--ok .pr-info-box__val { color: #86efac; }
 
 .pr-quick-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sh-line); }
 
+/* Aba Farmácia do Prontuário: Distribuição para os Pisos e Quem Pegou */
+.pr-floor-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.pr-floor-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--sh-line); background: var(--sh-surface); text-align: left; cursor: pointer; transition: all 0.15s ease; }
+.pr-floor-card:hover { border-color: #0d9488; transform: translateY(-1px); }
+.pr-floor-card.is-active { border-color: #0d9488; background: rgba(13, 148, 136, 0.08); box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15); }
+.pr-floor-card__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pr-floor-card small { color: var(--sh-muted); font-size: 12px; }
+
+.pr-pickup-card { padding: 8px 10px; border-radius: 10px; border: 1px solid #bae6fd; background: #f0f9ff; color: #0c4a6e; font-size: 12.5px; line-height: 1.45; }
+.pr-pickup-name { font-weight: 800; color: #0369a1; font-size: 13.5px; }
+.pr-pickup-pending { padding: 8px 10px; border-radius: 10px; border: 1px dashed #fcd34d; background: #fffbeb; color: #92400e; font-size: 12.5px; }
+html[data-tema='escuro'] .pr-pickup-card { background: rgba(2, 132, 199, 0.14); border-color: rgba(56, 189, 248, 0.35); color: #bae6fd; }
+html[data-tema='escuro'] .pr-pickup-name { color: #7dd3fc; }
+html[data-tema='escuro'] .pr-pickup-pending { background: rgba(217, 119, 6, 0.14); border-color: rgba(251, 191, 36, 0.35); color: #fde68a; }
+
+.pr-section-banner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--sh-line); background: var(--sh-surface-2); border-left: 5px solid #0891b2; }
+.pr-timeline-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; padding: 10px 12px; border-radius: 12px; background: var(--sh-surface-2); border: 1px solid var(--sh-line); }
+
 /* Alertas do Setor no Prontuário (Exames Agendados, Laudos Liberados e Transporte NIR) */
 .pr-sector-alert { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--sh-line); font-size: 13.5px; }
 .pr-sector-alert--agendado { background: #fffbeb; border-color: #fde68a; border-left: 5px solid #d97706; color: #92400e; }

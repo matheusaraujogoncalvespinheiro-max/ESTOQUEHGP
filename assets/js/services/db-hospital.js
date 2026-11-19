@@ -12,7 +12,7 @@
 const COLH = {
     LEITOS: 'leitos_estado', INTERNACOES: 'internacoes', LOCK_INTERNACAO: 'internacao_ativa', REGISTROS: 'registros_clinicos',
     SOLICITACOES: 'solicitacoes_exame', PRONTUARIOS: 'prontuarios_abertos', AUTORIZACOES: 'autorizacoes', VAGAS: 'agenda_vagas',
-    CONFIG: 'config_hospital', TRANSPORTES: 'demandas_transporte'
+    CONFIG: 'config_hospital', TRANSPORTES: 'demandas_transporte', FARMACIA: 'farmacia_dispensacoes'
 };
 
 MOCK_DATA.LEITOS_ESTADO = {};        // id do leito -> estado
@@ -25,6 +25,7 @@ MOCK_DATA.CONFIG_HOSPITAL = { nome: '', cnes: '' };
 MOCK_DATA.REGISTROS_CLINICOS = { paciente_id: null, items: [] };
 MOCK_DATA.REGISTROS_CLINICOS_CACHE = {}; // paciente_id -> array de registros clínicos em memória
 MOCK_DATA.TRANSPORTES_NIR = [];
+MOCK_DATA.FARMACIA_DISPENSACOES = [];
 MOCK_DATA.PACIENTES_SEED_MAP = {};
 
 function _syncLocalCollection(col, obj) {
@@ -49,6 +50,9 @@ function _syncLocalCollection(col, obj) {
     } else if (col === COLH.TRANSPORTES) {
         const idx = MOCK_DATA.TRANSPORTES_NIR.findIndex(x => x.id === obj.id);
         if (idx >= 0) MOCK_DATA.TRANSPORTES_NIR[idx] = obj; else MOCK_DATA.TRANSPORTES_NIR.unshift(obj);
+    } else if (col === COLH.FARMACIA) {
+        const idx = MOCK_DATA.FARMACIA_DISPENSACOES.findIndex(x => x.id === obj.id);
+        if (idx >= 0) MOCK_DATA.FARMACIA_DISPENSACOES[idx] = obj; else MOCK_DATA.FARMACIA_DISPENSACOES.unshift(obj);
     } else if (col === COLH.REGISTROS) {
         if (!MOCK_DATA.REGISTROS_CLINICOS_CACHE[obj.paciente_id]) MOCK_DATA.REGISTROS_CLINICOS_CACHE[obj.paciente_id] = [];
         const arr = MOCK_DATA.REGISTROS_CLINICOS_CACHE[obj.paciente_id];
@@ -73,6 +77,7 @@ function _getLocalDoc(col, id) {
     if (col === COLH.AUTORIZACOES) return MOCK_DATA.AUTORIZACOES.find(x => x.id === sid) || null;
     if (col === COLH.VAGAS) return MOCK_DATA.VAGAS_EXAME.find(x => x.id === sid) || null;
     if (col === COLH.TRANSPORTES) return MOCK_DATA.TRANSPORTES_NIR.find(x => x.id === sid) || null;
+    if (col === COLH.FARMACIA) return MOCK_DATA.FARMACIA_DISPENSACOES.find(x => x.id === sid) || null;
     return null;
 }
 
@@ -111,6 +116,11 @@ Object.assign(WATCHER_FACTORIES, {
         const map = new Map(MOCK_DATA.TRANSPORTES_NIR.map(i => [i.id, i]));
         items.forEach(i => map.set(i.id, i));
         MOCK_DATA.TRANSPORTES_NIR = [...map.values()];
+    }),
+    farmacia_dispensacoes: () => onSnapshotData(db.collection(COLH.FARMACIA), (items) => {
+        const map = new Map(MOCK_DATA.FARMACIA_DISPENSACOES.map(i => [i.id, i]));
+        items.forEach(i => map.set(i.id, i));
+        MOCK_DATA.FARMACIA_DISPENSACOES = [...map.values()];
     }),
     config_hospital: () => onSnapshotData(db.collection(COLH.CONFIG), (items) => {
         const c = items.find(i => i.id === 'active');
@@ -896,6 +906,161 @@ async function garantirSeedAssistencia() {
     transportesSeed.forEach(t => {
         if (!MOCK_DATA.TRANSPORTES_NIR.some(x => x.id === t.id)) {
             _syncLocalCollection(COLH.TRANSPORTES, t);
+        }
+    });
+
+    // 7. Farmácia — Controle de Medicamentos Distribuídos para os Pisos e Quem Pegou o Quê
+    const farmaciaSeed = [
+        {
+            id: 'far_seed_01',
+            codigo: `FAR-${hoje.replace(/-/g, '')}-0001`,
+            paciente_id: 'pac_seed_01',
+            paciente_nome: 'MARIA DE FÁTIMA RODRIGUES',
+            prontuario: '20260412',
+            internacao_id: 'int_seed_01',
+            piso_andar: '2',
+            piso_rotulo: '2º Andar (Piso 2)',
+            ala_setor: 'Ala E/F (Neuro)',
+            leito_id: '204A',
+            leito_rotulo: '204-A',
+            medicamento: 'AAS (Ácido Acetilsalicílico)',
+            dose: '100 mg (Comprimido)',
+            via: 'VO',
+            frequencia: '1x ao dia (após almoço)',
+            lote: 'LT-2026-88A',
+            quantidade: '2 comprimidos (24h)',
+            prescrito_por: 'Dr. Carlos Eduardo Silva (CRM-TO 4512)',
+            prescrito_em: duasHorasAtras,
+            status: 'DISTRIBUIDO_PISO',
+            retirada: {
+                quem_pegou_nome: 'Téc. Enf. Juliana Martins',
+                quem_pegou_cargo: 'Técnica de Enfermagem (2º Piso - Neuro)',
+                quem_pegou_documento: 'COREN-TO 224510 · Mat. FN-1042',
+                dispensado_por: 'Farm. Patrícia Azevedo (CRF-TO 3310)',
+                retirado_em: umaHoraAtras,
+                observacao: 'Kit 24h conferido e retirado no balcão da Farmácia Central para o posto do 2º Piso.'
+            },
+            administracao: null
+        },
+        {
+            id: 'far_seed_02',
+            codigo: `FAR-${hoje.replace(/-/g, '')}-0002`,
+            paciente_id: 'pac_seed_01',
+            paciente_nome: 'MARIA DE FÁTIMA RODRIGUES',
+            prontuario: '20260412',
+            internacao_id: 'int_seed_01',
+            piso_andar: '2',
+            piso_rotulo: '2º Andar (Piso 2)',
+            ala_setor: 'Ala E/F (Neuro)',
+            leito_id: '204A',
+            leito_rotulo: '204-A',
+            medicamento: 'Soro Fisiológico 0,9%',
+            dose: '500 ml (Bolsa Sistema Fechado)',
+            via: 'EV',
+            frequencia: '12/12h',
+            lote: 'SF-240911',
+            quantidade: '2 bolsas',
+            prescrito_por: 'Dr. Carlos Eduardo Silva (CRM-TO 4512)',
+            prescrito_em: duasHorasAtras,
+            status: 'ADMINISTRADO',
+            retirada: {
+                quem_pegou_nome: 'Enfermeiro Teste',
+                quem_pegou_cargo: 'Enfermeiro Plantonista (2º Piso - Neuro)',
+                quem_pegou_documento: 'COREN-TO 118920 · Mat. FN-1015',
+                dispensado_por: 'Farm. Patrícia Azevedo (CRF-TO 3310)',
+                retirado_em: duasHorasAtras,
+                observacao: 'Retirado junto aos insumos de hidratação venosa do 2º Andar.'
+            },
+            administracao: {
+                administrado_por: 'Enfermeiro Teste (COREN-TO 118920)',
+                administrado_em: umaHoraAtras,
+                observacao: 'Instalado em acesso venoso periférico MSE sem intercorrências.'
+            }
+        },
+        {
+            id: 'far_seed_03',
+            codigo: `FAR-${hoje.replace(/-/g, '')}-0003`,
+            paciente_id: 'pac_seed_01',
+            paciente_nome: 'MARIA DE FÁTIMA RODRIGUES',
+            prontuario: '20260412',
+            internacao_id: 'int_seed_01',
+            piso_andar: '2',
+            piso_rotulo: '2º Andar (Piso 2)',
+            ala_setor: 'Ala E/F (Neuro)',
+            leito_id: '204A',
+            leito_rotulo: '204-A',
+            medicamento: 'Sinvastatina',
+            dose: '40 mg (Comprimido)',
+            via: 'VO',
+            frequencia: '1x à noite (22h)',
+            lote: 'SV-2026-19',
+            quantidade: '1 comprimido',
+            prescrito_por: 'Dr. Carlos Eduardo Silva (CRM-TO 4512)',
+            prescrito_em: duasHorasAtras,
+            status: 'AGUARDANDO_RETIRADA',
+            retirada: null,
+            administracao: null
+        },
+        {
+            id: 'far_seed_04',
+            codigo: `FAR-${hoje.replace(/-/g, '')}-0004`,
+            paciente_id: 'pac_seed_02',
+            paciente_nome: 'JOÃO BATISTA PEREIRA',
+            prontuario: '20260418',
+            internacao_id: 'int_seed_02',
+            piso_andar: '3',
+            piso_rotulo: '3º Andar (Piso 3)',
+            ala_setor: 'Ala C/D (Clínica Médica)',
+            leito_id: '310B',
+            leito_rotulo: '310-B',
+            medicamento: 'Ceftriaxona Dissódica',
+            dose: '1 g (Frasco-Ampola Liofilizado)',
+            via: 'EV',
+            frequencia: '12/12h',
+            lote: 'CEF-99201',
+            quantidade: '2 frascos-ampola + diluentes',
+            prescrito_por: 'Dr. Carlos Eduardo Silva (CRM-TO 4512)',
+            prescrito_em: duasHorasAtras,
+            status: 'DISTRIBUIDO_PISO',
+            retirada: {
+                quem_pegou_nome: 'Enf. Marcos Paulo Ribeiro',
+                quem_pegou_cargo: 'Enfermeiro Assistencial (3º Piso - Clínica Médica)',
+                quem_pegou_documento: 'COREN-TO 145800 · Mat. FN-2088',
+                dispensado_por: 'Farm. Patrícia Azevedo (CRF-TO 3310)',
+                retirado_em: umaHoraAtras,
+                observacao: 'Antibioticoterapia entregue para o carrinho de medicação do 3º Piso.'
+            },
+            administracao: null
+        },
+        {
+            id: 'far_seed_05',
+            codigo: `FAR-${hoje.replace(/-/g, '')}-0005`,
+            paciente_id: 'pac_seed_03',
+            paciente_nome: 'ANTÔNIO CARLOS FERREIRA',
+            prontuario: '20260425',
+            internacao_id: 'int_seed_03',
+            piso_andar: '3',
+            piso_rotulo: '3º Andar (Piso 3)',
+            ala_setor: 'Ala G/H (Cardio/Nefro)',
+            leito_id: '330A',
+            leito_rotulo: '330-A',
+            medicamento: 'Enoxaparina Sódica',
+            dose: '40 mg / 0,4 ml (Seringa Preenchida)',
+            via: 'SC',
+            frequencia: '12/12h',
+            lote: 'ENX-4410',
+            quantidade: '2 seringas',
+            prescrito_por: 'Dr. Carlos Eduardo Silva (CRM-TO 4512)',
+            prescrito_em: umaHoraAtras,
+            status: 'AGUARDANDO_RETIRADA',
+            retirada: null,
+            administracao: null
+        }
+    ];
+
+    farmaciaSeed.forEach(f => {
+        if (!MOCK_DATA.FARMACIA_DISPENSACOES.some(x => x.id === f.id)) {
+            _syncLocalCollection(COLH.FARMACIA, f);
         }
     });
 

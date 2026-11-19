@@ -1,21 +1,29 @@
-// Prontuário Eletrônico Digital (Médicos e Enfermeiros): registro central das informações clínicas, vinculado a paciente_id e leito atual.
-// Registros clínicos são ASSINADOS e só acrescentam: não há edição nem exclusão; correções entram como nota/retificação complementar.
+// Prontuário Eletrônico Digital (Médicos, Enfermeiros e Farmácia Hospitalar):
+// - Visão explícita e organizada por Piso/Andar, Ala/Setor, Leito e Paciente.
+// - Aba Farmácia integrada (tanto na visão geral por Pisos quanto dentro do Prontuário de cada paciente)
+//   controlando os medicamentos distribuídos para os pisos e QUEM PEGOU O QUÊ (nome, cargo, matrícula/COREN, lote e horário).
 
 function prontuarioState() {
-    if (!state.prontuario) state.prontuario = { pacienteId: null, paciente: null, tab: 'timeline' };
+    if (!state.prontuario) state.prontuario = { pacienteId: null, paciente: null, tab: 'timeline', timelineFiltro: '' };
     return state.prontuario;
 }
 
-/** Filtros e paginação da consulta (ficam guardados ao abrir e fechar um prontuário). */
+/** Filtros e aba ativa da tela principal do Prontuário Eletrônico (Prontuários por Piso vs. Farmácia / Distribuição por Piso). */
 function prontuarioLista() {
-    if (!state.prontuarioLista) state.prontuarioLista = { q: '', situacao: '', andar: '', page: 1, size: 10 };
+    if (!state.prontuarioLista) {
+        state.prontuarioLista = {
+            modo: 'prontuarios', // 'prontuarios' | 'farmacia_pisos'
+            q: '', situacao: '', andar: '', page: 1, size: 10,
+            farPiso: '', farStatus: '', farQ: ''
+        };
+    }
     return state.prontuarioLista;
 }
 
 function renderProntuario() {
     if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
     db_watch('internacoes'); db_watch('solicitacoes'); db_watch('autorizacoes'); db_watch('leitos');
-    db_watch('config_hospital'); db_watch('prontuarios'); db_watch('transportes_nir');
+    db_watch('config_hospital'); db_watch('prontuarios'); db_watch('transportes_nir'); db_watch('farmacia_dispensacoes');
     db_cadWatch('tipoexame');
     const st = prontuarioState();
     if (!st.pacienteId) return renderProntuarioConsulta();
@@ -24,7 +32,7 @@ function renderProntuario() {
     return renderProntuarioPaciente(st);
 }
 
-// ============================================================ CONSULTA DE PRONTUÁRIOS (busca por nome, CPF, prontuário ou leito)
+// ============================================================ CONSULTA DE PRONTUÁRIOS & ABA GERAL DA FARMÁCIA POR PISOS
 
 function prontuariosFiltrados() {
     const L = prontuarioLista();
@@ -47,58 +55,252 @@ function prontuariosFiltrados() {
 function renderProntuarioConsulta() {
     const L = prontuarioLista();
     const todos = listaProntuarios(MOCK_DATA.PRONTUARIOS, MOCK_DATA.INTERNACOES);
+    const todasFar = MOCK_DATA.FARMACIA_DISPENSACOES || [];
+    const farPendentes = todasFar.filter(f => f.status === 'AGUARDANDO_RETIRADA').length;
+    const farDistribuidos = todasFar.filter(f => f.status !== 'AGUARDANDO_RETIRADA').length;
+    const emTranspCount = todos.filter(r => transporteAtivoDoPaciente(r.paciente_id)).length;
+
+    const cabecalhoPrincipal = `
+        <header class="cd-head">
+            <div class="cd-head__ico">${lucideIcon('clipboard-list', 'w-7 h-7')}</div>
+            <div class="cd-head__txt">
+                <h2>Prontuário Eletrônico Digital & Farmácia por Pisos</h2>
+                <p>Gestão clínica explícita por Piso/Andar, Ala e Leito, integrada com a <strong>Farmácia (controle de medicamentos distribuídos para os pisos e quem pegou o quê)</strong>, Imagenologia e NIR/Transporte.</p>
+            </div>
+            <div class="cd-head__btns">
+                ${L.modo === 'farmacia_pisos'
+                    ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="farmaciaAbrirModalNovaDispensacao()">${lucideIcon('pill', 'w-5 h-5')} Nova Distribuição p/ Piso</button>`
+                    : `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="prontuarioImprimirLista()">${lucideIcon('printer', 'w-5 h-5')} Imprimir</button>
+                       <button type="button" class="at-btn at-btn--primary cd-new" onclick="prontuarioNovo()">${lucideIcon('plus', 'w-5 h-5')} Abrir Prontuário</button>`}
+            </div>
+        </header>
+
+        <div class="cd-kpis">
+            <div class="cd-kpi"><strong>${todos.filter(r => r.ativa).length}</strong><span>Pacientes Internados nos Pisos</span></div>
+            <div class="cd-kpi"><strong>${farPendentes}</strong><span>Farmácia: Aguardando Retirada p/ Piso</span></div>
+            <div class="cd-kpi"><strong>${farDistribuidos}</strong><span>Farmácia: Já Retirados pelos Pisos</span></div>
+            <div class="cd-kpi"><strong>${emTranspCount}</strong><span>Pacientes em Transporte</span></div>
+        </div>
+
+        <nav class="at-tabs">
+            <button type="button" class="at-tab ${L.modo !== 'farmacia_pisos' ? 'is-active' : ''}" onclick="prontuarioFiltro('modo', 'prontuarios')">
+                📋 1. Pacientes & Prontuários por Piso / Leito (${todos.length})
+            </button>
+            <button type="button" class="at-tab ${L.modo === 'farmacia_pisos' ? 'is-active' : ''}" onclick="prontuarioFiltro('modo', 'farmacia_pisos')">
+                💊 2. Farmácia — Distribuição de Medicamentos para os Pisos & Quem Pegou (${todasFar.length})
+            </button>
+        </nav>`;
+
+    if (L.modo === 'farmacia_pisos') {
+        return `<div class="at-stack tone-teal">${cabecalhoPrincipal}${renderAbaGeralFarmaciaPisos(L)}</div>`;
+    }
+
     const lista = prontuariosFiltrados();
     const paginas = Math.max(1, Math.ceil(lista.length / L.size));
     if (L.page > paginas) L.page = paginas;
     const pagina = lista.slice((L.page - 1) * L.size, L.page * L.size);
     const filtrosAtivos = L.q || L.situacao || L.andar;
-    const emTranspCount = todos.filter(r => transporteAtivoDoPaciente(r.paciente_id)).length;
     const sel = (id, valor, opts, vazio, fn) => `<select class="at-select hs-sel" id="${id}" onchange="${fn}(this.value)" data-keep="${id}"><option value="">${vazio}</option>${opts.map(o => `<option value="${escapeHtml(o.id)}" ${o.id === valor ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
+
     return `
     <div class="at-stack tone-teal">
-        <header class="cd-head"><div class="cd-head__ico">${lucideIcon('clipboard-list', 'w-7 h-7')}</div>
-            <div class="cd-head__txt"><h2>Prontuário Eletrônico Digital</h2><p>Prontuários vinculados aos pacientes e leitos atuais. Busque por nome, CPF, nº do prontuário ou leito.</p></div>
-            <div class="cd-head__btns"><button type="button" class="at-btn at-btn--ghost cd-new" onclick="prontuarioImprimirLista()">${lucideIcon('printer', 'w-5 h-5')} Imprimir</button>
-                <button type="button" class="at-btn at-btn--primary cd-new" onclick="prontuarioNovo()">${lucideIcon('plus', 'w-5 h-5')} Abrir prontuário</button></div></header>
-        <div class="cd-kpis">
-            <div class="cd-kpi"><strong>${todos.length}</strong><span>Prontuários ativos</span></div>
-            <div class="cd-kpi"><strong>${todos.filter(r => r.ativa).length}</strong><span>Internados agora</span></div>
-            <div class="cd-kpi"><strong>${emTranspCount}</strong><span>Em Transporte (NIR)</span></div>
-            <div class="cd-kpi"><strong>${todos.filter(r => !r.ativa).length}</strong><span>Alta / Sem internação</span></div>
-        </div>
+        ${cabecalhoPrincipal}
         <section class="at-card cd-filters" aria-label="Pesquisa e filtros">
-            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Nome, CPF, Prontuário ou Leito)</span><input class="at-input hs-sel" id="pr_busca" type="search" value="${escapeHtml(L.q)}" placeholder="Ex.: Maria, 529.982, 20260412 ou 204-A" oninput="prontuarioFiltro('q', this.value)" data-keep="pr_busca" autocomplete="off"></label>
-            <label class="cd-filter"><span>Situação</span>${sel('pr_sit', L.situacao, [{ id: 'INTERNADO', rotulo: 'Internados' }, { id: 'EM_TRANSPORTE', rotulo: 'Em Transporte (NIR)' }, { id: 'SEM', rotulo: 'Alta / Sem internação' }], 'Todas', "prontuarioFiltro.bind(null, 'situacao')")}</label>
-            <label class="cd-filter"><span>Andar (internados)</span>${sel('pr_and', L.andar, ANDARES_HOSPITAL.map(a => ({ id: a, rotulo: nomeAndar(a) })), 'Todos', "prontuarioFiltro.bind(null, 'andar')")}</label>
-            <button type="button" class="at-btn at-btn--ghost at-btn--sm cd-clear" onclick="prontuarioLimparFiltros()" ${filtrosAtivos ? '' : 'disabled'}>${lucideIcon('eraser', 'w-4 h-4')} Limpar filtros</button>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Nome, CPF, Nº do Prontuário ou Leito)</span><input class="at-input hs-sel" id="pr_busca" type="search" value="${escapeHtml(L.q)}" placeholder="Ex.: Maria, 529.982, 20260412 ou 204-A" oninput="prontuarioFiltro('q', this.value)" data-keep="pr_busca" autocomplete="off"></label>
+            <label class="cd-filter"><span>Piso / Andar</span>${sel('pr_and', L.andar, ANDARES_HOSPITAL.map(a => ({ id: a, rotulo: `${a}º Andar (Piso ${a})` })), 'Todos os Pisos', "prontuarioFiltro.bind(null, 'andar')")}</label>
+            <label class="cd-filter"><span>Situação</span>${sel('pr_sit', L.situacao, [{ id: 'INTERNADO', rotulo: 'Internados' }, { id: 'EM_TRANSPORTE', rotulo: 'Em Transporte' }, { id: 'SEM', rotulo: 'Alta / Sem internação' }], 'Todas', "prontuarioFiltro.bind(null, 'situacao')")}</label>
+            <button type="button" class="at-btn at-btn--ghost at-btn--sm cd-clear" onclick="prontuarioLimparFiltros()" ${filtrosAtivos ? '' : 'disabled'}>${lucideIcon('eraser', 'w-4 h-4')} Limpar</button>
         </section>
-        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Prontuário</th><th>Paciente</th><th>CPF</th><th>Situação</th><th>Setor / Leito Atual</th><th>Exames / Alertas</th></tr></thead>
+        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table">
+            <thead>
+                <tr>
+                    <th>Paciente / Prontuário / Alergias</th>
+                    <th>Piso / Ala / Leito Atual</th>
+                    <th>Status Assistencial</th>
+                    <th>Farmácia (Medicamentos do Leito)</th>
+                    <th>Exames (Imagenologia)</th>
+                    <th>Acesso Explícito</th>
+                </tr>
+            </thead>
             <tbody>${pagina.length ? pagina.map(r => {
                 const tr = transporteAtivoDoPaciente(r.paciente_id);
                 const examesPac = (MOCK_DATA.SOLICITACOES_EXAME || []).filter(s => s.paciente_id === r.paciente_id);
                 const exAgendado = examesPac.find(s => s.status === 'AGENDADO');
                 const exRealizado = examesPac.find(s => s.status === 'REALIZADO');
+                const farPac = dispensacoesDoPaciente(r.paciente_id);
+                const farPend = farPac.filter(f => f.status === 'AGUARDANDO_RETIRADA').length;
+                const farRet = farPac.filter(f => f.status !== 'AGUARDANDO_RETIRADA').length;
+                const ultRet = farPac.find(f => f.retirada);
                 return `<tr class="cd-row" tabindex="0" onclick="prontuarioAbrir('${escapeHtml(r.paciente_id)}')" onkeydown="if (event.key === 'Enter') prontuarioAbrir('${escapeHtml(r.paciente_id)}')">
-                <td data-label="Prontuário"><strong>${escapeHtml(r.prontuario || '—')}</strong></td>
-                <td data-label="Paciente"><strong>${escapeHtml(r.nome)}</strong>${r.alergias && !r.alergias.toLowerCase().startsWith('nega') ? `<br><small class="pr-alergia-inline">⚠ Alergia: ${escapeHtml(r.alergias)}</small>` : ''}</td>
-                <td data-label="CPF">${r.cpf ? escapeHtml(maskCPF(r.cpf)) : '—'}</td>
+                <td data-label="Paciente">
+                    <strong>${escapeHtml(r.nome)}</strong><br>
+                    <small>Prontuário Nº: <strong>${escapeHtml(r.prontuario || '—')}</strong>${r.cpf ? ' · CPF: ' + escapeHtml(maskCPF(r.cpf)) : ''}</small>
+                    ${r.alergias && !r.alergias.toLowerCase().startsWith('nega') ? `<br><span class="pr-alergia-inline">⚠ Alergia: ${escapeHtml(r.alergias)}</span>` : ''}
+                </td>
+                <td data-label="Piso / Leito">
+                    ${r.ativa
+                        ? `<span class="at-badge at-badge--outros">${escapeHtml(r.ativa.andar)}º Andar (Piso ${escapeHtml(r.ativa.andar)})</span>
+                           <strong style="margin-left:4px">Leito ${escapeHtml((leitoPorId(r.ativa.leito_id) || { rotulo: r.ativa.leito_id }).rotulo)}</strong><br>
+                           <small>${escapeHtml(r.ativa.ala || 'Unidade de Internação')}</small>`
+                        : '<span class="at-hint">Sem leito ativo</span>'}
+                </td>
                 <td data-label="Situação">
-                    <span class="at-badge ${r.ativa ? 'at-badge--ok' : 'at-badge--off'}">${r.ativa ? 'Internado' : 'Alta / Sem internação'}</span>
+                    <span class="at-badge ${r.ativa ? 'at-badge--ok' : 'at-badge--off'}">${r.ativa ? 'Internado no Leito' : 'Alta / Sem internação'}</span>
                     ${tr ? `<br><span class="hs-badge-transito" style="margin-top:4px;display:inline-block">🚑 Em Transporte (${escapeHtml(tr.setor_destino)})</span>` : ''}
                 </td>
-                <td data-label="Setor / Leito">${r.ativa ? `<strong>${escapeHtml((leitoPorId(r.ativa.leito_id) || { rotulo: r.ativa.leito_id }).rotulo)}</strong> · ${escapeHtml(r.ativa.ala || (r.ativa.andar + 'º andar'))}` : '—'}</td>
-                <td data-label="Exames / Alertas">
-                    ${exAgendado ? `<span class="at-badge at-badge--urgente">📅 Exame Agendado (${escapeHtml(exAgendado.agendamento.hora)})</span> ` : ''}
+                <td data-label="Farmácia">
+                    ${farPac.length
+                        ? `${farPend ? `<span class="at-badge at-badge--urgente">⏳ ${farPend} aguardando retirada</span><br>` : ''}
+                           ${farRet ? `<span class="at-badge at-badge--ok">✔ ${farRet} retirado(s) p/ o piso</span>` : ''}
+                           ${ultRet ? `<br><small class="at-hint">Últ. pegou: <strong>${escapeHtml(ultRet.retirada.quem_pegou_nome)}</strong></small>` : ''}`
+                        : '<span class="at-hint">Sem dispensação</span>'}
+                </td>
+                <td data-label="Exames">
+                    ${exAgendado ? `<span class="at-badge at-badge--urgente">📅 Agendado (${escapeHtml(exAgendado.agendamento.hora)})</span> ` : ''}
                     ${exRealizado ? `<span class="at-badge at-badge--ok">✔ Laudo Disponível</span>` : (!exAgendado ? '<span class="at-hint">—</span>' : '')}
+                </td>
+                <td data-label="Acesso" onclick="event.stopPropagation()">
+                    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                        <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioAbrir('${escapeHtml(r.paciente_id)}')">Abrir Prontuário</button>
+                        <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrirNaAba('${escapeHtml(r.paciente_id)}', 'farmacia')">💊 Farmácia do Paciente</button>
+                    </div>
                 </td></tr>`;
             }).join('')
-                : `<tr><td colspan="6" class="at-empty">${todos.length ? 'Nenhum prontuário encontrado com estes filtros.' : 'Nenhum prontuário aberto ainda. Use "Abrir prontuário".'}</td></tr>`}</tbody></table></div>
+                : `<tr><td colspan="6" class="at-empty">${todos.length ? 'Nenhum prontuário encontrado com estes filtros.' : 'Nenhum prontuário aberto ainda.'}</td></tr>`}</tbody></table></div>
             <footer class="cd-pager"><span>${lista.length} prontuário(s)</span>
                 <label>Por página <select class="at-select" style="width:auto;min-height:38px" onchange="prontuarioFiltro('size', Number(this.value))" data-keep="pr_size">${[10, 25, 50].map(n => `<option ${L.size === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
                 <div class="cd-pager__nav"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioPagina(${L.page - 1})" ${L.page <= 1 ? 'disabled' : ''} aria-label="Página anterior">${lucideIcon('chevron-left', 'w-4 h-4')}</button>
                     <span>Página ${L.page} de ${paginas}</span>
                     <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioPagina(${L.page + 1})" ${L.page >= paginas ? 'disabled' : ''} aria-label="Próxima página">${lucideIcon('chevron-right', 'w-4 h-4')}</button></div></footer></section>
     </div>`;
+}
+
+// ============================================================ ABA GERAL DA FARMÁCIA: CONTROLE DE DISTRIBUIÇÃO PARA OS PISOS E QUEM PEGOU O QUÊ
+
+function renderAbaGeralFarmaciaPisos(L) {
+    const todas = [...(MOCK_DATA.FARMACIA_DISPENSACOES || [])].sort((a, b) =>
+        (a.status === 'AGUARDANDO_RETIRADA' ? 0 : 1) - (b.status === 'AGUARDANDO_RETIRADA' ? 0 : 1)
+        || String(b.prescrito_em || '').localeCompare(String(a.prescrito_em || ''))
+    );
+    const termo = searchKey(L.farQ);
+    const filtradas = todas.filter(f =>
+        (!L.farPiso || String(f.piso_andar) === String(L.farPiso))
+        && (!L.farStatus || f.status === L.farStatus)
+        && (!termo || searchKey(`${f.codigo} ${f.medicamento} ${f.dose} ${f.lote || ''} ${f.paciente_nome} ${f.prontuario} ${f.leito_rotulo} ${f.ala_setor} ${(f.retirada && f.retirada.quem_pegou_nome) || ''} ${(f.retirada && f.retirada.quem_pegou_documento) || ''}`).includes(termo))
+    );
+
+    const porPiso = ANDARES_HOSPITAL.map(a => ({
+        andar: a,
+        rotulo: `${a}º Andar (Piso ${a})`,
+        pendentes: todas.filter(f => String(f.piso_andar) === a && f.status === 'AGUARDANDO_RETIRADA').length,
+        entregues: todas.filter(f => String(f.piso_andar) === a && f.status !== 'AGUARDANDO_RETIRADA').length
+    }));
+
+    return `
+        <div class="pr-floor-cards">
+            ${porPiso.map(p => `
+                <button type="button" class="pr-floor-card ${L.farPiso === p.andar ? 'is-active' : ''}" onclick="prontuarioFiltro('farPiso', '${L.farPiso === p.andar ? '' : p.andar}')">
+                    <div class="pr-floor-card__head">
+                        <strong>${escapeHtml(p.rotulo)}</strong>
+                        <span class="at-badge ${p.pendentes ? 'at-badge--urgente' : 'at-badge--ok'}">${p.pendentes} pendente(s)</span>
+                    </div>
+                    <small>${p.entregues} medicamento(s) já retirado(s) para este piso</small>
+                </button>
+            `).join('')}
+        </div>
+
+        <section class="at-card cd-filters">
+            <label class="cd-filter"><span>Piso / Andar de Destino</span>
+                <select class="at-select hs-sel" onchange="prontuarioFiltro('farPiso', this.value)" data-keep="far_piso">
+                    <option value="">Todos os Pisos (1º ao 4º Andar)</option>
+                    ${ANDARES_HOSPITAL.map(a => `<option value="${a}" ${L.farPiso === a ? 'selected' : ''}>${a}º Andar (Piso ${a})</option>`).join('')}
+                </select>
+            </label>
+            <label class="cd-filter"><span>Status da Distribuição</span>
+                <select class="at-select hs-sel" onchange="prontuarioFiltro('farStatus', this.value)" data-keep="far_st">
+                    <option value="">Todos os Status</option>
+                    ${Object.entries(STATUS_FARMACIA_PISO).map(([id, s]) => `<option value="${id}" ${L.farStatus === id ? 'selected' : ''}>${escapeHtml(s.rotulo)}</option>`).join('')}
+                </select>
+            </label>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar (Medicamento, Lote, Paciente, Leito ou QUEM PEGOU)</span>
+                <input class="at-input hs-sel" type="search" value="${escapeHtml(L.farQ)}" placeholder="Ex.: Ceftriaxona, AAS, Juliana Martins, COREN, 204-A ou Maria" oninput="prontuarioFiltro('farQ', this.value)" data-keep="far_q" autocomplete="off">
+            </label>
+        </section>
+
+        ${renderTabelaFarmaciaPisos(filtradas, true)}
+    `;
+}
+
+function renderTabelaFarmaciaPisos(lista, mostrarColunaPaciente = true) {
+    return `
+    <section class="at-card" style="padding:0;overflow:hidden">
+        <div class="cd-tablewrap">
+            <table class="tri-table cd-table">
+                <thead>
+                    <tr>
+                        <th>Código / Prescrição</th>
+                        <th>Destino: Piso / Setor / Leito${mostrarColunaPaciente ? ' & Paciente' : ''}</th>
+                        <th>Medicamento / Dose / Lote / Qtd</th>
+                        <th>Situação</th>
+                        <th>QUEM PEGOU NA FARMÁCIA (Nome, Cargo, COREN/Mat. e Hora)</th>
+                        <th>Ações da Farmácia / Enfermagem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${lista.length ? lista.map(f => {
+                        const stCfg = STATUS_FARMACIA_PISO[f.status] || STATUS_FARMACIA_PISO.AGUARDANDO_RETIRADA;
+                        const ret = f.retirada;
+                        const adm = f.administracao;
+                        return `<tr>
+                            <td data-label="Código">
+                                <strong>${escapeHtml(f.codigo)}</strong><br>
+                                <small>${escapeHtml(formatDateTimeBR(f.prescrito_em))}</small><br>
+                                <small class="at-hint">Presc.: ${escapeHtml(f.prescrito_por || 'Médico')}</small>
+                            </td>
+                            <td data-label="Piso / Destino">
+                                <span class="at-badge at-badge--outros">${escapeHtml(f.piso_rotulo || (f.piso_andar + 'º Andar'))}</span>
+                                <strong style="margin-left:4px">Leito ${escapeHtml(f.leito_rotulo || f.leito_id || '—')}</strong><br>
+                                <small><strong>Setor:</strong> ${escapeHtml(f.ala_setor || '—')}</small>
+                                ${mostrarColunaPaciente ? `<br><small><strong>Paciente:</strong> ${escapeHtml(f.paciente_nome)} (Pront. ${escapeHtml(f.prontuario || '—')})</small>` : ''}
+                            </td>
+                            <td data-label="Medicamento">
+                                <strong style="font-size:14px;color:var(--sh-text)">${escapeHtml(f.medicamento)}</strong><br>
+                                <span>${escapeHtml(f.dose)} · Via: <strong>${escapeHtml(f.via || '—')}</strong> · ${escapeHtml(f.frequencia || '')}</span><br>
+                                <small><strong>Qtd distribuída:</strong> ${escapeHtml(f.quantidade)} ${f.lote ? `· <strong>Lote:</strong> ${escapeHtml(f.lote)}` : ''}</small>
+                            </td>
+                            <td data-label="Situação">
+                                <span class="at-badge" style="background:${stCfg.fundo};color:${stCfg.cor}">${escapeHtml(stCfg.rotulo)}</span>
+                                ${adm ? `<br><small style="color:#15803d"><strong>Checado no leito:</strong> ${escapeHtml(adm.administrado_por)} (${escapeHtml(formatDateTimeBR(adm.administrado_em))})</small>` : ''}
+                            </td>
+                            <td data-label="Quem Pegou">
+                                ${ret ? `
+                                    <div class="pr-pickup-card">
+                                        <div><strong>👤 Quem pegou:</strong> <span class="pr-pickup-name">${escapeHtml(ret.quem_pegou_nome)}</span></div>
+                                        <div><small><strong>Cargo / Piso:</strong> ${escapeHtml(ret.quem_pegou_cargo)}</small></div>
+                                        <div><small><strong>COREN / Matrícula:</strong> ${escapeHtml(ret.quem_pegou_documento)}</small></div>
+                                        <div><small><strong>Horário da retirada:</strong> ${escapeHtml(formatDateTimeBR(ret.retirado_em))}</small></div>
+                                        <div><small class="at-hint"><strong>Entregue na Farmácia por:</strong> ${escapeHtml(ret.dispensado_por)}</small></div>
+                                        ${ret.observacao ? `<div><small class="at-hint"><em>"${escapeHtml(ret.observacao)}"</em></small></div>` : ''}
+                                    </div>
+                                ` : `<div class="pr-pickup-pending">⏳ <strong>Ainda não retirado</strong><br><small>Aguardando profissional do ${escapeHtml(f.piso_rotulo || 'piso')} retirar na Farmácia.</small></div>`}
+                            </td>
+                            <td data-label="Ações">
+                                <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start">
+                                    ${f.status === 'AGUARDANDO_RETIRADA'
+                                        ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="farmaciaAbrirModalRetirada('${f.id}')">${lucideIcon('user-check', 'w-4 h-4')} Registrar Quem Pegou</button>`
+                                        : `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="farmaciaAbrirModalRetirada('${f.id}')">Editar / Ver Retirada</button>`}
+                                    ${f.status === 'DISTRIBUIDO_PISO' && hasPermission('prontuario_evoluir')
+                                        ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="farmaciaConfirmarAdministracao('${f.id}')">${lucideIcon('check', 'w-4 h-4')} Checar Administração no Leito</button>` : ''}
+                                    ${mostrarColunaPaciente && f.paciente_id
+                                        ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrir('${f.paciente_id}')">Abrir Prontuário</button>` : ''}
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('') : '<tr><td colspan="6" class="at-empty">Nenhum medicamento encontrado com estes filtros.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+    </section>`;
 }
 
 function prontuarioFiltro(k, v) { const L = prontuarioLista(); L[k] = v; if (k !== 'page') L.page = 1; render(); }
@@ -116,7 +318,7 @@ function prontuarioImprimirLista() {
         <table><thead><tr><th>Prontuário</th><th>Paciente</th><th>Situação</th><th>Localização</th><th>Última internação</th><th>Internações</th></tr></thead><tbody>${lista.map(r => `<tr><td>${escapeHtml(r.prontuario || '')}</td><td>${escapeHtml(r.nome)}</td><td>${r.ativa ? 'Internado' : 'Sem internação'}</td><td>${r.ativa ? escapeHtml((leitoPorId(r.ativa.leito_id) || {}).rotulo + ' · ' + r.ativa.ala) : ''}</td><td>${r.ultima ? escapeHtml(formatDateTimeBR(r.ultima)) : ''}</td><td>${r.internacoes}</td></tr>`).join('')}</tbody></table></body></html>`);
 }
 
-// ---------------- Novo prontuário ----------------
+// ---------------- Abrir / Criar prontuário ----------------
 
 function prontuarioNovo() {
     try { requirePermission('prontuario_ver'); } catch (err) { return showMsg(err.message, 'error'); }
@@ -152,7 +354,7 @@ function prontuarioCadastrarPaciente() {
     cadNovo();
 }
 
-async function prontuarioAbrir(pacienteId) {
+async function prontuarioAbrir(pacienteId, abaInicial = 'timeline') {
     try {
         if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
         requirePermission('prontuario_ver');
@@ -161,15 +363,20 @@ async function prontuarioAbrir(pacienteId) {
         await abrirProntuario(paciente);
         if (typeof registrarAcesso === 'function') registrarAcesso('paciente', pacienteId, 'Prontuário: abriu');
         const st = prontuarioState();
-        Object.assign(st, { pacienteId, paciente, tab: 'timeline' });
+        Object.assign(st, { pacienteId, paciente, tab: abaInicial || 'timeline', timelineFiltro: '' });
         db_watchRegistros(pacienteId);
         state.activeModule = 'PRONTUARIO';
         navigateTo('PRONTUARIO');
     } catch (err) { showMsg(err.message, 'error'); }
 }
 
+function prontuarioAbrirNaAba(pacienteId, aba) {
+    return prontuarioAbrir(pacienteId, aba);
+}
+
 function prontuarioTrocar() { state.prontuario = null; renderFresh(); }
 function prontuarioAba(tab) { prontuarioState().tab = tab; render(); }
+function prontuarioTimelineFiltro(tipo) { prontuarioState().timelineFiltro = tipo; render(); }
 
 const idadeDe = (iso) => (iso ? ageFromBirth(iso) : '');
 
@@ -179,16 +386,16 @@ function registrosDoPaciente(tipo = null) {
     return [...filtrados].sort((a, b) => String(b.em).localeCompare(String(a.em)));
 }
 
-// ============================================================ VISÃO DO PRONTUÁRIO DO PACIENTE (CABEÇALHO FIXO + ALERTAS + ABAS)
+// ============================================================ VISÃO DO PRONTUÁRIO DO PACIENTE (EXPLÍCITO E ORGANIZADO + ABA FARMÁCIA)
 
 function renderProntuarioPaciente(st) {
     const p = st.paciente;
     const ativa = internacaoAtivaDoPaciente(p.id);
     const trAtivo = transporteAtivoDoPaciente(p.id);
     const leitoObj = ativa ? (leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }) : null;
-    const loc = ativa
-        ? `${ativa.ala || 'Unidade de Internação'} — Leito ${leitoObj.rotulo} (${ativa.andar}º Andar · Quarto ${ativa.quarto})`
-        : 'Sem internação ativa (Ambulatorial / Alta)';
+    const pisoTexto = ativa ? `${ativa.andar}º Andar (Piso ${ativa.andar})` : 'Ambulatorial';
+    const setorTexto = ativa ? `${ativa.ala || 'Unidade de Internação'}` : 'Sem internação ativa';
+    const leitoTexto = ativa ? `Quarto ${ativa.quarto} · Leito ${leitoObj.rotulo}` : '—';
 
     // Diagnóstico principal / CID-10
     const ultDiag = registrosDoPaciente('DIAGNOSTICO')[0];
@@ -200,10 +407,15 @@ function renderProntuarioPaciente(st) {
     const alergiaTexto = p.alergias || 'Nega alergias medicamentosas conhecidas';
     const temAlergia = Boolean(p.alergias && !p.alergias.toLowerCase().startsWith('nega'));
 
-    // Últimos sinais vitais para resumo rápido no cabeçalho
+    // Últimos sinais vitais
     const ultSinais = registrosDoPaciente('SINAIS_VITAIS')[0];
 
-    // Exames do paciente para avisos/destaques automáticos da equipe assistencial do setor
+    // Farmácia do paciente
+    const farPac = dispensacoesDoPaciente(p.id);
+    const farPendCount = farPac.filter(f => f.status === 'AGUARDANDO_RETIRADA').length;
+    const farRetCount = farPac.filter(f => f.status !== 'AGUARDANDO_RETIRADA').length;
+
+    // Exames do paciente
     const examesPac = (MOCK_DATA.SOLICITACOES_EXAME || []).filter(s => s.paciente_id === p.id);
     const examesAgendados = examesPac.filter(s => ['AGENDADO', 'EM_ATENDIMENTO'].includes(s.status));
     const examesLiberados = examesPac.filter(s => s.status === 'REALIZADO');
@@ -212,29 +424,30 @@ function renderProntuarioPaciente(st) {
     const isEnfermagem = state.currentUser && ['ADMIN', 'FUNC_ENFERMAGEM'].includes(state.currentUser.role);
 
     const abas = [
-        ['timeline', 'Linha do Tempo Clínica'],
-        ['EVOLUCAO', 'Evolução Médica'],
-        ['EVOLUCAO_ENFERMAGEM', 'Evolução de Enfermagem'],
-        ['SINAIS_VITAIS', 'Sinais Vitais'],
-        ['PRESCRICAO', 'Prescrições / Condutas'],
-        ['DIAGNOSTICO', 'Diagnósticos (CID-10)'],
-        ['exames', `Exames & Imagenologia (${examesPac.length})`],
-        ['internacoes', 'Internações & Resumo']
+        ['timeline', '1. Visão Geral & Linha do Tempo'],
+        ['EVOLUCAO', '2. Evolução Médica'],
+        ['EVOLUCAO_ENFERMAGEM', '3. Evolução de Enfermagem'],
+        ['SINAIS_VITAIS', '4. Sinais Vitais'],
+        ['PRESCRICAO', '5. Prescrição Médica'],
+        ['farmacia', `💊 6. Farmácia — Piso & Quem Pegou (${farPac.length})`],
+        ['exames', `7. Exames & Imagenologia (${examesPac.length})`],
+        ['DIAGNOSTICO', '8. Diagnósticos (CID-10) & Internações']
     ];
 
     return `
     <div class="at-stack tone-teal">
-        <!-- CABEÇALHO FIXO DO PRONTUÁRIO ELETRÔNICO -->
+        <!-- CABEÇALHO FIXO E EXPLÍCITO DO PRONTUÁRIO ELETRÔNICO -->
         <section class="at-card pr-fixed-header">
             <div class="pr-head">
                 <div style="flex:1;min-width:280px">
                     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
                         <h2 style="margin:0;font-size:22px">${escapeHtml(p.nome)}</h2>
-                        <span class="at-badge ${ativa ? 'at-badge--ok' : 'at-badge--off'}">${ativa ? 'Internado' : 'Alta / Sem internação'}</span>
+                        <span class="at-badge ${ativa ? 'at-badge--ok' : 'at-badge--off'}">${ativa ? 'Internado no Leito' : 'Alta / Sem internação'}</span>
+                        ${ativa ? `<span class="at-badge at-badge--outros">${escapeHtml(pisoTexto)} · Leito ${escapeHtml(leitoObj.rotulo)}</span>` : ''}
                         ${trAtivo ? `<span class="hs-badge-transito">🚑 Em Transporte (Destino: ${escapeHtml(trAtivo.setor_destino)})</span>` : ''}
                     </div>
-                    <p class="at-hint" style="margin:6px 0 0;font-size:14px">
-                        <strong>Prontuário Nº:</strong> ${escapeHtml(p.prontuario || '—')} ·
+                    <p class="at-hint" style="margin:6px 0 0;font-size:13.5px">
+                        <strong>Nº Prontuário:</strong> ${escapeHtml(p.prontuario || '—')} ·
                         <strong>Idade:</strong> ${p.data_nascimento ? `${idadeDe(p.data_nascimento)} anos (${escapeHtml(formatDateBR(p.data_nascimento))})` : '—'} ·
                         <strong>Sexo:</strong> ${escapeHtml(p.sexo || '—')} ·
                         <strong>CNS:</strong> ${escapeHtml(p.cns || '—')} ·
@@ -242,25 +455,34 @@ function renderProntuarioPaciente(st) {
                     </p>
                 </div>
                 <div class="at-actions" style="flex:none">
-                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioTrocar()">${lucideIcon('arrow-left', 'w-4 h-4')} Lista de Prontuários</button>
+                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioTrocar()">${lucideIcon('arrow-left', 'w-4 h-4')} Voltar à Lista</button>
                     <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioImprimir()">${lucideIcon('printer', 'w-4 h-4')} Imprimir Prontuário</button>
                     ${!ativa && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="abrirInternar()">${lucideIcon('bed-double', 'w-4 h-4')} Internar Paciente</button>` : ''}
                 </div>
             </div>
 
-            <!-- FAIXA DE INFORMAÇÕES CRÍTICAS: LEITO/SETOR, DIAGNÓSTICO/CID E ALERGIAS EM DESTAQUE -->
-            <div class="pr-header-grid">
+            <!-- 4 CARTÕES EXPLÍCITOS: LOCALIZAÇÃO (PISO/SETOR/LEITO), DIAGNÓSTICO/CID, FARMÁCIA DO LEITO E ALERGIAS -->
+            <div class="pr-header-grid pr-header-grid--4">
                 <div class="pr-info-box">
-                    <span class="pr-info-box__label">${lucideIcon('bed-double', 'w-4 h-4')} Setor e Leito Atual</span>
-                    <strong class="pr-info-box__val">${escapeHtml(loc)}</strong>
+                    <span class="pr-info-box__label">${lucideIcon('building-2', 'w-4 h-4')} 1. Piso, Setor e Leito Atual</span>
+                    <strong class="pr-info-box__val">${escapeHtml(pisoTexto)} — ${escapeHtml(setorTexto)}</strong>
+                    <small class="at-hint">${escapeHtml(leitoTexto)}</small>
                 </div>
                 <div class="pr-info-box">
-                    <span class="pr-info-box__label">${lucideIcon('stethoscope', 'w-4 h-4')} Diagnóstico Principal / CID-10</span>
+                    <span class="pr-info-box__label">${lucideIcon('stethoscope', 'w-4 h-4')} 2. Diagnóstico Principal (CID-10)</span>
                     <strong class="pr-info-box__val">${escapeHtml(diagPrincipal)}</strong>
+                </div>
+                <div class="pr-info-box" style="cursor:pointer" onclick="prontuarioAba('farmacia')" title="Clique para abrir a aba Farmácia deste paciente">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span class="pr-info-box__label">${lucideIcon('pill', 'w-4 h-4')} 3. Farmácia (Medicamentos do Piso)</span>
+                        <span class="pr-link-btn">Ver quem pegou</span>
+                    </div>
+                    <strong class="pr-info-box__val">${farRetCount} retirado(s) p/ o piso · ${farPendCount} aguardando</strong>
+                    <small class="at-hint">${farPac[0] && farPac[0].retirada ? 'Últ. retirado por: ' + escapeHtml(farPac[0].retirada.quem_pegou_nome) : 'Clique para controlar retiradas'}</small>
                 </div>
                 <div class="pr-info-box ${temAlergia ? 'pr-info-box--alergia' : 'pr-info-box--ok'}">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-                        <span class="pr-info-box__label">${lucideIcon('alert-triangle', 'w-4 h-4')} Alergias em Destaque</span>
+                        <span class="pr-info-box__label">${lucideIcon('alert-triangle', 'w-4 h-4')} 4. Alergias Medicamentosas</span>
                         ${(isMedico || isEnfermagem) ? `<button type="button" class="pr-link-btn" onclick="prontuarioEditarAlergias()">Editar</button>` : ''}
                     </div>
                     <strong class="pr-info-box__val">${temAlergia ? '⚠ ' : '✔ '}${escapeHtml(alergiaTexto)}</strong>
@@ -279,20 +501,21 @@ function renderProntuarioPaciente(st) {
                 ${ultSinais.sinais.dor ? `<span class="pr-vital-chip"><b>Dor:</b> ${escapeHtml(ultSinais.sinais.dor)}</span>` : ''}
             </div>` : ''}
 
-            <!-- BARRA DE AÇÕES ASSISTENCIAIS RÁPIDAS (MÉDICOS E ENFERMEIROS) -->
+            <!-- BARRA EXPLÍCITA DE AÇÕES POR PERFIL -->
             <div class="pr-quick-actions">
-                <span class="at-hint" style="font-weight:700;text-transform:uppercase;font-size:11px">Ações Assistenciais:</span>
+                <span class="at-hint" style="font-weight:800;text-transform:uppercase;font-size:11px">Ações Rápidas:</span>
                 ${isMedico ? `
-                    <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioAba('EVOLUCAO')">${lucideIcon('file-plus-2', 'w-4 h-4')} Evolução Médica</button>
-                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAba('PRESCRICAO')">${lucideIcon('pill', 'w-4 h-4')} Prescrever Conduta</button>
-                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameAbrirModalRapido()">${lucideIcon('scan-line', 'w-4 h-4')} Solicitar Exame de Imagem</button>
+                    <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioAba('EVOLUCAO')">${lucideIcon('file-plus-2', 'w-4 h-4')} + Evolução Médica</button>
+                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAba('PRESCRICAO')">${lucideIcon('file-signature', 'w-4 h-4')} + Prescrição Médica</button>
+                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameAbrirModalRapido()">${lucideIcon('scan-line', 'w-4 h-4')} + Solicitar Exame de Imagem</button>
                 ` : ''}
                 ${isEnfermagem ? `
-                    <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioAba('EVOLUCAO_ENFERMAGEM')">${lucideIcon('clipboard-check', 'w-4 h-4')} Evolução de Enfermagem</button>
-                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAba('SINAIS_VITAIS')">${lucideIcon('heart-pulse', 'w-4 h-4')} Registrar Sinais Vitais</button>
+                    <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioAba('EVOLUCAO_ENFERMAGEM')">${lucideIcon('clipboard-check', 'w-4 h-4')} + Evolução de Enfermagem</button>
+                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAba('SINAIS_VITAIS')">${lucideIcon('heart-pulse', 'w-4 h-4')} + Sinais Vitais</button>
                 ` : ''}
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAba('farmacia')">${lucideIcon('pill', 'w-4 h-4')} Farmácia (Quem Pegou Medicamento)</button>
                 ${ativa && hasPermission('transporte_solicitar') ? `
-                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="nirAbrirModalNovaDemanda({ tipo: 'PACIENTE', paciente_id: '${escapeHtml(p.id)}' })">${lucideIcon('ambulance', 'w-4 h-4')} Solicitar Transporte (NIR)</button>
+                    <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="nirAbrirModalNovaDemanda({ tipo: 'PACIENTE', paciente_id: '${escapeHtml(p.id)}' })">${lucideIcon('ambulance', 'w-4 h-4')} Solicitar NIR / Transporte</button>
                 ` : ''}
             </div>
         </section>
@@ -300,7 +523,7 @@ function renderProntuarioPaciente(st) {
         <!-- AVISOS AUTOMÁTICOS DO SETOR (EXAMES AGENDADOS PELA IMAGENOLOGIA, LAUDOS LIBERADOS E TRANSPORTE EM TRÂNSITO) -->
         ${renderAlertasSetorProntuario(p, ativa, trAtivo, examesAgendados, examesLiberados)}
 
-        <!-- NAVEGAÇÃO POR ABAS DO PRONTUÁRIO -->
+        <!-- NAVEGAÇÃO POR ABAS NUMERADAS E EXPLÍCITAS -->
         <section class="at-card">
             <nav class="at-tabs cd-tabs">${abas.map(([id, rot]) => `<button type="button" class="at-tab ${st.tab === id ? 'is-active' : ''}" onclick="prontuarioAba('${id}')">${rot}</button>`).join('')}</nav>
             <div class="cd-panel">${renderProntuarioAba(st, p, ativa)}</div>
@@ -314,11 +537,11 @@ function renderAlertasSetorProntuario(p, ativa, trAtivo, examesAgendados, exames
         blocos.push(`
         <div class="pr-sector-alert pr-sector-alert--transito">
             <div>
-                <strong>🚑 PACIENTE EM TRANSPORTE VIA NIR (${escapeHtml(trAtivo.protocolo)})</strong>
+                <strong>🚑 PACIENTE EM TRANSPORTE (${escapeHtml(trAtivo.protocolo)})</strong>
                 <p style="margin:3px 0 0">Origem: <strong>${escapeHtml(trAtivo.setor_origem)}</strong> → Destino: <strong>${escapeHtml(trAtivo.setor_destino)}</strong> · Motivo: ${escapeHtml(trAtivo.motivo)}
-                ${trAtivo.equipe ? ` · Equipe: <strong>${escapeHtml(trAtivo.equipe.motorista_maqueiro)}</strong> (${escapeHtml(trAtivo.equipe.veiculo_maca)})` : ''}</p>
+                ${trAtivo.equipe ? ` · Equipe de Transporte: <strong>${escapeHtml(trAtivo.equipe.motorista_maqueiro)}</strong> (${escapeHtml(trAtivo.equipe.veiculo_maca)})` : ''}</p>
             </div>
-            <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="navigateTo('TRANSPORTE_NIR')">Ver Painel NIR</button>
+            <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="navigateTo('TRANSPORTE_NIR')">Ver Setor de Transporte</button>
         </div>`);
     }
 
@@ -342,12 +565,12 @@ function renderAlertasSetorProntuario(p, ativa, trAtivo, examesAgendados, exames
                     ${prep && prep.checado
                         ? `<span class="at-badge at-badge--ok">✔ Preparo Confirmado por ${escapeHtml(prep.por)}</span> (${[prep.jejum && 'Jejum OK', prep.acesso_venoso && 'Acesso Venoso OK', prep.alergia_verificada && 'Alergia Verificada'].filter(Boolean).join(', ')})`
                         : `<span class="at-badge at-badge--urgente">⚠ Pendente conferência de preparo pela Enfermagem</span>`}
-                    ${trVinc ? ` · <strong>Transporte NIR:</strong> <span class="at-badge at-badge--outros">${escapeHtml(trVinc.protocolo)} (${escapeHtml(rotuloStatusTransporteNIR(trVinc.status))})</span>` : ''}
+                    ${trVinc ? ` · <strong>NIR / Transporte:</strong> <span class="at-badge at-badge--outros">${escapeHtml(trVinc.protocolo)} (${escapeHtml(rotuloStatusTransporteNIR(trVinc.status))})</span>` : ''}
                 </p>
             </div>
             <div class="at-actions" style="flex:none">
                 ${podeChecar ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="prontuarioModalPreparoExame('${s.id}')">${lucideIcon('check-square', 'w-4 h-4')} ${prep && prep.checado ? 'Atualizar Preparo' : 'Checar Preparo (Enfermagem)'}</button>` : ''}
-                ${!trVinc && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameSolicitarTransporteNIR('${s.id}')">${lucideIcon('ambulance', 'w-4 h-4')} Solicitar Transporte NIR</button>` : ''}
+                ${!trVinc && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameSolicitarTransporteNIR('${s.id}')">${lucideIcon('ambulance', 'w-4 h-4')} Encaminhar ao NIR</button>` : ''}
             </div>
         </div>`);
     });
@@ -370,17 +593,269 @@ function renderAlertasSetorProntuario(p, ativa, trAtivo, examesAgendados, exames
 
 function renderProntuarioAba(st, p, ativa) {
     if (st.tab === 'timeline') return renderProntuarioTimeline(st, p, ativa);
+    if (st.tab === 'farmacia') return renderProntuarioFarmaciaPaciente(st, p, ativa);
     if (st.tab === 'SINAIS_VITAIS') return renderProntuarioSinaisVitais(st, p, ativa);
     if (st.tab === 'exames') return renderProntuarioExames(st, p, ativa);
+    if (st.tab === 'DIAGNOSTICO') return renderProntuarioDiagnosticosEInternacoes(st, p, ativa);
     if (st.tab === 'internacoes') return renderProntuarioResumoInternacoes(st, p, ativa);
     if (st.tab === 'procedimentos') return renderProntuarioProcedimentos(p);
     return renderProntuarioClinico(st.tab, ativa);
 }
 
-/** Linha do tempo clínica integrada e imutável: Evoluções, Sinais Vitais, Prescrições, Diagnósticos, Preparos, Laudos e Transportes NIR. */
+/** ABA 6 DO PRONTUÁRIO DO PACIENTE: FARMÁCIA (DISTRIBUIÇÃO PARA O PISO & QUEM PEGOU O QUÊ). */
+function renderProntuarioFarmaciaPaciente(st, p, ativa) {
+    const lista = dispensacoesDoPaciente(p.id);
+    const pendentes = lista.filter(f => f.status === 'AGUARDANDO_RETIRADA').length;
+    const retirados = lista.filter(f => f.status === 'DISTRIBUIDO_PISO').length;
+    const administrados = lista.filter(f => f.status === 'ADMINISTRADO').length;
+    const lObj = ativa ? (leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }) : null;
+    const destinoPadrao = ativa ? `${ativa.andar}º Andar (Piso ${ativa.andar}) · ${ativa.ala} · Leito ${lObj.rotulo}` : 'Sem leito ativo';
+
+    return `
+        <div class="pr-section-banner">
+            <div>
+                <h3 style="margin:0;font-size:16px">💊 Controle de Farmácia do Paciente — Distribuição para o Piso e Quem Pegou</h3>
+                <p class="at-hint" style="margin:4px 0 0">
+                    <strong>Destino Atual:</strong> ${escapeHtml(destinoPadrao)} ·
+                    Toda prescrição médica gera automaticamente os itens abaixo para a Farmácia separar e registrar nominalmente <strong>quem pegou cada medicamento para o piso</strong>.
+                </p>
+            </div>
+            <div class="at-actions" style="flex:none">
+                <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="farmaciaAbrirModalNovaDispensacao('${escapeHtml(p.id)}')">${lucideIcon('plus', 'w-4 h-4')} Liberar / Distribuir Medicamento p/ o Piso</button>
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioTrocar(); prontuarioFiltro('modo', 'farmacia_pisos')">Ver Farmácia de Todos os Pisos</button>
+            </div>
+        </div>
+
+        <div class="cd-kpis" style="margin:12px 0">
+            <div class="cd-kpi"><strong>${pendentes}</strong><span>Na Farmácia (Aguardando Retirada)</span></div>
+            <div class="cd-kpi"><strong>${retirados}</strong><span>Retirados / Entregues ao Piso</span></div>
+            <div class="cd-kpi"><strong>${administrados}</strong><span>Administrados no Leito</span></div>
+            <div class="cd-kpi"><strong>${lista.length}</strong><span>Total de Itens do Paciente</span></div>
+        </div>
+
+        ${renderTabelaFarmaciaPisos(lista, false)}
+    `;
+}
+
+/** Modal para registrar QUEM PEGOU o medicamento na Farmácia para levar ao Piso/Leito. */
+function farmaciaAbrirModalRetirada(id) {
+    const f = (MOCK_DATA.FARMACIA_DISPENSACOES || []).find(x => x.id === id);
+    if (!f) return showMsg('Item da farmácia não encontrado.', 'error');
+    const ret = f.retirada || {};
+
+    const d = hModal(`Farmácia — Registrar Quem Pegou o Medicamento (${f.codigo})`, `
+        <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
+            <strong>Destino:</strong> ${escapeHtml(f.piso_rotulo)} · <strong>${escapeHtml(f.ala_setor)}</strong> · <strong>Leito ${escapeHtml(f.leito_rotulo)}</strong><br>
+            <strong>Paciente:</strong> ${escapeHtml(f.paciente_nome)} (Pront. ${escapeHtml(f.prontuario || '—')})<br>
+            <strong>Medicamento:</strong> ${escapeHtml(f.medicamento)} — ${escapeHtml(f.dose)} (Via: ${escapeHtml(f.via)}) · <strong>Qtd:</strong> ${escapeHtml(f.quantidade)}
+        </div>
+
+        <div class="at-form">
+            <div class="at-field at-span-2">
+                <label class="at-label" for="ret_rapido">Selecionar Profissional do Piso Cadastrado (preenche nome, cargo e COREN/Matrícula)</label>
+                <select class="at-select" id="ret_rapido" onchange="farmaciaSelecionouProfissionalRetirada(this.value)">
+                    <option value="">Selecionar da equipe ou preencher manualmente abaixo...</option>
+                    ${PROFISSIONAIS_RETIRADA_PISOS.map((pr, idx) => `<option value="${idx}" data-nome="${escapeHtml(pr.nome)}" data-cargo="${escapeHtml(pr.cargo)}" data-doc="${escapeHtml(pr.doc)}">${escapeHtml(pr.nome)} — ${escapeHtml(pr.cargo)} (${escapeHtml(pr.doc)})</option>`).join('')}
+                </select>
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_nome">Nome Completo de QUEM PEGOU na Farmácia *</label>
+                <input class="at-input" id="ret_nome" value="${escapeHtml(ret.quem_pegou_nome || '')}" placeholder="Ex.: Téc. Enf. Juliana Martins" maxlength="120" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_doc">COREN / Matrícula / Documento de Quem Pegou *</label>
+                <input class="at-input" id="ret_doc" value="${escapeHtml(ret.quem_pegou_documento || '')}" placeholder="Ex.: COREN-TO 224510 · Mat. FN-1042" maxlength="80" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_cargo">Cargo e Piso / Setor de Quem Pegou *</label>
+                <input class="at-input" id="ret_cargo" value="${escapeHtml(ret.quem_pegou_cargo || `Técnico(a) de Enfermagem (${f.piso_rotulo})`)}" placeholder="Ex.: Técnica de Enfermagem (2º Piso - Neuro)" maxlength="120" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_lote">Lote do Medicamento Entregue</label>
+                <input class="at-input" id="ret_lote" value="${escapeHtml(f.lote || 'LT-2026-09A')}" placeholder="Ex.: LT-2026-09A" maxlength="50" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_disp">Entregue / Dispensado na Farmácia por *</label>
+                <input class="at-input" id="ret_disp" value="${escapeHtml(ret.dispensado_por || (state.currentUser && state.currentUser.name) || 'Farm. Patrícia Azevedo (CRF-TO 3310)')}" maxlength="120">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="ret_obs">Observação da Entrega</label>
+                <input class="at-input" id="ret_obs" value="${escapeHtml(ret.observacao || '')}" placeholder="Ex.: Retirado no balcão da Farmácia Central para o posto do piso" maxlength="250" autocomplete="off">
+            </div>
+        </div>
+        <p class="at-error" id="ret_erro"></p>
+        <div class="at-actions" style="margin-top:14px">
+            <button type="button" class="at-btn at-btn--primary" id="ret_ok">${lucideIcon('check-circle-2', 'w-4 h-4')} Confirmar Retirada e Registrar Quem Pegou</button>
+        </div>`, 'lg');
+
+    d.querySelector('#ret_ok').onclick = async () => {
+        d.querySelector('#ret_erro').textContent = '';
+        try {
+            await registrarRetiradaFarmaciaPiso(id, {
+                quem_pegou_nome: d.querySelector('#ret_nome').value,
+                quem_pegou_documento: d.querySelector('#ret_doc').value,
+                quem_pegou_cargo: d.querySelector('#ret_cargo').value,
+                lote: d.querySelector('#ret_lote').value,
+                dispensado_por: d.querySelector('#ret_disp').value,
+                observacao: d.querySelector('#ret_obs').value
+            });
+            d.close();
+            showMsg('Retirada registrada! Nome de quem pegou e horário salvos na Farmácia e na Linha do Tempo do Prontuário.');
+            render();
+        } catch (err) {
+            d.querySelector('#ret_erro').textContent = err.message;
+        }
+    };
+}
+
+function farmaciaSelecionouProfissionalRetirada(idx) {
+    const sel = document.getElementById('ret_rapido');
+    if (!sel || idx === '') return;
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.dataset.nome) document.getElementById('ret_nome').value = opt.dataset.nome;
+    if (opt.dataset.cargo) document.getElementById('ret_cargo').value = opt.dataset.cargo;
+    if (opt.dataset.doc) document.getElementById('ret_doc').value = opt.dataset.doc;
+}
+
+/** Modal para criar uma nova distribuição de medicamento para um Piso / Paciente e já informar quem pegou. */
+function farmaciaAbrirModalNovaDispensacao(pacienteIdFixo = '') {
+    const internados = (MOCK_DATA.INTERNACOES || []).filter(i => i.status === 'ATIVA');
+    const d = hModal('Farmácia — Nova Distribuição de Medicamento para o Piso', `
+        <p class="at-hint">Registre o medicamento que vai ser distribuído para o Piso/Leito e informe nominalmente quem retirou na Farmácia.</p>
+        <div class="at-form">
+            <div class="at-field at-span-2">
+                <label class="at-label" for="nfar_pac">Paciente / Piso / Leito de Destino *</label>
+                <select class="at-select" id="nfar_pac">
+                    <option value="">Selecione o paciente e piso de destino...</option>
+                    ${internados.map(i => {
+                        const l = leitoPorId(i.leito_id) || { rotulo: i.leito_id };
+                        return `<option value="${escapeHtml(i.paciente_id)}" ${pacienteIdFixo === i.paciente_id ? 'selected' : ''}>${escapeHtml(i.andar)}º Andar (Piso ${escapeHtml(i.andar)}) · ${escapeHtml(i.ala)} · Leito ${escapeHtml(l.rotulo)} — ${escapeHtml(i.paciente_nome)} (Pront. ${escapeHtml(i.prontuario || '—')})</option>`;
+                    }).join('')}
+                </select>
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_med">Medicamento / Insumo Farmacêutico *</label>
+                <input class="at-input" id="nfar_med" placeholder="Ex.: Ceftriaxona 1g, Omeprazol 40mg, Dipirona 1g" maxlength="150" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_dose">Apresentação / Dose *</label>
+                <input class="at-input" id="nfar_dose" placeholder="Ex.: 1 Frasco-Ampola, 40 mg Comprimido" maxlength="100" autocomplete="off">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_via">Via de Administração</label>
+                <select class="at-select" id="nfar_via"><option value="EV">EV (Endovenosa)</option><option value="VO">VO (Via Oral)</option><option value="SC">SC (Subcutânea)</option><option value="IM">IM (Intramuscular)</option><option value="Inalatória">Inalatória</option></select>
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_freq">Posologia / Horário</label>
+                <input class="at-input" id="nfar_freq" value="12/12h" maxlength="80">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_qtd">Quantidade Distribuída p/ o Piso *</label>
+                <input class="at-input" id="nfar_qtd" value="2 unidades (24h)" maxlength="80">
+            </div>
+            <div class="at-field">
+                <label class="at-label" for="nfar_lote">Lote</label>
+                <input class="at-input" id="nfar_lote" value="LT-2026-55B" maxlength="50">
+            </div>
+        </div>
+
+        <div class="at-card" style="margin-top:12px;background:var(--sh-surface-2)">
+            <label class="cd-check">
+                <input type="checkbox" id="nfar_ja_pegou" checked onchange="document.getElementById('nfar_bloco_quem').style.display = this.checked ? '' : 'none'">
+                <span><strong>Já registrar agora QUEM PEGOU o medicamento na Farmácia para levar ao Piso</strong></span>
+            </label>
+            <div id="nfar_bloco_quem" style="margin-top:10px">
+                <div class="at-form">
+                    <div class="at-field at-span-2">
+                        <label class="at-label" for="nfar_prof_sel">Atalho: Selecionar Profissional do Piso</label>
+                        <select class="at-select" id="nfar_prof_sel" onchange="farmaciaSelecionouProfNovo(this.value)">
+                            <option value="">Escolher profissional ou digitar abaixo...</option>
+                            ${PROFISSIONAIS_RETIRADA_PISOS.map((pr, idx) => `<option value="${idx}" data-nome="${escapeHtml(pr.nome)}" data-cargo="${escapeHtml(pr.cargo)}" data-doc="${escapeHtml(pr.doc)}">${escapeHtml(pr.nome)} — ${escapeHtml(pr.cargo)} (${escapeHtml(pr.doc)})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="at-field">
+                        <label class="at-label" for="nfar_qnome">Nome de QUEM PEGOU *</label>
+                        <input class="at-input" id="nfar_qnome" value="Téc. Enf. Juliana Martins" maxlength="120">
+                    </div>
+                    <div class="at-field">
+                        <label class="at-label" for="nfar_qdoc">COREN / Matrícula de Quem Pegou *</label>
+                        <input class="at-input" id="nfar_qdoc" value="COREN-TO 224510 · Mat. FN-1042" maxlength="80">
+                    </div>
+                    <div class="at-field">
+                        <label class="at-label" for="nfar_qcargo">Cargo / Piso de Quem Pegou *</label>
+                        <input class="at-input" id="nfar_qcargo" value="Técnica de Enfermagem (2º Piso)" maxlength="120">
+                    </div>
+                    <div class="at-field">
+                        <label class="at-label" for="nfar_qdisp">Dispensado na Farmácia por *</label>
+                        <input class="at-input" id="nfar_qdisp" value="${escapeHtml((state.currentUser && state.currentUser.name) || 'Farm. Patrícia Azevedo')}" maxlength="120">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p class="at-error" id="nfar_erro"></p>
+        <div class="at-actions" style="margin-top:14px">
+            <button type="button" class="at-btn at-btn--primary" id="nfar_ok">${lucideIcon('check', 'w-4 h-4')} Salvar Distribuição da Farmácia</button>
+        </div>`, 'lg');
+
+    d.querySelector('#nfar_ok').onclick = async () => {
+        d.querySelector('#nfar_erro').textContent = '';
+        try {
+            await criarDispensacaoFarmaciaPiso({
+                paciente_id: d.querySelector('#nfar_pac').value,
+                medicamento: d.querySelector('#nfar_med').value,
+                dose: d.querySelector('#nfar_dose').value,
+                via: d.querySelector('#nfar_via').value,
+                frequencia: d.querySelector('#nfar_freq').value,
+                quantidade: d.querySelector('#nfar_qtd').value,
+                lote: d.querySelector('#nfar_lote').value,
+                ja_retirado: d.querySelector('#nfar_ja_pegou').checked,
+                quem_pegou_nome: d.querySelector('#nfar_qnome').value,
+                quem_pegou_documento: d.querySelector('#nfar_qdoc').value,
+                quem_pegou_cargo: d.querySelector('#nfar_qcargo').value,
+                dispensado_por: d.querySelector('#nfar_qdisp').value
+            });
+            d.close();
+            showMsg('Distribuição de medicamento para o piso registrada com sucesso!');
+            render();
+        } catch (err) {
+            d.querySelector('#nfar_erro').textContent = err.message;
+        }
+    };
+}
+
+function farmaciaSelecionouProfNovo(idx) {
+    const sel = document.getElementById('nfar_prof_sel');
+    if (!sel || idx === '') return;
+    const opt = sel.options[sel.selectedIndex];
+    if (opt.dataset.nome) document.getElementById('nfar_qnome').value = opt.dataset.nome;
+    if (opt.dataset.cargo) document.getElementById('nfar_qcargo').value = opt.dataset.cargo;
+    if (opt.dataset.doc) document.getElementById('nfar_qdoc').value = opt.dataset.doc;
+}
+
+const farmaciaConfirmarAdministracao = aviso(async (id) => {
+    await confirmarAdministracaoFarmaciaLeito(id);
+    showMsg('Administração do medicamento no leito confirmada e registrada no Prontuário!');
+    render();
+});
+
+// ============================================================ ABA 1: VISÃO GERAL & LINHA DO TEMPO CLÍNICA FILTRÁVEL
+
 function renderProntuarioTimeline(st, p, ativa) {
     const todos = registrosDoPaciente().filter(r => !r.complementa_id);
+    const filtro = st.timelineFiltro || '';
+    const visiveis = filtro ? todos.filter(r => r.tipo === filtro) : todos;
     const filhos = (id) => (MOCK_DATA.REGISTROS_CLINICOS.items || []).filter(r => r.complementa_id === id).sort((a, b) => String(a.em).localeCompare(String(b.em)));
+
+    const filtrosTimeline = [
+        ['', `Todos os Eventos (${todos.length})`],
+        ['EVOLUCAO', 'Evolução Médica'],
+        ['EVOLUCAO_ENFERMAGEM', 'Evolução de Enfermagem'],
+        ['SINAIS_VITAIS', 'Sinais Vitais'],
+        ['PRESCRICAO', 'Prescrições Médicas'],
+        ['FARMACIA_PISO', '💊 Farmácia (Quem Pegou)'],
+        ['RESULTADO', 'Laudos de Exames'],
+        ['TRANSPORTE_NIR', '🚑 Transportes']
+    ];
 
     const renderCardTimeline = (r, aninhado = false) => {
         const cfg = TIPOS_CLINICOS[r.tipo] || { rotulo: r.tipo, cor: '#0d9488' };
@@ -409,14 +884,15 @@ function renderProntuarioTimeline(st, p, ativa) {
     };
 
     return `
-        <div class="tri-banner tri-banner--info" style="margin-bottom:14px">
-            <strong>Integridade do Prontuário Digital:</strong> Todos os registros clínicos, preparos de exames, laudos e transportes concluídos via NIR são assinados com data, hora e profissional, não podendo ser apagados (apenas acrescidos de nota/retificação).
+        <div class="pr-timeline-filters">
+            <span class="at-hint" style="font-weight:700">Filtrar Linha do Tempo:</span>
+            ${filtrosTimeline.map(([id, rot]) => `<button type="button" class="at-btn ${filtro === id ? 'at-btn--primary' : 'at-btn--ghost'} at-btn--sm" onclick="prontuarioTimelineFiltro('${id}')">${rot}</button>`).join('')}
         </div>
-        ${todos.length ? todos.map(r => renderCardTimeline(r)).join('') : '<div class="at-empty">Nenhum registro na linha do tempo deste prontuário.</div>'}
+        ${visiveis.length ? visiveis.map(r => renderCardTimeline(r)).join('') : '<div class="at-empty">Nenhum registro encontrado para este filtro na linha do tempo.</div>'}
     `;
 }
 
-/** Aba de Sinais Vitais (Enfermagem e Médicos). */
+/** Aba 4: Sinais Vitais (Enfermagem e Médicos). */
 function renderProntuarioSinaisVitais(st, p, ativa) {
     const podeRegistrar = hasPermission('sinais_vitais_registrar') || hasPermission('prontuario_evoluir');
     const regs = registrosDoPaciente('SINAIS_VITAIS');
@@ -470,6 +946,15 @@ const prontuarioSalvarSinaisVitais = aviso(async () => {
     renderFresh();
 });
 
+function renderProntuarioDiagnosticosEInternacoes(st, p, ativa) {
+    return `
+        <h3 class="at-label" style="margin:0 0 8px">Diagnósticos Médicos (CID-10)</h3>
+        ${renderProntuarioClinico('DIAGNOSTICO', ativa)}
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--sh-line)">
+        ${renderProntuarioResumoInternacoes(st, p, ativa)}
+    `;
+}
+
 function renderProntuarioResumoInternacoes(st, p, ativa) {
     const dl = (pares) => `<dl class="about-list">${pares.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v || '—')}</dd></div>`).join('')}</dl>`;
     const d = dadosPacienteParaFormulario(p);
@@ -477,8 +962,8 @@ function renderProntuarioResumoInternacoes(st, p, ativa) {
     return `
         <h3 class="at-label" style="margin:0 0 6px">Dados Cadastrais do Paciente</h3>
         ${dl([['Nome da mãe', d.nome_mae], ['Sexo', d.sexo], ['Raça/cor', d.raca_cor], ['Telefone', d.telefone ? formatPhone(d.telefone) : ''], ['Endereço', d.endereco], ['Município/UF', [d.municipio, d.uf].filter(Boolean).join('/')]])}
-        <h3 class="at-label" style="margin:14px 0 6px">Histórico de Internações</h3>
-        ${lista.length ? `<table class="tri-table cd-table"><thead><tr><th>Internação</th><th>Leito / Setor</th><th>Origem</th><th>Situação</th><th>Alta</th></tr></thead><tbody>${lista.map(i => `<tr><td data-label="Internação">${escapeHtml(formatDateTimeBR(i.data_hora_internacao))}</td><td data-label="Leito">${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)} · ${escapeHtml(i.ala || (i.andar + 'º andar'))}</td><td data-label="Origem">${escapeHtml(i.setor_origem)}</td><td data-label="Situação">${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</td><td data-label="Alta">${i.data_hora_alta ? escapeHtml(formatDateTimeBR(i.data_hora_alta)) : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhuma internação registrada.</div>'}
+        <h3 class="at-label" style="margin:14px 0 6px">Histórico de Internações por Piso e Leito</h3>
+        ${lista.length ? `<table class="tri-table cd-table"><thead><tr><th>Internação</th><th>Piso / Ala / Leito</th><th>Origem</th><th>Situação</th><th>Alta</th></tr></thead><tbody>${lista.map(i => `<tr><td data-label="Internação">${escapeHtml(formatDateTimeBR(i.data_hora_internacao))}</td><td data-label="Leito">${escapeHtml(i.andar)}º Andar · ${escapeHtml(i.ala || '')} · Leito ${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)}</td><td data-label="Origem">${escapeHtml(i.setor_origem)}</td><td data-label="Situação">${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</td><td data-label="Alta">${i.data_hora_alta ? escapeHtml(formatDateTimeBR(i.data_hora_alta)) : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhuma internação registrada.</div>'}
         <h3 class="at-label" style="margin:14px 0 6px">Procedimentos e OPME</h3>
         ${renderProntuarioProcedimentos(p)}
     `;
@@ -496,8 +981,9 @@ function renderProntuarioClinico(tipo, ativa) {
         ${!aninhado ? filhos(r.id).map(f => cartao(f, true)).join('') : ''}</article>`;
     return `
         ${podeEscrever && ativa ? `<div class="at-card" style="margin-bottom:14px"><label class="at-label" for="pr_texto">Novo registro de ${cfg.rotulo.toLowerCase()}</label>
+            ${tipo === 'PRESCRICAO' ? `<p class="at-hint" style="margin:2px 0 8px">Ao assinar a prescrição, cada medicamento é enviado automaticamente para a aba <strong>6. Farmácia</strong> para controle de distribuição ao piso e registro de quem retirou.</p>` : ''}
             ${tipo === 'DIAGNOSTICO' ? '<div class="at-field"><label class="at-label" for="pr_cid">CID-10 *</label><input class="at-input" id="pr_cid" maxlength="7" placeholder="Ex.: I10" autocomplete="off" style="max-width:200px;text-transform:uppercase"></div>' : ''}
-            ${tipo === 'PRESCRICAO' ? `<div id="pr_itens"></div><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prescricaoAddItem()">${lucideIcon('plus', 'w-4 h-4')} Adicionar item de prescrição</button>` : `<textarea class="at-textarea" id="pr_texto" rows="3" maxlength="2000" placeholder="Descreva a avaliação clínica, evolução ou conduta..." data-keep="pr_texto_${tipo}"></textarea>`}
+            ${tipo === 'PRESCRICAO' ? `<div id="pr_itens"></div><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prescricaoAddItem()">${lucideIcon('plus', 'w-4 h-4')} Adicionar medicamento / item</button>` : `<textarea class="at-textarea" id="pr_texto" rows="3" maxlength="2000" placeholder="Descreva a avaliação clínica, evolução ou conduta..." data-keep="pr_texto_${tipo}"></textarea>`}
             <div class="at-actions" style="margin-top:10px;align-items:center"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="${tipo === 'PRESCRICAO' ? 'prontuarioRegistrarPrescricao()' : `prontuarioRegistrar('${tipo}')`}">Assinar e registrar</button>
             <span class="at-hint">Registros assinados não podem ser apagados. Correções entram como nota complementar.</span></div></div>`
             : (podeEscrever ? '<div class="tri-banner tri-banner--warn">Sem internação ativa: não é possível registrar.</div>' : '<div class="at-hint" style="margin-bottom:10px">Seu perfil pode consultar, mas não registrar este tipo de informação.</div>')}
@@ -522,7 +1008,7 @@ function prescricaoAddItem() {
     const div = document.createElement('div');
     div.className = 'pr-item at-form';
     div.style.margin = '6px 0';
-    div.innerHTML = ['Medicamento / conduta *', 'Dose *', 'Via', 'Frequência *', 'Duração', 'Observação'].map((rot, n) => `<div class="at-field"><label class="at-label">${rot}</label><input class="at-input i-${['medicamento', 'dose', 'via', 'frequencia', 'duracao', 'observacao'][n]}" maxlength="120" autocomplete="off"></div>`).join('');
+    div.innerHTML = ['Medicamento / conduta *', 'Dose *', 'Via', 'Frequência *', 'Duração / Qtd', 'Observação'].map((rot, n) => `<div class="at-field"><label class="at-label">${rot}</label><input class="at-input i-${['medicamento', 'dose', 'via', 'frequencia', 'duracao', 'observacao'][n]}" maxlength="120" autocomplete="off"></div>`).join('');
     box.appendChild(div);
 }
 
@@ -530,7 +1016,7 @@ const prontuarioRegistrarPrescricao = aviso(async () => {
     const st = prontuarioState();
     const itens = [...document.querySelectorAll('#pr_itens .pr-item')].map(r => Object.fromEntries(['medicamento', 'dose', 'via', 'frequencia', 'duracao', 'observacao'].map(k => [k, r.querySelector('.i-' + k).value])));
     await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), tipo: 'PRESCRICAO', itens });
-    showMsg('Prescrição assinada e salva.');
+    showMsg('Prescrição assinada e itens enviados automaticamente para a aba Farmácia (distribuição do piso)!');
     renderFresh();
 });
 
@@ -545,7 +1031,7 @@ function prontuarioEditarAlergias() {
     const st = prontuarioState();
     const p = st.paciente;
     const d = hModal(`Alergias · ${p.nome}`, `
-        <p class="at-hint">Informe medicamentos, contrastes ou substâncias às quais o paciente possui alergia. Fica destacado no cabeçalho do prontuário e nos pedidos de exame.</p>
+        <p class="at-hint">Informe medicamentos, contrastes ou substâncias às quais o paciente possui alergia. Fica destacado no cabeçalho do prontuário, na Farmácia e nos pedidos de exame.</p>
         <div class="at-field"><label class="at-label" for="al_txt">Alergias conhecidas</label>
             <input class="at-input" id="al_txt" value="${escapeHtml(p.alergias || '')}" placeholder="Ex.: Dipirona, Penicilina, Contraste Iodado (ou deixe em branco se negar)" maxlength="250" autocomplete="off"></div>
         <p class="at-error" id="al_erro"></p>
@@ -563,7 +1049,7 @@ function prontuarioEditarAlergias() {
     };
 }
 
-// ============================================================ EXAMES NO PRONTUÁRIO + PREPARO DE ENFERMAGEM + PONTE COM TRANSPORTE NIR
+// ============================================================ EXAMES NO PRONTUÁRIO + PREPARO DE ENFERMAGEM + PONTE COM NIR
 
 function renderProntuarioExames(st, p, ativa) {
     const sols = MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
@@ -577,7 +1063,7 @@ function renderProntuarioExames(st, p, ativa) {
             ` : ''}
         </div>
         <h3 class="at-label" style="margin:0 0 6px">Solicitações de Exames e Integração com Imagenologia / NIR</h3>
-        ${sols.length ? `<table class="tri-table cd-table"><thead><tr><th>Protocolo</th><th>Exame / Contraste</th><th>Urgência</th><th>Status</th><th>Agenda / Sala / Preparo</th><th>Preparo Enfermagem</th><th>Ações / Transporte</th></tr></thead><tbody>${sols.map(s => {
+        ${sols.length ? `<table class="tri-table cd-table"><thead><tr><th>Protocolo</th><th>Exame / Contraste</th><th>Urgência</th><th>Status</th><th>Agenda / Sala / Preparo</th><th>Preparo Enfermagem</th><th>Ações / NIR</th></tr></thead><tbody>${sols.map(s => {
             const ag = s.agendamento;
             const prep = s.preparo_enfermagem;
             const tr = transporteDoExame(s.id);
@@ -595,8 +1081,8 @@ function renderProntuarioExames(st, p, ativa) {
             <td data-label="Ações">
                 <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
                     <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameDetalhe('${s.id}')">Detalhes / Laudo</button>
-                    ${s.status === 'AGENDADO' && !tr && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameSolicitarTransporteNIR('${s.id}')">🚑 Solicitar NIR</button>` : ''}
-                    ${tr ? `<span class="at-badge at-badge--outros" title="Transporte NIR vinculado">${escapeHtml(tr.protocolo)}: ${escapeHtml(rotuloStatusTransporteNIR(tr.status))}</span>` : ''}
+                    ${s.status === 'AGENDADO' && !tr && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="exameSolicitarTransporteNIR('${s.id}')">📋 Encaminhar ao NIR</button>` : ''}
+                    ${tr ? `<span class="at-badge at-badge--outros" title="Demanda NIR vinculada">${escapeHtml(tr.protocolo)}: ${escapeHtml(rotuloStatusTransporteNIR(tr.status))}</span>` : ''}
                 </div>
             </td></tr>`;
         }).join('')}</tbody></table>` : '<div class="at-empty">Nenhuma solicitação de exame para este paciente.</div>'}
@@ -606,7 +1092,6 @@ function renderProntuarioExames(st, p, ativa) {
 
 const badgePrioridade = (p) => `<span class="at-badge ${p === 'URGENTE' ? 'at-badge--emergencia' : 'at-badge--outros'}">${p === 'URGENTE' ? 'Urgente' : 'Eletivo'}</span>`;
 
-/** Modal rápido para o Médico solicitar Exames de Imagem direto do Prontuário (cai imediatamente na fila de Pedidos Pendentes da Imagenologia). */
 function exameAbrirModalRapido() {
     try { requirePermission('exame_solicitar'); } catch (err) { return showMsg(err.message, 'error'); }
     const st = prontuarioState();
@@ -615,7 +1100,7 @@ function exameAbrirModalRapido() {
     const tipos = tiposExame();
     const ultDiag = registrosDoPaciente('DIAGNOSTICO')[0];
     const cidPadrao = (ultDiag && ultDiag.cid) || (p.diagnostico_principal ? p.diagnostico_principal.split(' ')[0] : 'I10');
-    const locTexto = ativa ? `${ativa.ala} — Leito ${(leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }).rotulo}` : 'Ambulatorial / Sem internação';
+    const locTexto = ativa ? `${ativa.andar}º Andar · ${ativa.ala} — Leito ${(leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }).rotulo}` : 'Ambulatorial / Sem internação';
 
     const d = hModal(`Solicitar Exame de Imagem · ${p.nome}`, `
         <div class="tri-banner tri-banner--info" style="margin-bottom:12px">
@@ -680,7 +1165,7 @@ function exameAbrirModalRapido() {
                 proc_qtd: 1,
                 contraste: comContraste,
                 detalhe_contraste: v('exr_contraste_obs') || (comContraste ? 'Com contraste solicitado pelo médico' : 'Sem contraste'),
-                exige_autorizacao: false, // pedido interno de paciente internado vai direto para a fila de Pedidos Pendentes da Imagenologia
+                exige_autorizacao: false,
                 diagnostico_descricao: just,
                 cid_principal: v('exr_cid'),
                 observacoes: v('exr_obs'),
@@ -704,7 +1189,6 @@ function exameRapidoTipoMudou(id) {
     if (t && inp && !inp.value) inp.value = t.nome_procedimento || t.nome;
 }
 
-/** Modal da Enfermagem para checar o preparo de um exame (jejum, acesso venoso, alergia verificada). */
 function prontuarioModalPreparoExame(solId) {
     const sol = MOCK_DATA.SOLICITACOES_EXAME.find(s => s.id === solId);
     if (!sol) return showMsg('Exame não encontrado.', 'error');
@@ -740,7 +1224,6 @@ function prontuarioModalPreparoExame(solId) {
     };
 }
 
-/** Ponte rápida entre Exame Agendado e Gestão de Transporte (NIR). */
 function exameSolicitarTransporteNIR(solId) {
     const sol = MOCK_DATA.SOLICITACOES_EXAME.find(s => s.id === solId);
     if (!sol) return showMsg('Solicitação de exame não encontrada.', 'error');
@@ -760,7 +1243,6 @@ function exameSolicitarTransporteNIR(solId) {
     }
 }
 
-/** Formulário de solicitação completo (SUS/APAC): dados do paciente vêm do cadastro e são mostrados para conferência. */
 function exameAbrirForm() {
     try { requirePermission('exame_solicitar'); } catch (err) { return showMsg(err.message, 'error'); }
     const st = prontuarioState();
@@ -840,7 +1322,6 @@ function exameAddSecundario() {
 
 // ---------------- Procedimentos e impressão ----------------
 
-/** Procedimentos do paciente: exames realizados e procedimentos com OPME registrados em laudo (pelo CNS ou nome). */
 function procedimentosDoPaciente(p) {
     const linhas = [];
     MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id && s.status === 'REALIZADO').forEach(s => linhas.push({ quando: s.realizado ? s.realizado.em : s.criado_em, tipo: 'Exame', descricao: s.tipo_nome, detalhe: `Realizado por ${s.realizado ? s.realizado.profissional : '—'}`, responsavel: s.solicitante.nome }));
@@ -853,7 +1334,6 @@ function renderProntuarioProcedimentos(p) {
     return l.length ? `<table class="tri-table cd-table"><thead><tr><th>Data</th><th>Tipo</th><th>Procedimento</th><th>Detalhes</th><th>Responsável</th></tr></thead><tbody>${l.map(x => `<tr><td data-label="Data">${escapeHtml(formatDateTimeBR(x.quando))}</td><td data-label="Tipo">${escapeHtml(x.tipo)}</td><td data-label="Procedimento">${escapeHtml(x.descricao)}</td><td data-label="Detalhes">${escapeHtml(x.detalhe)}</td><td data-label="Responsável">${escapeHtml(x.responsavel)}</td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhum procedimento registrado.</div>';
 }
 
-/** Prontuário completo para impressão/PDF: identificação, alergias, internações, diagnósticos, sinais vitais, evoluções, prescrições, exames, transportes NIR e procedimentos. */
 function prontuarioImprimir() {
     const st = prontuarioState();
     const p = st.paciente;
@@ -861,6 +1341,7 @@ function prontuarioImprimir() {
     const d = dadosPacienteParaFormulario(p);
     const e = escapeHtml;
     const regs = (tipo) => registrosDoPaciente(tipo);
+    const far = dispensacoesDoPaciente(p.id);
     const reg = (r) => `<div class="r"><b>${r.cid ? e(r.cid) + ' · ' : ''}${e(formatDateTimeBR(r.em))}</b> · ${e(r.autor_nome)} (${e(getRoleLabel(r.perfil))})${r.registro_conselho ? ' · ' + e(r.registro_conselho) : ''} (assinado)<br>${(r.itens || []).length ? r.itens.map(i => '• ' + e(textoDoItemPrescricao(i))).join('<br>') : e(r.texto)}</div>`;
     cadImprimirHtml(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Prontuário ${e(p.prontuario)}</title><style>
         @page{size:A4 portrait;margin:12mm} body{font-family:Arial,sans-serif;font-size:11px;color:#111} h1{font-size:17px;margin:0} h2{font-size:12px;background:#e5e7eb;padding:3px 6px;margin:14px 0 6px;text-transform:uppercase}
@@ -873,8 +1354,9 @@ function prontuarioImprimir() {
         <h2>Evoluções Médicas</h2>${regs('EVOLUCAO').map(reg).join('') || '<div>Nenhuma.</div>'}
         <h2>Evoluções de Enfermagem</h2>${regs('EVOLUCAO_ENFERMAGEM').map(reg).join('') || '<div>Nenhuma.</div>'}
         <h2>Prescrições</h2>${regs('PRESCRICAO').map(reg).join('') || '<div>Nenhuma.</div>'}
+        <h2>Farmácia (Medicamentos Distribuídos p/ o Piso e Quem Pegou)</h2><table><tr><th>Código</th><th>Medicamento / Dose</th><th>Piso / Leito</th><th>Situação</th><th>Quem Pegou na Farmácia</th></tr>${far.map(f => `<tr><td>${e(f.codigo)}</td><td>${e(f.medicamento)} · ${e(f.dose)} (${e(f.quantidade)})</td><td>${e(f.piso_rotulo)} · Leito ${e(f.leito_rotulo)}</td><td>${e(rotuloStatusFarmacia(f.status))}</td><td>${f.retirada ? `${e(f.retirada.quem_pegou_nome)} (${e(f.retirada.quem_pegou_cargo)} · ${e(f.retirada.quem_pegou_documento)}) em ${e(formatDateTimeBR(f.retirada.retirado_em))}` : 'Aguardando retirada'}</td></tr>`).join('') || '<tr><td colspan="5">Nenhum.</td></tr>'}</table>
         <h2>Exames solicitados</h2><table><tr><th>Protocolo</th><th>Exame</th><th>Prioridade</th><th>Situação</th></tr>${MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id).map(s => `<tr><td>${e(s.protocolo)}</td><td>${e(s.tipo_nome)}</td><td>${s.prioridade === 'URGENTE' ? 'Urgente' : 'Eletivo'}</td><td>${e(rotuloStatusExame(s.status))}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum.</td></tr>'}</table>
         <h2>Resultados e laudos</h2>${regs('RESULTADO').map(reg).join('') || '<div>Nenhum.</div>'}
-        <h2>Transportes concluídos (NIR)</h2>${regs('TRANSPORTE_NIR').map(reg).join('') || '<div>Nenhum.</div>'}
+        <h2>Transportes concluídos (NIR / Setor de Transporte)</h2>${regs('TRANSPORTE_NIR').map(reg).join('') || '<div>Nenhum.</div>'}
         <p style="margin-top:14px;color:#555;font-size:9px">Documento com dados pessoais e clínicos protegidos pela LGPD. Guarde e descarte com segurança.</p></body></html>`);
 }

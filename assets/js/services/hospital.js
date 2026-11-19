@@ -137,6 +137,7 @@ const TIPOS_CLINICOS = {
     DIAGNOSTICO: { rotulo: 'Diagnóstico (CID-10)', permissao: 'diagnosticar', cor: '#d97706' },
     RESULTADO: { rotulo: 'Resultado / Laudo de Exame', permissao: 'exame_resultado', cor: '#2563eb' },
     PREPARO_EXAME: { rotulo: 'Preparo de Exame (Enfermagem)', permissao: 'prontuario_evoluir', cor: '#059669' },
+    FARMACIA_PISO: { rotulo: 'Farmácia (Distribuição p/ Piso)', permissao: 'prontuario_ver', cor: '#0891b2' },
     TRANSPORTE_NIR: { rotulo: 'Movimentação / Transporte (NIR)', permissao: 'transporte_ver', cor: '#ea580c' }
 };
 
@@ -193,10 +194,10 @@ function textoSinaisVitais(s, obs = '') {
 async function registrarClinico({ internacao, paciente_id = '', tipo, texto, itens = null, sinais = null, cid = '', complementa_id = '', solicitacao_id = '', transporte_id = '', registro_conselho = '' }) {
     const cfg = TIPOS_CLINICOS[tipo];
     if (!cfg) throw new Error('Tipo de registro inválido.');
-    if (tipo !== 'TRANSPORTE_NIR') requirePermission(cfg.permissao);
+    if (tipo !== 'TRANSPORTE_NIR' && tipo !== 'FARMACIA_PISO') requirePermission(cfg.permissao);
     const pacId = (internacao && internacao.paciente_id) || paciente_id;
     if (!internacao || internacao.status !== 'ATIVA') {
-        if (tipo !== 'TRANSPORTE_NIR' && tipo !== 'RESULTADO') {
+        if (tipo !== 'TRANSPORTE_NIR' && tipo !== 'RESULTADO' && tipo !== 'FARMACIA_PISO') {
             throw new Error('O registro clínico exige uma internação ativa do paciente.');
         }
     }
@@ -217,6 +218,37 @@ async function registrarClinico({ internacao, paciente_id = '', tipo, texto, ite
         em: agoraISO(), assinado: true
     };
     await setDocH(COLH.REGISTROS, reg);
+    if (tipo === 'PRESCRICAO' && Array.isArray(itens) && itens.length && internacao) {
+        const lObj = leitoPorId(internacao.leito_id) || { rotulo: internacao.leito_id };
+        for (const it of itens) {
+            const disp = {
+                id: newId('far'),
+                codigo: `FAR-${todayISO().replace(/-/g, '')}-${String((MOCK_DATA.FARMACIA_DISPENSACOES || []).length + 1).padStart(4, '0')}`,
+                prescricao_id: reg.id,
+                paciente_id: internacao.paciente_id,
+                paciente_nome: internacao.paciente_nome,
+                prontuario: internacao.prontuario || '',
+                internacao_id: internacao.id,
+                piso_andar: String(internacao.andar || '1'),
+                piso_rotulo: `${internacao.andar || '1'}º Andar (Piso ${internacao.andar || '1'})`,
+                ala_setor: internacao.ala || 'Unidade de Internação',
+                leito_id: internacao.leito_id,
+                leito_rotulo: lObj.rotulo,
+                medicamento: it.medicamento,
+                dose: it.dose,
+                via: it.via || '—',
+                frequencia: it.frequencia,
+                lote: '',
+                quantidade: it.duracao || 'Dose prescrita (24h)',
+                prescrito_por: u.por_nome,
+                prescrito_em: reg.em,
+                status: 'AGUARDANDO_RETIRADA',
+                retirada: null,
+                administracao: null
+            };
+            await setDocH(COLH.FARMACIA, disp);
+        }
+    }
     if (typeof auditar === 'function') await auditar({ entidade: 'prontuario', entidade_id: pacId, acao: complementa_id ? 'COMPLEMENTAR' : 'REGISTRAR', depois: { tipo, registro: reg.id, internacao: reg.internacao_id } });
     return reg;
 }
@@ -1138,5 +1170,201 @@ async function cancelarTransporteNIR(id, motivo) {
     };
     await setDocH(COLH.TRANSPORTES, novo);
     if (typeof auditar === 'function') await auditar({ entidade: 'transporte_nir', entidade_id: id, acao: 'CANCELAR', motivo: String(motivo).trim() });
+    return novo;
+}
+
+// ============================================================ ABA FARMÁCIA DO PRONTUÁRIO: DISTRIBUIÇÃO PARA OS PISOS & QUEM PEGOU O QUÊ
+
+const STATUS_FARMACIA_PISO = {
+    AGUARDANDO_RETIRADA: { rotulo: 'Na Farmácia (Aguardando Retirada p/ o Piso)', cor: '#d97706', fundo: '#fef3c7', badge: 'at-badge--urgente' },
+    DISTRIBUIDO_PISO: { rotulo: 'Retirado / Distribuído para o Piso', cor: '#0284c7', fundo: '#e0f2fe', badge: 'at-badge--outros' },
+    ADMINISTRADO: { rotulo: 'Administrado no Paciente (Leito)', cor: '#16a34a', fundo: '#dcfce7', badge: 'at-badge--ok' }
+};
+
+const PROFISSIONAIS_RETIRADA_PISOS = [
+    { nome: 'Téc. Enf. Juliana Martins', cargo: 'Técnica de Enfermagem (2º Piso - Neuro)', doc: 'COREN-TO 224510 · Mat. FN-1042', piso: '2' },
+    { nome: 'Enfermeiro Teste', cargo: 'Enfermeiro Plantonista (2º Piso - Neuro)', doc: 'COREN-TO 118920 · Mat. FN-1015', piso: '2' },
+    { nome: 'Enf. Marcos Paulo Ribeiro', cargo: 'Enfermeiro Assistencial (3º Piso - Clínica Médica)', doc: 'COREN-TO 145800 · Mat. FN-2088', piso: '3' },
+    { nome: 'Téc. Enf. Camila Souza', cargo: 'Técnica de Enfermagem (3º Piso - Cardio/Nefro)', doc: 'COREN-TO 310442 · Mat. FN-2104', piso: '3' },
+    { nome: 'Téc. Enf. Rafael Gomes', cargo: 'Técnico de Enfermagem (1º Piso - Pediatria)', doc: 'COREN-TO 198221 · Mat. FN-0891', piso: '1' },
+    { nome: 'Téc. Enf. Fernanda Lima', cargo: 'Técnica de Enfermagem (4º Piso - Cirúrgica)', doc: 'COREN-TO 275119 · Mat. FN-3012', piso: '4' }
+];
+
+const rotuloStatusFarmacia = (s) => (STATUS_FARMACIA_PISO[s] || { rotulo: s || '—' }).rotulo;
+
+function dispensacoesDoPaciente(pacienteId) {
+    return (MOCK_DATA.FARMACIA_DISPENSACOES || [])
+        .filter(f => f.paciente_id === pacienteId)
+        .sort((a, b) => String(b.prescrito_em || '').localeCompare(String(a.prescrito_em || '')));
+}
+
+/**
+ * Cria um novo registro de medicamento a ser distribuído para um Piso/Ala/Leito (e opcionalmente já registra quem pegou na Farmácia).
+ */
+async function criarDispensacaoFarmaciaPiso(f) {
+    if (!hasPermission('prontuario_ver') && !hasPermission('prescrever')) {
+        throw new Error('Acesso negado para registrar distribuição de medicamentos.');
+    }
+    const med = String(f.medicamento || '').trim();
+    const dose = String(f.dose || '').trim();
+    const qtd = String(f.quantidade || '').trim();
+    if (med.length < 2) throw new Error('Informe o nome do medicamento.');
+    if (!dose) throw new Error('Informe a apresentação ou dose do medicamento.');
+    if (!qtd) throw new Error('Informe a quantidade a ser distribuída para o piso.');
+    if (!f.paciente_id) throw new Error('Selecione o paciente / leito de destino no piso.');
+
+    const pac = await db_getPaciente(f.paciente_id);
+    const ativa = internacaoAtivaDoPaciente(f.paciente_id);
+    const andar = String((ativa && ativa.andar) || f.piso_andar || '1');
+    const ala = (ativa && ativa.ala) || f.ala_setor || 'Unidade de Internação';
+    const leitoId = (ativa && ativa.leito_id) || f.leito_id || '';
+    const leitoRot = leitoId ? ((leitoPorId(leitoId) || { rotulo: leitoId }).rotulo) : 'Sem leito';
+
+    const u = quem();
+    const agora = agoraISO();
+    const hoje = todayISO().replace(/-/g, '');
+    const seq = String((MOCK_DATA.FARMACIA_DISPENSACOES || []).length + 1).padStart(4, '0');
+
+    let status = 'AGUARDANDO_RETIRADA';
+    let retirada = null;
+
+    if (f.ja_retirado) {
+        const qNome = String(f.quem_pegou_nome || '').trim();
+        const qCargo = String(f.quem_pegou_cargo || '').trim();
+        const qDoc = String(f.quem_pegou_documento || '').trim();
+        if (qNome.length < 3) throw new Error('Informe o nome completo do profissional que pegou o medicamento.');
+        if (qCargo.length < 2) throw new Error('Informe o cargo/setor de quem pegou o medicamento.');
+        if (qDoc.length < 3) throw new Error('Informe a matrícula ou registro (COREN/CPF) de quem pegou.');
+        status = 'DISTRIBUIDO_PISO';
+        retirada = {
+            quem_pegou_nome: qNome,
+            quem_pegou_cargo: qCargo,
+            quem_pegou_documento: qDoc,
+            dispensado_por: String(f.dispensado_por || u.por_nome).trim(),
+            retirado_em: agora,
+            observacao: String(f.observacao || '').trim()
+        };
+    }
+
+    const reg = {
+        id: newId('far'),
+        codigo: `FAR-${hoje}-${seq}`,
+        paciente_id: f.paciente_id,
+        paciente_nome: (pac && pac.nome) || (ativa && ativa.paciente_nome) || 'Paciente',
+        prontuario: (pac && pac.prontuario) || (ativa && ativa.prontuario) || '',
+        internacao_id: ativa ? ativa.id : '',
+        piso_andar: andar,
+        piso_rotulo: `${andar}º Andar (Piso ${andar})`,
+        ala_setor: ala,
+        leito_id: leitoId,
+        leito_rotulo: leitoRot,
+        medicamento: med,
+        dose,
+        via: String(f.via || 'VO').trim(),
+        frequencia: String(f.frequencia || 'Conforme prescrição').trim(),
+        lote: String(f.lote || '').trim(),
+        quantidade: qtd,
+        prescrito_por: u.por_nome,
+        prescrito_em: agora,
+        status,
+        retirada,
+        administracao: null
+    };
+
+    await setDocH(COLH.FARMACIA, reg);
+
+    if (retirada) {
+        await registrarClinico({
+            internacao: ativa,
+            paciente_id: reg.paciente_id,
+            tipo: 'FARMACIA_PISO',
+            texto: `Farmácia — Distribuição para o ${reg.piso_rotulo} (${reg.ala_setor} · Leito ${reg.leito_rotulo}): ${reg.medicamento} ${reg.dose} (Qtd: ${reg.quantidade}${reg.lote ? ' · Lote: ' + reg.lote : ''}) — QUEM PEGOU: ${retirada.quem_pegou_nome} (${retirada.quem_pegou_cargo} · ${retirada.quem_pegou_documento}) · Dispensado por: ${retirada.dispensado_por}.`
+        });
+    }
+
+    if (typeof auditar === 'function') {
+        await auditar({ entidade: 'farmacia_piso', entidade_id: reg.id, acao: 'CRIAR', depois: { codigo: reg.codigo, medicamento: reg.medicamento, piso: reg.piso_rotulo, status: reg.status } });
+    }
+    return reg;
+}
+
+/**
+ * Registra QUEM PEGOU o medicamento na Farmácia para levar ao Piso / Posto de Enfermagem / Leito.
+ * Grava também na linha do tempo do Prontuário Digital do paciente.
+ */
+async function registrarRetiradaFarmaciaPiso(id, { quem_pegou_nome, quem_pegou_cargo, quem_pegou_documento, dispensado_por = '', lote = '', observacao = '' }) {
+    if (!hasPermission('prontuario_ver') && !hasPermission('prontuario_evoluir')) {
+        throw new Error('Acesso negado para registrar retirada de medicamento na Farmácia.');
+    }
+    const atual = await getDocH(COLH.FARMACIA, id);
+    if (!atual) throw new Error('Registro de dispensação não encontrado.');
+    const qNome = String(quem_pegou_nome || '').trim();
+    const qCargo = String(quem_pegou_cargo || '').trim();
+    const qDoc = String(quem_pegou_documento || '').trim();
+    if (qNome.length < 3) throw new Error('Informe o nome completo de quem pegou o medicamento.');
+    if (qCargo.length < 2) throw new Error('Informe a função / setor de quem pegou o medicamento.');
+    if (qDoc.length < 3) throw new Error('Informe a matrícula ou conselho (COREN/CPF) de quem pegou.');
+
+    const u = quem();
+    const agora = agoraISO();
+    const retirada = {
+        quem_pegou_nome: qNome,
+        quem_pegou_cargo: qCargo,
+        quem_pegou_documento: qDoc,
+        dispensado_por: String(dispensado_por || u.por_nome).trim(),
+        retirado_em: agora,
+        observacao: String(observacao || '').trim()
+    };
+
+    const novoLote = String(lote || atual.lote || '').trim();
+    const novo = {
+        ...atual,
+        lote: novoLote,
+        status: 'DISTRIBUIDO_PISO',
+        retirada
+    };
+    await setDocH(COLH.FARMACIA, novo);
+
+    const ativa = internacaoAtivaDoPaciente(atual.paciente_id);
+    await registrarClinico({
+        internacao: ativa,
+        paciente_id: atual.paciente_id,
+        tipo: 'FARMACIA_PISO',
+        texto: `Farmácia — Medicamento Distribuído para o ${atual.piso_rotulo} (${atual.ala_setor} · Leito ${atual.leito_rotulo}): ${atual.medicamento} ${atual.dose} (Qtd: ${atual.quantidade}${novoLote ? ' · Lote: ' + novoLote : ''}) — QUEM PEGOU: ${retirada.quem_pegou_nome} (${retirada.quem_pegou_cargo} · ${retirada.quem_pegou_documento}) · Entregue pela Farmácia por: ${retirada.dispensado_por}.${retirada.observacao ? ' Obs.: ' + retirada.observacao : ''}`
+    });
+
+    if (typeof auditar === 'function') {
+        await auditar({ entidade: 'farmacia_piso', entidade_id: id, acao: 'RETIRADA_PISO', depois: retirada });
+    }
+    return novo;
+}
+
+/** Confirma a administração do medicamento retirado diretamente no paciente no leito. */
+async function confirmarAdministracaoFarmaciaLeito(id, { administrado_por = '', observacao = '' } = {}) {
+    if (!hasPermission('prontuario_evoluir')) {
+        throw new Error('Acesso negado: apenas Enfermagem ou Médico confirma a administração no leito.');
+    }
+    const atual = await getDocH(COLH.FARMACIA, id);
+    if (!atual) throw new Error('Registro de medicamento não encontrado.');
+    if (atual.status === 'AGUARDANDO_RETIRADA') {
+        throw new Error('Registre primeiro quem pegou o medicamento na Farmácia antes de checar a administração no leito.');
+    }
+    const u = quem();
+    const agora = agoraISO();
+    const administracao = {
+        administrado_por: String(administrado_por || u.por_nome).trim(),
+        administrado_em: agora,
+        observacao: String(observacao || '').trim()
+    };
+    const novo = { ...atual, status: 'ADMINISTRADO', administracao };
+    await setDocH(COLH.FARMACIA, novo);
+
+    const ativa = internacaoAtivaDoPaciente(atual.paciente_id);
+    await registrarClinico({
+        internacao: ativa,
+        paciente_id: atual.paciente_id,
+        tipo: 'FARMACIA_PISO',
+        texto: `Checagem Beira-Leito (${atual.piso_rotulo} · Leito ${atual.leito_rotulo}): Medicamento ${atual.medicamento} (${atual.dose}, via ${atual.via}) ADMINISTRADO por ${administracao.administrado_por} (Retirado na Farmácia por ${atual.retirada ? atual.retirada.quem_pegou_nome : '—'}).${administracao.observacao ? ' Obs.: ' + administracao.observacao : ''}`
+    });
     return novo;
 }
