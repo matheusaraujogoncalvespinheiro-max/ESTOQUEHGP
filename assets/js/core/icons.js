@@ -7,6 +7,7 @@ const ICON_PATHS = {
     x: '<path d="M6 6l12 12M18 6 6 18"/>',
     'chevron-down': '<path d="m6 9 6 6 6-6"/>',
     'chevron-right': '<path d="m9 6 6 6-6 6"/>',
+    'chevron-left': '<path d="m15 6-6 6 6 6"/>',
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>',
     moon: '<path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5a8.5 8.5 0 1 0 10.7 10.7z"/>',
     // Contatos / suporte

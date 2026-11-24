@@ -310,7 +310,6 @@
 .shell-root .wm-link.is-active {
     background: var(--sh-accent-soft);
     color: var(--sh-accent-ink);
-    font-weight: 600;
 }
 
 .shell-root .wm-divisor {
@@ -823,3 +822,39 @@
 /* Menu lateral: sem barra de rolagem visível (a rolagem continua funcionando com o mouse, o toque e o teclado) */
 .shell-root .wm-nav { scrollbar-width: none; -ms-overflow-style: none; }
 .shell-root .wm-nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ---------- Menu em duas colunas: com uma seção aberta, o menu vira uma coluna só de ícones e os submenus abrem ao lado ---------- */
+.shell-root { --sh-rail-w: 72px; --sh-painel-w: 264px; }
+.shell-root .wm-sub__cab { display: none; }
+
+.shell-root[data-menu='open']:has(.wm-secao.is-open) .wm-sidebar { width: var(--sh-rail-w); transition: transform 0.26s ease, width 0.2s ease, visibility 0s; }
+.shell-root:has(.wm-secao.is-open) .wm-marca { justify-content: center; padding: 16px 0 14px; }
+.shell-root:has(.wm-secao.is-open) .wm-marca__texto, .shell-root:has(.wm-secao.is-open) .wm-fechar,
+.shell-root:has(.wm-secao.is-open) .wm-item__rotulo, .shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item .wm-seta,
+.shell-root:has(.wm-secao.is-open) .wm-rodape { display: none; }
+.shell-root:has(.wm-secao.is-open) .wm-nav { padding: 14px 10px; }
+.shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item { position: relative; justify-content: center; padding: 0; }
+.shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item .wm-dot { position: absolute; top: 9px; right: 12px; }
+.shell-root:has(.wm-secao.is-open) .wm-secao.is-open > .wm-item { background: var(--sh-accent-soft); color: var(--sh-accent-ink); }
+
+/* Painel do submenu, ao lado da coluna de ícones */
+.shell-root .wm-secao.is-open > .wm-sub {
+    position: fixed; top: 0; bottom: 0; left: var(--sh-rail-w); z-index: 71;
+    display: block; width: var(--sh-painel-w); overflow-y: auto;
+    background: var(--sh-bg); border-right: 1px solid var(--sh-line); box-shadow: var(--sh-shadow-lg);
+}
+.shell-root .wm-secao.is-open > .wm-sub > ul { margin: 0; padding: 4px 14px 16px; overflow: visible; }
+.shell-root .wm-secao.is-open > .wm-sub > .wm-sub__cab { display: flex; align-items: center; justify-content: space-between; padding: 22px 18px 14px 20px; }
+.shell-root .wm-sub__cab strong { display: block; font-size: 1.15rem; font-weight: 700; color: var(--sh-ink); }
+.shell-root .wm-sub__cab small { display: block; color: var(--sh-muted); font-size: 0.95rem; font-weight: 700; }
+.shell-root .wm-sub__voltar { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 8px; background: none; color: var(--sh-ink); cursor: pointer; }
+.shell-root .wm-sub__voltar:hover { background: var(--sh-hover); }
+
+/* Grupo de segundo nível: abre sobre o painel, com o nome do grupo no alto e as telas num cartão */
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo {
+    position: fixed; top: 0; bottom: 0; left: var(--sh-rail-w); z-index: 72;
+    display: block; width: var(--sh-painel-w); overflow-y: auto; background: var(--sh-bg);
+}
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > .wm-sub__cab { display: flex; flex-direction: row-reverse; align-items: center; justify-content: flex-end; gap: 10px; padding: 22px 18px 14px 14px; }
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > ul { margin: 0 12px 16px; padding: 10px; border-radius: 16px; background: var(--sh-surface); border: 1px solid var(--sh-line); visibility: visible; overflow: visible; }
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo > .wm-grupo__btn .wm-seta { transform: rotate(-90deg); }
