@@ -1,0 +1,13 @@
+// REGRAS DO FIREBASE STORAGE — projeto "erp-hospitalar"
+//
+// O sistema AINDA NÃO envia arquivos (anexos do prontuário são a pendência #31). Por isso o Storage fica totalmente fechado:
+// nenhum arquivo pode ser lido nem gravado. Quando os anexos forem feitos, estas regras serão abertas só para
+// quem tem acesso ao paciente/registro, com limite de tamanho e tipo (PDF e imagem).
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

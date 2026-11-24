@@ -131,7 +131,8 @@ desconecta), expira com os mesmos 10 minutos de inatividade do login e é apagad
 
 `ADMIN`, `CHEFE_OPME`, `CHEFE_HEMODINAMICA`, `FUNC_HEMODINAMICA`, `FUNC_OPME`,
 `FUNC_CENTRO_CIRURGICO`, `FUNC_ENFERMAGEM`, `CHEFE_PORTARIA`, `FUNC_PORTARIA`, `FUNC_RECEPCAO`,
-`FUNC_EMERGENCIA`, `COORD_TRIAGEM`.
+`FUNC_EMERGENCIA`, `COORD_TRIAGEM`, `MEDICO`, `FUNC_IMAGENOLOGIA`, `FUNC_ULTRASSOM`, `AUTORIZADOR`,
+`FUNC_HIGIENIZACAO`, `CHEFE_FARMACIA`, `FUNC_FARMACIA`, `FUNC_NUTRICAO`, `FUNC_HEMOTERAPIA`, `FUNC_MANUTENCAO`, `FUNC_TRANSPORTE`, `FUNC_LAVANDERIA`, `FUNC_VOLUNTARIADO`, `FUNC_OUVIDORIA`, `FUNC_QUALIDADE`, `FUNC_ENSINO`, `DIRETORIA`.
 As permissões ficam em `assets/js/core/permissions.js` e o menu de cada perfil em
 `assets/js/data/menu.js`. A tela só esconde ações por perfil; a proteção real
 depende das regras de segurança do Firestore.
@@ -152,7 +153,7 @@ depende das regras de segurança do Firestore.
 npm test
 ```
 
-Cobrem as validações (CPF, telefone, datas) e as regras puras da Gestão das Triagens.
+Cobrem as validações (CPF, telefone, datas), as regras puras da Gestão das Triagens e, desde a Etapa 2, os serviços assistenciais (fila, triagem, consulta, prontuário, leitos, enfermagem, farmácia, ambulatório, centro cirúrgico, UTI, nutrição, hemoterapia, apoio, óbitos e gestão) contra um Firestore simulado em memória, só com dados fictícios (244 testes).
 
 ## Observações de segurança (pendentes)
 
@@ -168,3 +169,5 @@ Assistência hospitalar (leitos, internação, prontuário, exames e autorizaç�
 Telas operacionais (movimentações, compras, consignado, financeiro e parâmetros): [docs/operacoes.md](docs/operacoes.md).
 
 Fiscal (NF-e, NFS-e, entrada de mercadoria, inventário) e cancelamento de operação: [docs/fiscal.md](docs/fiscal.md).
+
+Auditoria da plataforma e plano em etapas: [docs/auditoria-plataforma.md](docs/auditoria-plataforma.md). Etapa 10 (gestão: painel da direção, ouvidoria, qualidade, ensino e pesquisa): [docs/etapa-10-gestao-ouvidoria-qualidade-direcao.md](docs/etapa-10-gestao-ouvidoria-qualidade-direcao.md). Etapa 9 (apoio, infraestrutura e óbitos): [docs/etapa-9-apoio-infraestrutura-obitos.md](docs/etapa-9-apoio-infraestrutura-obitos.md). Etapa 1 (cadastros centrais): [docs/etapa-1-cadastros-centrais.md](docs/etapa-1-cadastros-centrais.md). Etapa 2 (recepção): [docs/etapa-2-recepcao.md](docs/etapa-2-recepcao.md). Etapa 3 (triagem e atendimento médico): [docs/etapa-3-triagem-atendimento.md](docs/etapa-3-triagem-atendimento.md). Etapa 4 (prontuário e exames com resultado): [docs/etapa-4-prontuario-exames.md](docs/etapa-4-prontuario-exames.md). Etapa 5 (leitos, fila de leito e painel de disponibilidade): [docs/etapa-5-leitos-fila.md](docs/etapa-5-leitos-fila.md). Etapa 6 (enfermagem): [docs/etapa-6-enfermagem.md](docs/etapa-6-enfermagem.md). Etapa 7 (farmácia, dispensação e rastreabilidade do estoque): [docs/etapa-7-farmacia-estoque.md](docs/etapa-7-farmacia-estoque.md). Etapa 8 (ambulatório, procedimentos, centro cirúrgico, UTI, nutrição e hemoterapia): [docs/etapa-8-ambulatorio-cirurgia-uti-hemoterapia.md](docs/etapa-8-ambulatorio-cirurgia-uti-hemoterapia.md). Pendências acumuladas: [docs/pendencias.md](docs/pendencias.md).

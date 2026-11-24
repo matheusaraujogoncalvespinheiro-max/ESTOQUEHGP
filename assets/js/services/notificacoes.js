@@ -26,7 +26,7 @@ function checkLowStockNotifications() {
         return;
     }
 
-    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
+    const allItems = todosProdutosEstoque();
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
 
     lowStockItems.forEach(item => {

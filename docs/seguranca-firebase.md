@@ -2,7 +2,7 @@
 
 ## Onde estão as regras do Firebase?
 
-O projeto **não tinha** arquivo de regras. As regras publicadas ficam no console do Firebase (Firestore › Regras, projeto `opme-389fb`) e não estão no repositório,
+O projeto **não tinha** arquivo de regras. As regras publicadas ficam no console do Firebase (Firestore › Regras, projeto `erp-hospitalar`) e não estão no repositório,
 então não é possível saber daqui quais estão valendo. Como o sistema acessa o banco direto do navegador e **não usa Firebase Auth**, é provável que estejam abertas
 (modo de teste ou equivalente): nesse caso, qualquer pessoa com a configuração do app (que é pública no código) consegue ler e gravar.
 

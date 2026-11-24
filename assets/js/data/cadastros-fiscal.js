@@ -91,7 +91,7 @@ Object.assign(CAD_DEFS, {
     // ============ CANCELAMENTO DE OPERAÇÃO (Movimentações) ============
     cancelamento: {
         key: 'cancelamento', label: 'Cancelamento de Operação', singular: 'Cancelamento', icon: 'x-circle', prefix: 'CAN', imutavel: true, semInativar: true,
-        roles: { ver: R_FISC, criar: R_FISC, editar: [], inativar: [] },
+        roles: { ver: [...R_FISC, 'CHEFE_FARMACIA'], criar: [...R_FISC, 'CHEFE_FARMACIA'], editar: [], inativar: [] },
         desc: 'Cancela uma movimentação já registrada e desfaz o efeito no estoque. A operação original continua na consulta, marcada como cancelada, e o motivo fica registrado.',
         rotulo: (r) => `${r.codigo} - ${r.operacao_desc}`, search: ['codigo', 'operacao_desc', 'motivo'], filters: [{ k: 'tipo_rotulo', label: 'Tipo', opts: Object.values(OPERACOES_CANCELAVEIS) }],
         columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'tipo_rotulo', label: 'Tipo', sort: true }, { k: 'operacao_desc', label: 'Operação cancelada', sort: true }, { k: 'motivo', label: 'Motivo' }, dataHoraCol],

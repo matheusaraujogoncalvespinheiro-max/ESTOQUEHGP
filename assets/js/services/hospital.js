@@ -11,14 +11,24 @@ const STATUS_LEITO = {
 };
 const rotuloStatusLeito = (s) => (STATUS_LEITO[s] || { rotulo: s || '—' }).rotulo;
 
+// Por que um leito está bloqueado. Lista de apoio (a confirmar com o hospital); bloqueios antigos, sem categoria, contam como "Outro motivo".
+const CATEGORIAS_BLOQUEIO = { MANUTENCAO: 'Manutenção', ISOLAMENTO: 'Isolamento', OUTRO: 'Outro motivo' };
+const categoriaDoBloqueio = (estado) => (CATEGORIAS_BLOQUEIO[estado && estado.categoria] ? estado.categoria : 'OUTRO');
+
 const estadoLeito = (id) => MOCK_DATA.LEITOS_ESTADO[id] || { id, status: 'LIVRE' };
+/** Situação do leito lida do banco (não da memória): para quem precisa de certeza antes de mudar o cadastro do leito. */
+async function estadoLeitoNoBanco(id) { return (await getDocH(COLH.LEITOS, id)) || { id, status: 'LIVRE' }; }
 const internacaoAtivaDoLeito = (leitoId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.leito_id === leitoId) || null;
 const internacaoAtivaDoPaciente = (pacienteId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.paciente_id === pacienteId) || null;
 const internacoesDoPaciente = (pacienteId) => MOCK_DATA.INTERNACOES.filter(i => i.paciente_id === pacienteId).sort((a, b) => String(b.data_hora_internacao).localeCompare(String(a.data_hora_internacao)));
 
 function indicadoresLeitos(leitos = estruturaHospital()) {
-    const c = { total: leitos.length, LIVRE: 0, OCUPADO: 0, HIGIENIZACAO: 0, BLOQUEADO: 0 };
-    leitos.forEach(l => { c[estadoLeito(l.id).status] = (c[estadoLeito(l.id).status] || 0) + 1; });
+    const c = { total: leitos.length, LIVRE: 0, OCUPADO: 0, HIGIENIZACAO: 0, BLOQUEADO: 0, bloqueio: { MANUTENCAO: 0, ISOLAMENTO: 0, OUTRO: 0 } };
+    leitos.forEach(l => {
+        const e = estadoLeito(l.id);
+        c[e.status] = (c[e.status] || 0) + 1;
+        if (e.status === 'BLOQUEADO') c.bloqueio[categoriaDoBloqueio(e)] += 1;
+    });
     c.taxa = c.total ? Math.round((c.OCUPADO / c.total) * 100) : 0;
     return c;
 }
@@ -28,6 +38,18 @@ const quem = () => ({ por: state.currentUser.username, por_nome: state.currentUs
 
 async function auditarLeito(leitoId, acao, antes, depois, motivo = '') {
     await auditar({ entidade: 'leito', entidade_id: leitoId, acao, antes, depois, motivo });
+}
+
+/** Monta a internação e o novo estado do leito (puro). `extras` entra na internação (ex.: a ligação com o atendimento de origem). */
+function montarInternacao({ paciente, leito, setor_origem, extras = {} }, agora, u) {
+    const internacao = {
+        id: newId('int'), paciente_id: paciente.id, paciente_nome: paciente.nome, prontuario: paciente.prontuario || '',
+        leito_id: leito.id, andar: leito.andar, ala: leito.ala, quarto: leito.quarto,
+        data_hora_internacao: agora, registrado_por: u.por, registrado_por_nome: u.por_nome, setor_origem: String(setor_origem).trim(),
+        status: 'ATIVA', data_hora_alta: '', alta_por: '', ...extras
+    };
+    const leitoNovo = { id: leito.id, status: 'OCUPADO', internacao_id: internacao.id, paciente_id: paciente.id, desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: '' };
+    return { internacao, leitoNovo };
 }
 
 /** Interna o paciente no leito. Valida leito livre e paciente sem internação ativa (de forma atômica no banco). */
@@ -40,34 +62,53 @@ async function internarPaciente({ paciente, leito_id, setor_origem }) {
     if (!String(setor_origem || '').trim()) throw new Error('Informe o setor de origem.');
     if (estadoLeito(leito.id).status !== 'LIVRE') throw new Error(`O leito ${leito.rotulo} não está livre (${rotuloStatusLeito(estadoLeito(leito.id).status)}).`);
     if (internacaoAtivaDoPaciente(paciente.id)) throw new Error('Este paciente já possui uma internação ativa.');
+    // Quem espera na fila de leito é internado por ela: assim o atendimento fica ligado à internação e não sobra na fila.
+    const naFila = (MOCK_DATA.FILA_LEITO || []).find(a => a.paciente_id === paciente.id && a.fila === 'INTERNACAO' && a.status === 'AGUARDANDO');
+    if (naFila) throw new Error(`Este paciente está na fila de leito (senha ${naFila.senha}). Aloque o leito pela Fila de Leito.`);
 
-    const agora = agoraISO();
-    const u = quem();
-    const internacao = {
-        id: newId('int'), paciente_id: paciente.id, paciente_nome: paciente.nome, prontuario: paciente.prontuario || '',
-        leito_id: leito.id, andar: leito.andar, ala: leito.ala, quarto: leito.quarto,
-        data_hora_internacao: agora, registrado_por: u.por, registrado_por_nome: u.por_nome, setor_origem: String(setor_origem).trim(),
-        status: 'ATIVA', data_hora_alta: '', alta_por: ''
-    };
-    const leitoNovo = { id: leito.id, status: 'OCUPADO', internacao_id: internacao.id, paciente_id: paciente.id, desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: '' };
+    const { internacao, leitoNovo } = montarInternacao({ paciente, leito, setor_origem }, agoraISO(), quem());
     await db_internarAtomico({ internacao, leitoNovo });
     await auditarLeito(leito.id, 'OCUPAR', { status: 'LIVRE' }, { status: 'OCUPADO', internacao: internacao.id, prontuario: internacao.prontuario });
     await auditar({ entidade: 'internacao', entidade_id: internacao.id, acao: 'CRIAR', depois: { paciente_id: paciente.id, leito: leito.rotulo, setor_origem: internacao.setor_origem } });
     return internacao;
 }
 
-/** Alta: encerra a internação e coloca o leito em higienização (nunca direto para livre). */
-async function darAltaInternacao(internacaoId) {
+// Tipos de alta (Etapa 9). Lista de apoio: o hospital confirma a nomenclatura (ver docs/pendencias.md). O óbito NÃO é uma alta comum:
+// é registrado pela tela Óbitos (services/obitos.js), que também encerra a internação com tipo_alta = 'OBITO'.
+const TIPOS_ALTA = { MELHORADA: 'Alta melhorada', CURADO: 'Alta curado', A_PEDIDO: 'Alta a pedido', TRANSFERENCIA_EXTERNA: 'Transferência para outro serviço', EVASAO: 'Evasão', OUTRO: 'Outro motivo' };
+const ROTULOS_TIPO_ALTA = { ...TIPOS_ALTA, OBITO: 'Óbito' };
+const TIPOS_ALTA_COM_OBSERVACAO = ['A_PEDIDO', 'EVASAO', 'OUTRO'];
+
+/** Valida o tipo de alta e os campos que ele exige (puro, testável). */
+function validarAlta(form) {
+    const f = form || {};
+    const tipo = String(f.tipo_alta || '');
+    if (tipo === 'OBITO') throw new Error('O óbito é registrado pela tela Óbitos (pelo médico), não como alta.');
+    if (!Object.prototype.hasOwnProperty.call(TIPOS_ALTA, tipo)) throw new Error('Escolha o tipo de alta.');
+    const observacao = String(f.observacao || '').trim();
+    const destino = String(f.destino || '').trim();
+    if (observacao.length > 200) throw new Error('Observação: no máximo 200 caracteres.');
+    if (destino.length > 80) throw new Error('Serviço de destino: no máximo 80 caracteres.');
+    if (tipo === 'TRANSFERENCIA_EXTERNA' && destino.length < 3) throw new Error('Informe o serviço de destino da transferência.');
+    if (TIPOS_ALTA_COM_OBSERVACAO.includes(tipo) && observacao.length < 5) throw new Error('Informe a observação (mínimo de 5 caracteres) para este tipo de alta.');
+    return { tipo_alta: tipo, alta_destino: tipo === 'TRANSFERENCIA_EXTERNA' ? destino : '', alta_observacao: observacao };
+}
+
+/** Alta: encerra a internação e coloca o leito em higienização (nunca direto para livre). Exige o tipo de alta. */
+async function darAltaInternacao(internacaoId, form) {
     requirePermission('internacao_gerenciar');
+    const tipo = validarAlta(form);
     const atual = MOCK_DATA.INTERNACOES.find(i => i.id === internacaoId) || await getDocH(COLH.INTERNACOES, internacaoId);
     if (!atual || atual.status !== 'ATIVA') throw new Error('Esta internação não está ativa.');
     const agora = agoraISO();
     const u = quem();
-    const internacao = { ...atual, status: 'ALTA', data_hora_alta: agora, alta_por: u.por, alta_por_nome: u.por_nome };
+    const internacao = { ...atual, status: 'ALTA', data_hora_alta: agora, alta_por: u.por, alta_por_nome: u.por_nome, ...tipo };
     const leitoNovo = { id: atual.leito_id, status: 'HIGIENIZACAO', internacao_id: '', paciente_id: '', desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: 'Alta do paciente' };
     await db_altaAtomica({ internacao, leitoNovo });
     await auditarLeito(atual.leito_id, 'ALTA_HIGIENIZACAO', { status: 'OCUPADO' }, { status: 'HIGIENIZACAO' });
-    await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'ALTA', antes: { status: 'ATIVA' }, depois: { status: 'ALTA' } });
+    await auditar({ entidade: 'internacao', entidade_id: atual.id, acao: 'ALTA', antes: { status: 'ATIVA' }, depois: { status: 'ALTA', tipo_alta: tipo.tipo_alta, destino: tipo.alta_destino } });
+    // Horários de medicação/cuidado que ficaram pendentes deixam de valer (a tela já ignora internação encerrada; isto só deixa o histórico limpo).
+    if (typeof encerrarChecagensDaInternacao === 'function') { try { await encerrarChecagensDaInternacao(atual.id, 'Alta do paciente'); } catch (err) { console.warn('Checagens pendentes não foram encerradas:', err.message); } }
     return internacao;
 }
 
@@ -103,14 +144,32 @@ async function concluirHigienizacao(leitoId) {
     await auditarLeito(leitoId, 'LIBERAR', { status: 'HIGIENIZACAO' }, { status: 'LIVRE', liberado_por: u.por_nome });
 }
 
-async function bloquearLeito(leitoId, motivo) {
+/**
+ * Valida o bloqueio de um leito (puro): motivo escrito, categoria da lista (padrão "Outro motivo", que é o que os bloqueios
+ * anteriores à categoria representam) e previsão de liberação opcional, que não pode ser data passada.
+ */
+function validarBloqueio({ motivo, categoria = 'OUTRO', previsao = '' }, hoje = todayISO()) {
+    const texto = String(motivo || '').trim();
+    if (texto.length < 5) throw new Error('Informe o motivo do bloqueio (mínimo de 5 caracteres).');
+    if (texto.length > 200) throw new Error('Motivo: no máximo 200 caracteres.');
+    if (!CATEGORIAS_BLOQUEIO[categoria]) throw new Error('Escolha o tipo de bloqueio (manutenção, isolamento ou outro motivo).');
+    const prev = String(previsao || '').trim();
+    if (prev) {
+        const d = new Date(`${prev}T00:00:00`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(prev) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== prev) throw new Error('Previsão de liberação: data inválida.');
+        if (prev < hoje) throw new Error('A previsão de liberação não pode ser uma data passada.');
+    }
+    return { motivo: texto, categoria, previsao: prev };
+}
+
+async function bloquearLeito(leitoId, motivo, { categoria = 'OUTRO', previsao = '' } = {}) {
     requirePermission('leito_gerenciar');
-    if (String(motivo || '').trim().length < 5) throw new Error('Informe o motivo do bloqueio (mínimo de 5 caracteres).');
+    const b = validarBloqueio({ motivo, categoria, previsao });
     if (!leitoPorId(leitoId)) throw new Error('Leito inválido.');
     const agora = agoraISO(); const u = quem();
     const antes = estadoLeito(leitoId).status;
-    await db_mudarLeito(leitoId, ['LIVRE', 'HIGIENIZACAO'], { id: leitoId, status: 'BLOQUEADO', internacao_id: '', paciente_id: '', desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: String(motivo).trim() });
-    await auditarLeito(leitoId, 'BLOQUEAR', { status: antes }, { status: 'BLOQUEADO' }, String(motivo).trim());
+    await db_mudarLeito(leitoId, ['LIVRE', 'HIGIENIZACAO'], { id: leitoId, status: 'BLOQUEADO', internacao_id: '', paciente_id: '', desde: agora, atualizado_por: u.por, atualizado_por_nome: u.por_nome, motivo: b.motivo, categoria: b.categoria, previsao: b.previsao });
+    await auditarLeito(leitoId, 'BLOQUEAR', { status: antes }, { status: 'BLOQUEADO', categoria: b.categoria, previsao: b.previsao }, b.motivo);
 }
 
 async function desbloquearLeito(leitoId) {
@@ -130,8 +189,31 @@ const TIPOS_CLINICOS = {
     EVOLUCAO: { rotulo: 'Evolução', permissao: 'prontuario_evoluir' },
     PRESCRICAO: { rotulo: 'Prescrição', permissao: 'prescrever' },
     DIAGNOSTICO: { rotulo: 'Diagnóstico', permissao: 'diagnosticar' },
-    RESULTADO: { rotulo: 'Resultado/Laudo de exame', permissao: 'exame_resultado' }
+    RESULTADO: { rotulo: 'Resultado/Laudo de exame', permissao: 'exame_resultado' },
+    ALERGIA: { rotulo: 'Alergia / alerta', permissao: 'prontuario_evoluir' },
+    // Enfermagem (Etapa 6): assinadas com o registro no conselho (COREN/CRM), que o sistema só exige preenchido, sem validar o número.
+    EVOLUCAO_ENFERMAGEM: { rotulo: 'Evolução de enfermagem', permissao: 'enfermagem_registrar', exigeConselho: true },
+    INTERCORRENCIA: { rotulo: 'Intercorrência', permissao: 'enfermagem_registrar', exigeConselho: true },
+    CUIDADO: { rotulo: 'Prescrição de cuidados', permissao: 'prescrever_cuidados', exigeConselho: true },
+    // Etapa 8: conclusão do atendimento na fila de procedimentos (assinada com o registro no conselho)
+    PROCEDIMENTO: { rotulo: 'Procedimento realizado', permissao: 'atendimento_procedimentos', exigeConselho: true }
 };
+// Tipos que valem para o paciente e não para um episódio: podem ser registrados sem internação ativa.
+const TIPOS_SEM_INTERNACAO = ['ALERGIA'];
+// Gravidade informada por quem registra a alergia (descrição do profissional, não classificação do sistema).
+const GRAVIDADES_ALERGIA = ['Leve', 'Moderada', 'Grave', 'Não informada'];
+
+/** Texto único da alergia a partir dos campos digitados. O sistema não confere o agente nem sugere reações. */
+function montarTextoAlergia({ agente, reacao = '', gravidade = '' }) {
+    const ag = String(agente || '').trim();
+    if (ag.length < 3) throw new Error('Informe o agente da alergia (medicamento, alimento, látex etc.), com ao menos 3 letras.');
+    if (ag.length > 120) throw new Error('Agente: no máximo 120 caracteres.');
+    const re = String(reacao || '').trim();
+    if (re.length > 200) throw new Error('Reação: no máximo 200 caracteres.');
+    const gr = String(gravidade || '').trim() || 'Não informada';
+    if (!GRAVIDADES_ALERGIA.includes(gr)) throw new Error('Gravidade inválida.');
+    return `Agente: ${ag}${re ? ` · Reação: ${re}` : ''} · Gravidade: ${gr}`;
+}
 
 /** Prescrição por item: medicamento, dose, via, frequência e duração. Gera também o texto corrido para leitura e impressão. */
 function validarItensPrescricao(itens) {
@@ -147,25 +229,59 @@ function validarItensPrescricao(itens) {
 }
 const textoDoItemPrescricao = (i) => [i.medicamento, i.dose, i.via, i.frequencia, i.duracao && `por ${i.duracao}`, i.observacao && `(${i.observacao})`].filter(Boolean).join(' · ');
 
-async function registrarClinico({ internacao, tipo, texto, itens = null, cid = '', complementa_id = '', solicitacao_id = '', registro_conselho = '' }) {
-    const cfg = TIPOS_CLINICOS[tipo];
-    if (!cfg) throw new Error('Tipo de registro inválido.');
-    requirePermission(cfg.permissao);
-    if (!internacao || internacao.status !== 'ATIVA') throw new Error('O registro clínico exige uma internação ativa do paciente.');
+/** Valida e normaliza o conteúdo de um registro clínico (usado na internação e no atendimento de urgência/ambulatório). */
+function normalizarConteudoClinico({ tipo, texto, itens = null, cid = '' }) {
     if (tipo === 'PRESCRICAO' && itens) { itens = validarItensPrescricao(itens); texto = itens.map(textoDoItemPrescricao).join('\n'); }
+    if (tipo === 'CUIDADO' && itens) { itens = validarItensCuidados(itens); texto = itens.map(textoDoItemCuidado).join('\n'); }   // o complemento é só texto
     if (String(texto || '').trim().length < 5) throw new Error('Escreva o registro (mínimo de 5 caracteres).');
     if (tipo === 'DIAGNOSTICO') {
         if (!validarCid10(cid)) throw new Error('Informe o CID-10 no formato correto (ex.: I10 ou J18.9).');
         cid = String(cid).trim().toUpperCase();
     }
+    return { texto: String(texto).trim(), itens: itens || [], cid };
+}
+
+/**
+ * Onde o registro clínico se encaixa (regra pura):
+ *  - COMPLEMENTO: precisa de um registro original do mesmo paciente e do mesmo tipo, e herda dele a internação e o atendimento.
+ *    Vale para qualquer registro assinado, com ou sem internação ativa (correções depois da alta ou de um atendimento de urgência).
+ *    Um complemento não recebe outro complemento: todos ficam ligados ao registro original.
+ *  - ALERGIA: vale para o paciente, sem internação.
+ *  - Demais tipos novos: exigem internação ativa (o atendimento de urgência/ambulatório entra pela consulta médica).
+ */
+function resolverContextoClinico({ tipo, internacao = null, paciente_id = '', original = null, complementa_id = '' }) {
+    const pid = String(paciente_id || (internacao && internacao.paciente_id) || '');
+    if (!pid) throw new Error('Selecione o paciente.');
+    if (complementa_id) {
+        if (!original) throw new Error('Registro original não encontrado para complementar.');
+        if (original.paciente_id !== pid) throw new Error('O registro original pertence a outro paciente.');
+        if (original.tipo !== tipo) throw new Error('O complemento precisa ser do mesmo tipo do registro original.');
+        if (original.complementa_id) throw new Error('Complemente o registro original, não outro complemento.');
+        return { paciente_id: pid, internacao_id: original.internacao_id || '', atendimento_id: original.atendimento_id || '', atendimento_senha: original.atendimento_senha || '' };
+    }
+    if (TIPOS_SEM_INTERNACAO.includes(tipo)) return { paciente_id: pid, internacao_id: internacao && internacao.status === 'ATIVA' ? internacao.id : '', atendimento_id: '', atendimento_senha: '' };
+    if (!internacao || internacao.status !== 'ATIVA') throw new Error('O registro clínico exige uma internação ativa do paciente.');
+    return { paciente_id: pid, internacao_id: internacao.id, atendimento_id: '', atendimento_senha: '' };
+}
+
+async function registrarClinico({ internacao = null, paciente_id = '', tipo, texto, itens = null, cid = '', complementa_id = '', solicitacao_id = '', registro_conselho = '' }) {
+    const cfg = TIPOS_CLINICOS[tipo];
+    if (!cfg) throw new Error('Tipo de registro inválido.');
+    requirePermission(cfg.permissao);
+    const original = complementa_id ? (((MOCK_DATA.REGISTROS_CLINICOS || {}).items || []).find(r => r.id === complementa_id) || await getDocH(COLH.REGISTROS, complementa_id)) : null;
+    const ctx = resolverContextoClinico({ tipo, internacao, paciente_id, original, complementa_id });
+    if (tipo === 'CUIDADO' && !complementa_id && !(itens && itens.length)) throw new Error('Inclua ao menos um cuidado.');
+    const conteudo = normalizarConteudoClinico({ tipo, texto, itens, cid });
+    if (cfg.exigeConselho && String(registro_conselho || '').trim().length < 3) throw new Error(`Informe o seu registro no conselho (COREN/CRM) para assinar ${cfg.rotulo.toLowerCase()}.`);
+    if (String(registro_conselho || '').length > 30) throw new Error('Registro no conselho: no máximo 30 caracteres.');
     const u = quem();
     const reg = {
-        id: newId('clin'), paciente_id: internacao.paciente_id, internacao_id: internacao.id, tipo, texto: String(texto).trim(), itens: itens || [], cid,
+        id: newId('clin'), ...ctx, tipo, texto: conteudo.texto, itens: conteudo.itens, cid: conteudo.cid,
         complementa_id, solicitacao_id, autor: u.por, autor_nome: u.por_nome, perfil: state.currentUser.role, registro_conselho: String(registro_conselho || '').trim(),
         em: agoraISO(), assinado: true
     };
     await setDocH(COLH.REGISTROS, reg);
-    await auditar({ entidade: 'prontuario', entidade_id: internacao.paciente_id, acao: complementa_id ? 'COMPLEMENTAR' : 'REGISTRAR', depois: { tipo, registro: reg.id, internacao: internacao.id } });
+    await auditar({ entidade: 'prontuario', entidade_id: ctx.paciente_id, acao: complementa_id ? 'COMPLEMENTAR' : 'REGISTRAR', depois: { tipo, registro: reg.id, internacao: ctx.internacao_id, atendimento: ctx.atendimento_id } });
     return reg;
 }
 
@@ -296,7 +412,7 @@ async function emitirSolicitacaoExame(paciente, internacao, f) {
     const agora = agoraISO();
     const sol = {
         id: newId('exa'), protocolo: `EXA-${todayISO().replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-        paciente_id: paciente.id, internacao_id: internacao ? internacao.id : '',
+        paciente_id: paciente.id, internacao_id: internacao ? internacao.id : '', atendimento_id: String(f.atendimento_id || ''),
         localizacao: internacao ? { leito_id: internacao.leito_id, andar: internacao.andar, ala: internacao.ala, quarto: internacao.quarto } : null,
         tipo_exame_id: tipo.id, tipo_nome: tipo.nome, setor_destino: tipo.setor_destino, exige_autorizacao: Boolean(tipo.exige_autorizacao),
         prioridade: f.prioridade, prioridade_justificativa: String(f.prioridade_justificativa).trim(),
@@ -321,11 +437,22 @@ async function emitirSolicitacaoExame(paciente, internacao, f) {
 const exigirCentral = (sol) => requirePermission(permissaoDoSetor(sol.setor_destino));
 const buscarSol = async (id) => { const s = await getDocH(COLH.SOLICITACOES, id); if (!s) throw new Error('Solicitação não encontrada.'); return s; };
 
+/**
+ * Atualiza a cópia local da solicitação logo depois de gravar. A janela do exame é reaberta na sequência e não pode depender de o
+ * listener já ter devolvido o documento (numa transação ele só chega depois da confirmação do servidor); o listener depois traz o mesmo dado.
+ */
+function espelharSolicitacaoLocal(sol) {
+    const lista = MOCK_DATA.SOLICITACOES_EXAME;
+    const i = lista.findIndex(s => s.id === sol.id);
+    if (i >= 0) lista[i] = sol;
+}
+
 async function gravarStatusExame(sol, para, motivo, extras = {}) {
     if (!transicaoPermitida(sol.status, para)) throw new Error(`Não é possível passar de "${rotuloStatusExame(sol.status)}" para "${rotuloStatusExame(para)}".`);
     const u = quem();
     const novo = { ...sol, ...extras, status: para, historico: [...(sol.historico || []), { status: para, em: agoraISO(), por: u.por_nome, motivo: motivo || '' }] };
     await setDocH(COLH.SOLICITACOES, novo);
+    espelharSolicitacaoLocal(novo);
     await auditar({ entidade: 'solicitacao_exame', entidade_id: sol.id, acao: 'STATUS', antes: { status: sol.status }, depois: { status: para }, motivo: motivo || '' });
     return novo;
 }
@@ -384,20 +511,88 @@ async function marcarReagendamento(solId, motivo) {
 }
 
 /** O exame só vira REALIZADO com confirmação explícita e o profissional que atendeu. */
-async function registrarRealizacao(solId, { profissional, confirmado, resultado = '' }) {
+async function registrarRealizacao(solId, { profissional, confirmado }) {
     const sol = await buscarSol(solId);
     exigirCentral(sol);
     if (!confirmado) throw new Error('Confirme que o exame foi realizado.');
     if (String(profissional || '').trim().length < 3) throw new Error('Informe o profissional responsável pelo atendimento.');
     const u = quem();
-    const novo = await gravarStatusExame(sol, 'REALIZADO', `Realizado por ${String(profissional).trim()}`, { realizado: { em: agoraISO(), por: u.por_nome, profissional: String(profissional).trim() } });
-    const texto = String(resultado || '').trim();
-    if (texto.length >= 5) {
-        const internacao = MOCK_DATA.INTERNACOES.find(i => i.id === sol.internacao_id);
-        if (internacao && internacao.status === 'ATIVA' && hasPermission('exame_resultado')) await registrarClinico({ internacao, tipo: 'RESULTADO', texto, solicitacao_id: sol.id });
-    }
-    return novo;
+    return gravarStatusExame(sol, 'REALIZADO', `Realizado por ${String(profissional).trim()}`, { realizado: { em: agoraISO(), por: u.por_nome, profissional: String(profissional).trim() } });
 }
+
+// ============ Resultado e laudo do exame ============
+
+const LIMITE_LAUDO = 4000;
+
+/**
+ * Valida o resultado/laudo digitado por quem assina. O sistema não interpreta o resultado nem decide o que é crítico:
+ * "crítico" é marcação de quem assina, que precisa informar a quem comunicou (nome); a hora da comunicação é a do registro.
+ */
+function validarResultadoExame(form) {
+    const texto = String(form.texto || '').trim();
+    if (texto.length < 10) throw new Error('Escreva o resultado ou o laudo (mínimo de 10 caracteres).');
+    if (texto.length > LIMITE_LAUDO) throw new Error(`Resultado: no máximo ${LIMITE_LAUDO} caracteres.`);
+    const registro = String(form.registro_conselho || '').trim();
+    if (registro.length < 3) throw new Error('Informe o seu registro no conselho profissional para assinar o laudo.');
+    const critico = Boolean(form.critico);
+    const comunicado = String(form.comunicado_a || '').trim();
+    if (critico && comunicado.length < 3) throw new Error('Resultado crítico: informe quem foi comunicado (nome do médico ou da equipe responsável).');
+    return { texto, registro_conselho: registro, critico, comunicado_a: critico ? comunicado : '' };
+}
+
+/** Linha do histórico do exame e metadados do resultado (o texto fica no prontuário, assinado e imutável). */
+function montarResultadoDaSolicitacao(reg, r, agora, user) {
+    return { registro_id: reg.id, em: agora, por: user.por_nome, registro_conselho: r.registro_conselho, critico: r.critico, comunicado_a: r.comunicado_a, comunicado_em: r.critico ? agora : '' };
+}
+
+/**
+ * Registra o resultado/laudo de um exame JÁ REALIZADO: grava o registro assinado no prontuário do paciente (com ou sem internação)
+ * e marca a solicitação, tudo na mesma transação (dois laudos ao mesmo tempo não passam). Correção posterior entra como complemento.
+ */
+async function registrarResultadoExame(solId, form) {
+    requirePermission('exame_resultado');
+    const r = validarResultadoExame(form);
+    const database = requireDb();
+    const u = quem();
+    const solRef = database.collection(COLH.SOLICITACOES).doc(String(solId));
+    let reg, gravada;
+    await database.runTransaction(async (tx) => {
+        const snap = await tx.get(solRef);
+        if (!snap.exists) throw new Error('Solicitação não encontrada.');
+        const sol = { id: snap.id, ...snap.data() };
+        exigirCentral(sol);
+        if (sol.status !== 'REALIZADO') throw new Error('O resultado só é registrado depois que o exame é realizado.');
+        if (sol.resultado && sol.resultado.registro_id) throw new Error('Este exame já tem resultado registrado. Para corrigir, use "Complementar" no prontuário.');
+        const agora = agoraISO();
+        reg = {
+            id: newId('clin'), paciente_id: sol.paciente_id, internacao_id: sol.internacao_id || '', atendimento_id: sol.atendimento_id || '', atendimento_senha: '', tipo: 'RESULTADO',
+            texto: r.texto, itens: [], cid: '', complementa_id: '', solicitacao_id: sol.id, exame_nome: sol.tipo_nome, protocolo: sol.protocolo,
+            critico: r.critico, comunicado_a: r.comunicado_a, autor: u.por, autor_nome: u.por_nome, perfil: state.currentUser.role, registro_conselho: r.registro_conselho, em: agora, assinado: true
+        };
+        const resultado = montarResultadoDaSolicitacao(reg, r, agora, u);
+        gravada = { ...sol, resultado, historico: [...(sol.historico || []), { status: sol.status, em: agora, por: u.por_nome, motivo: r.critico ? `Resultado registrado (crítico; comunicado a ${r.comunicado_a})` : 'Resultado registrado' }] };
+        tx.set(database.collection(COLH.REGISTROS).doc(reg.id), reg);
+        tx.set(solRef, gravada);
+    });
+    espelharSolicitacaoLocal(gravada);
+    await auditar({ entidade: 'solicitacao_exame', entidade_id: gravada.id, acao: 'RESULTADO', depois: { protocolo: gravada.protocolo, critico: r.critico, comunicado_a: r.comunicado_a, registro: reg.id } });
+    await auditar({ entidade: 'prontuario', entidade_id: gravada.paciente_id, acao: 'REGISTRAR', depois: { tipo: 'RESULTADO', registro: reg.id, internacao: reg.internacao_id, atendimento: reg.atendimento_id } });
+    return gravada;
+}
+
+/** Complemento de um laudo já assinado (o original nunca é alterado). Quem assina o complemento é o setor do exame. */
+async function complementarResultadoExame(solId, form) {
+    requirePermission('exame_resultado');
+    const sol = await buscarSol(solId);
+    exigirCentral(sol);
+    if (!(sol.resultado && sol.resultado.registro_id)) throw new Error('Este exame ainda não tem resultado registrado.');
+    const r = validarResultadoExame({ texto: form.texto, registro_conselho: form.registro_conselho });
+    return registrarClinico({ paciente_id: sol.paciente_id, tipo: 'RESULTADO', texto: r.texto, complementa_id: sol.resultado.registro_id, solicitacao_id: sol.id, registro_conselho: r.registro_conselho });
+}
+
+/** Exames realizados que ainda não têm laudo, e os com resultado crítico (para os indicadores e os alertas). */
+const examesSemLaudo = (lista) => lista.filter(s => s.status === 'REALIZADO' && !(s.resultado && s.resultado.registro_id));
+const examesCriticos = (lista) => lista.filter(s => s.resultado && s.resultado.critico);
 
 async function alterarPrioridade(solId, nova, justificativa) {
     requirePermission('exame_priorizar');

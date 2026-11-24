@@ -90,3 +90,23 @@ test('senha: hash com sal, confere, rejeita a errada e aceita conta antiga em te
     assert.equal((await call('conferirSenha')({ password: '1234' }, '0000')).ok, false);
     assert.equal((await call('conferirSenha')(null, 'x')).ok, false);
 });
+
+test('farmácia (#50): dispensações somam por produto, ignoram canceladas e respeitam o período', () => {
+    const r = json(`relatorioFarmaciaDispensacoes([
+        { id: 1, criado_em: '2026-03-02T10:00:00', produto_desc: 'Dipirona', quantidade: 2, paciente_nome: 'A', lote_codigo: 'L1', controle: 'Comum' },
+        { id: 2, criado_em: '2026-03-03T10:00:00', produto_desc: 'Dipirona', quantidade: 3, paciente_nome: 'B', lote_codigo: 'L2', controle: 'Comum' },
+        { id: 3, criado_em: '2026-03-03T11:00:00', produto_desc: 'Morfina', quantidade: 1, paciente_nome: 'A', lote_codigo: 'L9', controle: 'Controle especial' },
+        { id: 4, criado_em: '2026-03-04T11:00:00', produto_desc: 'Dipirona', quantidade: 9, paciente_nome: 'C', lote_codigo: 'L1', controle: 'Comum', ativo: false },
+        { id: 5, criado_em: '2026-04-20T11:00:00', produto_desc: 'Dipirona', quantidade: 7, paciente_nome: 'D', lote_codigo: 'L3', controle: 'Comum' }], '2026-03-01', '2026-03-31')`);
+    assert.deepEqual(r.linhas.map(l => [l.produto, l.dispensacoes, l.unidades, l.pacientes, l.lotes]), [['Dipirona', 2, 5, 2, 2], ['Morfina', 1, 1, 1, 1]]);
+    assert.deepEqual(r.resumo.map(x => x.valor), [3, 6, 1, 1]);
+});
+
+test('farmácia (#50): requisições contam situação e prioridade no período', () => {
+    const r = json(`relatorioFarmaciaRequisicoes([
+        { id: 1, criado_em: '2026-03-02T10:00:00', codigo: 'REQ1', unidade: 'UTI', prioridade: 'Rotina', situacao: 'Solicitada', itens: [{}, {}] },
+        { id: 2, criado_em: '2026-03-03T10:00:00', codigo: 'REQ2', unidade: 'UTI', prioridade: 'Urgente', situacao: 'Atendida', itens: [{}] },
+        { id: 3, criado_em: '2026-05-03T10:00:00', codigo: 'REQ3', unidade: 'UTI', prioridade: 'Rotina', situacao: 'Atendida', itens: [] }], '2026-03-01', '2026-03-31')`);
+    assert.deepEqual(r.resumo.map(x => x.valor), [2, 1, 1, 1]);
+    assert.equal(r.linhas[0].codigo, 'REQ2');
+});

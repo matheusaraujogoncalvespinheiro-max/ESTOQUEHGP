@@ -163,12 +163,20 @@ function removeFromBatch(setor, productId, batchId, quantidade) {
     return true;
 }
 
+/** Produtos de cada setor de estoque que o perfil enxerga, com o setor de origem. A Farmácia só aparece para o próprio perfil e para o Administrador. */
+function produtosEstoqueComSetor() {
+    const setores = typeof setoresEstoqueVisiveis === 'function' ? setoresEstoqueVisiveis() : ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO'];
+    return setores.flatMap(setor => (MOCK_DATA[setor] || []).map(produto => ({ produto, setor })));
+}
+
+function todosProdutosEstoque() { return produtosEstoqueComSetor().map(x => x.produto); }
+
 function checkBarcodeUnique(barcode) {
     const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
     return !allItems.some(item => item.barcode === barcode);
 }
 
-function logEntryHistory(action, sector, barcode, itemDesc, quantity, batch) {
+function logEntryHistory(action, sector, barcode, itemDesc, quantity, batch, extra = '') {
     if (!MOCK_DATA.PRODUCT_HISTORY) MOCK_DATA.PRODUCT_HISTORY = [];
 
     const now = new Date();
@@ -182,7 +190,8 @@ function logEntryHistory(action, sector, barcode, itemDesc, quantity, batch) {
         barcode: barcode,
         product: itemDesc,
         quantity: quantity,
-        batch: batch
+        batch: batch,
+        obs: extra || ''
     };
     MOCK_DATA.PRODUCT_HISTORY.unshift(historyItem);
     if (typeof db_saveProductHistory === 'function') db_saveProductHistory(historyItem);
@@ -246,9 +255,20 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
 
     saveToLocalStorage();
     if (typeof db_saveBatch === 'function') {
-        const prodId = produto.id; // If it's a Supabase ID, it will work. If it's Date.now(), db_saveProduct will handle mapping.
+        // O saldo no banco é descontado em TRANSAÇÃO (services/baixa-lote.js): duas saídas ao mesmo tempo nunca gastam o mesmo saldo.
+        // A memória já foi atualizada para a tela responder na hora; se o banco recusar (saldo já consumido por outra pessoa), recarrega do banco.
+        const loteSalvo = { ...lote, quantidade: lote.quantidade };
         db_saveProduct(produto, setor).then(savedProd => {
-            if (savedProd) db_saveBatch(savedProd.id, lote);
+            if (!savedProd) return;
+            const transacional = (typeof db !== 'undefined' && db && typeof baixarLoteTransacional === 'function');
+            if (!transacional) return db_saveBatch(savedProd.id, loteSalvo);
+            return baixarLoteTransacional(db, savedProd.id, loteSalvo.lote, quantidade).then(r => {
+                if (!r.ok && r.semDocumento) return db_saveBatch(savedProd.id, loteSalvo);   // lote que só existia na memória
+            });
+        }).catch(err => {
+            console.error('Baixa de lote recusada pelo banco:', err);
+            showMsg(err.saldoInsuficiente ? `${err.message} A baixa NÃO foi gravada: confira o estoque.` : 'Não foi possível gravar a baixa do estoque. Confira o saldo do lote.', 'error');
+            if (typeof db_syncProducts === 'function') db_syncProducts().then(() => { if (typeof render === 'function') render(); });
         });
     }
     return { success: true, produto: produto, lote: lote, quantidadeRemovida: quantidade };
@@ -259,6 +279,7 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
  * o produto também. Reaproveita removeFromBatch para manter a mesma regra de sincronização.
  */
 function deleteSpecificBatch(setor, productId, batchId, loteCode = '') {
+    if (typeof SETORES_SEM_AJUSTE_DIRETO !== 'undefined' && SETORES_SEM_AJUSTE_DIRETO.includes(setor)) { showMsg(MSG_SEM_AJUSTE_DIRETO, 'error'); return false; }
     const produto = (MOCK_DATA[setor] || []).find(p => String(p.id) === String(productId));
     const lote = produto && produto.lotes.find(l => String(l.id) === String(batchId));
     if (!lote) {

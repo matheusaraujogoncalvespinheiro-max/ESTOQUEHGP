@@ -67,7 +67,7 @@ function renderPortariaPainel() {
                         <input type="text" name="documento" required placeholder="Digite o CPF (apenas números)" oninput="handleCPFInput(this)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 gap-4">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo de Acesso *</label>
                             <select name="tipo" onchange="toggleVisitHoursCheck(this.value)" class="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">

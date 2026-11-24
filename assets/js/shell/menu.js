@@ -18,6 +18,17 @@ function homeModule(role) {
     if (role === 'FUNC_ULTRASSOM') return 'ULTRASSOM';
     if (role === 'AUTORIZADOR') return 'AUTORIZACOES';
     if (role === 'FUNC_HIGIENIZACAO') return 'MAPA_LEITOS';
+    if (role === 'FUNC_NUTRICAO') return 'NUTRICAO_DIETAS';
+    if (role === 'FUNC_HEMOTERAPIA') return 'HEMOTERAPIA';
+    if (role === 'FUNC_MANUTENCAO') return 'MANUTENCAO';
+    if (role === 'FUNC_TRANSPORTE') return 'TRANSPORTE';
+    if (role === 'FUNC_LAVANDERIA') return 'ROUPARIA';
+    if (role === 'FUNC_VOLUNTARIADO') return 'VOLUNTARIADO';
+    if (role === 'FUNC_OUVIDORIA') return 'OUVIDORIA';
+    if (role === 'FUNC_QUALIDADE') return 'QUALIDADE';
+    if (role === 'FUNC_ENSINO') return 'ENSINO_PESQUISA';
+    if (role === 'DIRETORIA') return 'DIRECAO';
+    if (role === 'CHEFE_FARMACIA' || role === 'FUNC_FARMACIA') return 'FARM_PRESCRICOES';
     return 'DASHBOARD';
 }
 

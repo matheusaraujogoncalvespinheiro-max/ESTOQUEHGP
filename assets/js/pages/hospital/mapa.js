@@ -2,7 +2,7 @@
 // a mesma que a Portaria usa; o estado de cada leito é lido em tempo real de `leitos_estado`.
 
 function hospitalState() {
-    if (!state.hospital) state.hospital = { andar: '', ala: '', status: '', q: '', intStatus: 'ATIVA', intQ: '' };
+    if (!state.hospital) state.hospital = { andar: '', ala: '', status: '', bloqueio: '', q: '', intStatus: 'ATIVA', intQ: '' };
     return state.hospital;
 }
 
@@ -10,7 +10,9 @@ function hospitalState() {
 const podeVerNomePaciente = () => hasPermission('prontuario_ver') || hasPermission('internacao_gerenciar');
 
 function hModal(titulo, corpo, size = 'lg') {
-    return openModal({ title: titulo, size, content: `<div class="modal__body">${corpo}</div>` });
+    const d = openModal({ title: titulo, size, content: `<div class="modal__body">${corpo}</div>` });
+    d.classList.add('tone-teal');   // as janelas da assistência usam a mesma cor da tela que as abriu
+    return d;
 }
 const fecharModais = () => document.querySelectorAll('dialog[open].modal').forEach(d => d.close());
 const aviso = (fn) => async (...args) => { try { return await fn(...args); } catch (err) { showMsg(err.message || 'Operação não realizada.', 'error'); } };
@@ -18,7 +20,9 @@ const aviso = (fn) => async (...args) => { try { return await fn(...args); } cat
 // ============================================================ MAPA
 
 function renderMapaLeitos() {
-    db_watch('leitos'); db_watch('internacoes');
+    db_watch('leitos'); db_watch('internacoes'); db_cadWatch('leito');
+    const verFila = hasPermission('fila_leito');
+    if (verFila) db_watch('fila_leito');   // só quem enxerga a fila de leito (as regras do banco não liberam atendimentos para todos os perfis)
     const st = hospitalState();
     const todos = estruturaHospital();
     const ind = indicadoresLeitos();
@@ -31,6 +35,7 @@ function renderMapaLeitos() {
         if (st.ala && l.ala !== st.ala) return false;
         const e = estadoLeito(l.id);
         if (st.status && e.status !== st.status) return false;
+        if (st.bloqueio && (e.status !== 'BLOQUEADO' || categoriaDoBloqueio(e) !== st.bloqueio)) return false;
         if (termo) {
             const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(l.id) : null;
             const alvo = `${l.rotulo} ${l.id} ${nomes && int ? int.paciente_nome + ' ' + int.prontuario : ''}`;
@@ -47,7 +52,8 @@ function renderMapaLeitos() {
         const s = STATUS_LEITO[e.status] || STATUS_LEITO.LIVRE;
         const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(l.id) : null;
         const sub = e.status === 'OCUPADO' ? (nomes && int ? int.paciente_nome : 'Ocupado') : s.rotulo;
-        return `<button type="button" class="hs-leito" style="--c:${s.cor};--f:${s.fundo}" onclick="hospitalLeitoDetalhe('${l.id}')" title="${escapeHtml(l.andarNome + ' · ' + l.ala + ' · quarto ' + l.quarto + ' · ' + s.rotulo)}">
+        const tipoBloqueio = e.status === 'BLOQUEADO' ? ` · ${CATEGORIAS_BLOQUEIO[categoriaDoBloqueio(e)]}` : '';
+        return `<button type="button" class="hs-leito" style="--c:${s.cor};--f:${s.fundo}" onclick="hospitalLeitoDetalhe('${l.id}')" title="${escapeHtml(l.andarNome + ' · ' + l.ala + ' · quarto ' + l.quarto + ' · ' + s.rotulo + tipoBloqueio)}">
             <b>${escapeHtml(l.rotulo)}</b><small>${escapeHtml(sub)}</small></button>`;
     };
 
@@ -59,14 +65,16 @@ function renderMapaLeitos() {
 
     return `
     <div class="at-stack tone-teal">
-        <div class="cd-kpis">
+        <div class="cd-kpis hs-kpis" style="--n:${verFila ? 7 : 6}" data-n="${verFila ? 7 : 6}">
             ${cartao('Total de leitos', ind.total, '#0d9488')}${cartao('Ocupados', ind.OCUPADO, STATUS_LEITO.OCUPADO.cor)}${cartao('Livres', ind.LIVRE, STATUS_LEITO.LIVRE.cor)}
             ${cartao('Em higienização', ind.HIGIENIZACAO, STATUS_LEITO.HIGIENIZACAO.cor)}${cartao('Bloqueados', ind.BLOQUEADO, STATUS_LEITO.BLOQUEADO.cor)}${cartao('Taxa de ocupação', ind.taxa + '%', '#2563eb')}
+            ${verFila ? cartao('Aguardando leito', filaDeLeito().length, '#7c3aed') : ''}
         </div>
         <section class="at-card cd-filters">
             <label class="cd-filter"><span>Andar</span>${sel('hs_andar', st.andar, ANDARES_HOSPITAL.map(a => ({ id: a, rotulo: nomeAndar(a) })), 'Todos', 'hospitalFiltro.bind(null, \'andar\')')}</label>
             <label class="cd-filter"><span>Ala</span>${sel('hs_ala', st.ala, alas.map(a => ({ id: a, rotulo: a })), 'Todas', 'hospitalFiltro.bind(null, \'ala\')')}</label>
             <label class="cd-filter"><span>Situação</span>${sel('hs_status', st.status, Object.entries(STATUS_LEITO).map(([id, s]) => ({ id, rotulo: s.rotulo })), 'Todas', 'hospitalFiltro.bind(null, \'status\')')}</label>
+            <label class="cd-filter"><span>Tipo de bloqueio</span>${sel('hs_bloqueio', st.bloqueio, Object.entries(CATEGORIAS_BLOQUEIO).map(([id, rotulo]) => ({ id, rotulo })), 'Todos', 'hospitalFiltro.bind(null, \'bloqueio\')')}</label>
             <label class="cd-filter cd-filter--grow"><span>Pesquisar leito${nomes ? ' ou paciente' : ''}</span><input class="at-input hs-sel" id="hs_q" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: 205 ou nome" oninput="hospitalFiltro('q', this.value)" data-keep="hs_q" autocomplete="off"></label>
             <div class="hs-legenda">${Object.values(STATUS_LEITO).map(s => `<span><i style="background:${s.cor}"></i>${s.rotulo}</span>`).join('')}</div>
         </section>
@@ -98,8 +106,8 @@ async function hospitalLeitoDetalhe(leitoId) {
     const d = hModal(`Leito ${l.rotulo}`, `
         <p><span class="at-badge" style="background:${s.fundo};color:${s.cor}">${s.rotulo}</span> ${escapeHtml(l.andarNome)} · ${escapeHtml(l.ala)} · Quarto ${escapeHtml(l.quarto)}</p>
         ${e.desde ? `<p class="at-hint">Desde ${escapeHtml(formatDateTimeBR(e.desde))}${e.atualizado_por_nome ? ' · por ' + escapeHtml(e.atualizado_por_nome) : ''}</p>` : ''}
-        ${e.status === 'BLOQUEADO' ? `<p class="tri-banner tri-banner--warn">Motivo do bloqueio: <strong>${escapeHtml(e.motivo || '—')}</strong> · Responsável: ${escapeHtml(e.atualizado_por_nome || '—')}</p>` : ''}
-        ${int ? `<div class="at-card"><strong>${nomes ? escapeHtml(int.paciente_nome) : 'Paciente internado'}</strong>${nomes ? `<br>Prontuário ${escapeHtml(int.prontuario || '—')}` : ''}<br>Internado em ${escapeHtml(formatDateTimeBR(int.data_hora_internacao))} · origem: ${escapeHtml(int.setor_origem)} · registrado por ${escapeHtml(int.registrado_por_nome || int.registrado_por)}</div>` : ''}
+        ${e.status === 'BLOQUEADO' ? `<p class="tri-banner tri-banner--warn">Tipo: <strong>${escapeHtml(CATEGORIAS_BLOQUEIO[categoriaDoBloqueio(e)])}</strong> · Motivo: <strong>${escapeHtml(e.motivo || '—')}</strong> · Responsável: ${escapeHtml(e.atualizado_por_nome || '—')}${e.previsao ? ` · Previsão de liberação: <strong>${escapeHtml(formatDateBR(e.previsao))}</strong>${e.previsao < todayISO() ? ' (data já passou: confira se o leito pode ser liberado)' : ''}` : ''}</p>` : ''}
+        ${int ? `<div class="at-card"><strong>${nomes ? escapeHtml(int.paciente_nome) : 'Paciente internado'}</strong>${nomes ? `<br>Prontuário ${escapeHtml(int.prontuario || '—')}` : ''}<br>Internado em ${escapeHtml(formatDateTimeBR(int.data_hora_internacao))} · origem: ${escapeHtml(int.setor_origem)}${int.atendimento_senha ? ` (fila de leito, senha ${escapeHtml(int.atendimento_senha)})` : ''} · registrado por ${escapeHtml(int.registrado_por_nome || int.registrado_por)}</div>` : ''}
         <div class="at-actions" style="margin:14px 0">${acoes || '<span class="at-hint">Seu perfil não tem ações para este leito.</span>'}</div>
         <h3 class="at-label" style="margin:12px 0 6px">Histórico de ocupação e situação</h3>
         <div id="hs-hist"><div class="at-hint">Carregando...</div></div>`);
@@ -111,18 +119,40 @@ async function hospitalLeitoDetalhe(leitoId) {
 
 const hospitalLiberar = aviso(async (id) => { await concluirHigienizacao(id); fecharModais(); showMsg('Leito liberado.'); render(); });
 const hospitalDesbloquear = aviso(async (id) => { await desbloquearLeito(id); fecharModais(); showMsg('Leito desbloqueado.'); render(); });
-const hospitalAlta = aviso(async (id) => {
-    if (!confirm('Confirmar a alta? O leito irá para higienização.')) return;
-    await darAltaInternacao(id); fecharModais(); showMsg('Alta registrada. Leito em higienização.'); render();
-});
+function hospitalAlta(id) {
+    fecharModais();
+    const d = hModal('Dar alta', `
+        <p class="at-hint">A alta encerra a internação e coloca o leito em higienização. Óbito não é alta: é registrado pelo médico na tela Óbitos.</p>
+        <div class="at-form">
+            <div class="at-field"><label class="at-label" for="al_tipo">Tipo de alta *</label><select class="at-select" id="al_tipo"><option value="">-- Selecione --</option>${Object.entries(TIPOS_ALTA).map(([k, r]) => `<option value="${k}">${escapeHtml(r)}</option>`).join('')}</select></div>
+            <div class="at-field" id="al_w_destino" hidden><label class="at-label" for="al_destino">Serviço de destino *</label><input class="at-input" id="al_destino" maxlength="80" autocomplete="off"></div>
+            <div class="at-field at-span-2"><label class="at-label" for="al_obs">Observação</label><input class="at-input" id="al_obs" maxlength="200" autocomplete="off"></div>
+        </div>
+        <p class="at-error" id="al_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:14px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="al_ok">Confirmar alta</button></div>`, 'md');
+    const tipo = d.querySelector('#al_tipo');
+    tipo.onchange = () => { d.querySelector('#al_w_destino').hidden = tipo.value !== 'TRANSFERENCIA_EXTERNA'; };
+    d.querySelector('#al_ok').onclick = async () => {
+        d.querySelector('#al_erro').textContent = '';
+        try {
+            await darAltaInternacao(id, { tipo_alta: tipo.value, destino: d.querySelector('#al_destino').value, observacao: d.querySelector('#al_obs').value });
+            d.close(); showMsg('Alta registrada. Leito em higienização.'); render();
+        } catch (err) { d.querySelector('#al_erro').textContent = err.message || 'Não foi possível registrar a alta.'; }
+    };
+}
 function hospitalPedirBloqueio(leitoId) {
     fecharModais();
     const d = hModal(`Bloquear leito ${leitoPorId(leitoId).rotulo}`, `
-        <p class="at-hint">O bloqueio fica registrado com o motivo e o responsável.</p>
-        <div class="at-field"><label class="at-label" for="hs_motivo">Motivo do bloqueio *</label><input class="at-input" id="hs_motivo" maxlength="200" autocomplete="off"><p class="at-error" id="hs_motivo_erro"></p></div>
+        <p class="at-hint">O bloqueio fica registrado com o tipo, o motivo e o responsável. O leito bloqueado não aparece como livre na fila de leito.</p>
+        <div class="at-form">
+            <div class="at-field"><label class="at-label" for="hs_cat">Tipo de bloqueio *</label><select class="at-select" id="hs_cat">${Object.entries(CATEGORIAS_BLOQUEIO).map(([k, r]) => `<option value="${k}">${escapeHtml(r)}</option>`).join('')}</select></div>
+            <div class="at-field"><label class="at-label" for="hs_prev">Previsão de liberação</label><input class="at-input" id="hs_prev" type="date" min="${todayISO()}"></div>
+            <div class="at-field at-span-2"><label class="at-label" for="hs_motivo">Motivo do bloqueio *</label><input class="at-input" id="hs_motivo" maxlength="200" autocomplete="off"></div>
+        </div>
+        <p class="at-error" id="hs_motivo_erro" role="alert"></p>
         <div class="at-actions" style="margin-top:14px"><button type="button" class="at-btn at-btn--primary" id="hs_ok">Bloquear</button></div>`, 'md');
     d.querySelector('#hs_ok').onclick = async () => {
-        try { await bloquearLeito(leitoId, d.querySelector('#hs_motivo').value); d.close(); showMsg('Leito bloqueado.'); render(); }
+        try { await bloquearLeito(leitoId, d.querySelector('#hs_motivo').value, { categoria: d.querySelector('#hs_cat').value, previsao: d.querySelector('#hs_prev').value }); d.close(); showMsg('Leito bloqueado.'); render(); }
         catch (err) { d.querySelector('#hs_motivo_erro').textContent = err.message; }
     };
 }
@@ -195,6 +225,7 @@ function abrirInternar(leitoId = '') {
 
 function renderInternacoes() {
     db_watch('leitos'); db_watch('internacoes');
+    if (hasPermission('fila_leito')) db_watch('fila_leito');   // a internação direta confere se o paciente espera na fila de leito
     const st = hospitalState();
     const termo = searchKey(st.intQ);
     let lista = [...MOCK_DATA.INTERNACOES].sort((a, b) => String(b.data_hora_internacao).localeCompare(String(a.data_hora_internacao)));
@@ -227,7 +258,7 @@ function hospitalInternacaoDetalhe(id) {
     const l = leitoPorId(i.leito_id) || { rotulo: i.leito_id, andarNome: '', ala: '', quarto: '' };
     hModal(`Internação · ${i.paciente_nome}`, `
         ${(i.historico_leitos || []).length > 1 ? `<h3 class="at-label" style="margin:0 0 6px">Trajetória de leitos</h3><ol class="at-timeline" style="margin-bottom:12px">${i.historico_leitos.map(h => `<li><strong>${escapeHtml((leitoPorId(h.leito_id) || { rotulo: h.leito_id }).rotulo)}</strong> desde ${escapeHtml(formatDateTimeBR(h.desde))}${h.motivo ? '<small>' + escapeHtml(h.motivo) + (h.por ? ' · ' + escapeHtml(h.por) : '') + '</small>' : ''}</li>`).join('')}</ol>` : ''}
-        <dl class="about-list">${[['Prontuário', i.prontuario || '—'], ['Leito', `${l.rotulo} (${l.andarNome} · ${l.ala} · quarto ${l.quarto})`], ['Internado em', formatDateTimeBR(i.data_hora_internacao)], ['Registrado por', i.registrado_por_nome || i.registrado_por], ['Setor de origem', i.setor_origem], ['Situação', i.status === 'ATIVA' ? 'Ativa' : 'Alta'], ...(i.status === 'ALTA' ? [['Alta em', formatDateTimeBR(i.data_hora_alta)], ['Alta registrada por', i.alta_por_nome || i.alta_por]] : [])].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>
+        <dl class="about-list">${[['Prontuário', i.prontuario || '—'], ['Leito', `${l.rotulo} (${l.andarNome} · ${l.ala} · quarto ${l.quarto})`], ['Internado em', formatDateTimeBR(i.data_hora_internacao)], ['Registrado por', i.registrado_por_nome || i.registrado_por], ['Setor de origem', i.setor_origem], ...(i.atendimento_senha ? [['Atendimento de origem', `Fila de leito · senha ${i.atendimento_senha}`]] : []), ...(i.motivo_alocacao ? [['Motivo da alocação', i.motivo_alocacao]] : []), ['Situação', i.status === 'ATIVA' ? 'Ativa' : 'Alta'], ...(i.status === 'ALTA' ? [[i.tipo_alta === 'OBITO' ? 'Óbito em' : 'Alta em', formatDateTimeBR(i.data_hora_alta)], ['Tipo de alta', (ROTULOS_TIPO_ALTA[i.tipo_alta] || 'Não informado') + (i.alta_destino ? ' · ' + i.alta_destino : '')], ...(i.alta_observacao ? [['Observação da alta', i.alta_observacao]] : []), ['Alta registrada por', i.alta_por_nome || i.alta_por]] : [])].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>
         <div class="at-actions" style="margin-top:14px">
             ${i.status === 'ATIVA' && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="hospitalAlta('${i.id}')">Dar alta</button><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="hospitalPedirTransferencia('${i.id}')">Transferir de leito</button>` : ''}
             ${hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="fecharModais(); prontuarioAbrir('${i.paciente_id}')">Abrir prontuário</button>` : ''}

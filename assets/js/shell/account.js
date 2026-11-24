@@ -83,7 +83,8 @@ function openProfile() {
             const record = USERS_DB[user.username];
             if (record) record.name = nome;
             state.currentUser.name = nome;
-            if (record && typeof db_saveMember === 'function') db_saveMember(user.username, record);
+            try { if (record && typeof db_saveMember === 'function') await db_saveMember(user.username, record); }
+            catch (err) { return 'Não foi possível gravar o perfil: ' + err.message; }
             showMsg('Perfil atualizado.');
             render();
             return null;
@@ -100,10 +101,15 @@ function openPassword() {
             ${passwordField('confirmacao', 'Confirmar nova senha', 'new-password')}`,
         async onSubmit({ atual, nova, confirmacao }) {
             const record = USERS_DB[state.currentUser.username];
-            if (!record || !(await conferirSenha(record, atual)).ok) return 'A senha atual está incorreta.';
             if (!nova || nova.length < 6) return 'A nova senha deve ter pelo menos 6 caracteres.';
             if (nova !== confirmacao) return 'A confirmação não confere com a nova senha.';
             if (nova === atual) return 'A nova senha deve ser diferente da atual.';
+            if (authAtivo()) {   // a senha fica no Firebase Auth, não no banco
+                try { await authTrocarSenha(atual, nova); } catch (err) { return err.message; }
+                showMsg('Senha alterada.');
+                return null;
+            }
+            if (!record || !(await conferirSenha(record, atual)).ok) return 'A senha atual está incorreta.';
             await definirSenha(record, nova);
             if (typeof db_saveMember === 'function') await db_saveMember(state.currentUser.username, record);
             showMsg('Senha alterada.');

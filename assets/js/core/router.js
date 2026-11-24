@@ -20,6 +20,10 @@ function renderContent() {
             return renderProductList(MOCK_DATA.HEMODINAMICA, 'HEMODINAMICA');
         case 'CENTRO_CIRURGICO':
             return renderProductList(MOCK_DATA.CENTRO_CIRURGICO, 'CENTRO_CIRURGICO');
+        case 'FARMACIA':
+            return renderProductList(MOCK_DATA.FARMACIA, 'FARMACIA');
+        case 'FARM_PRESCRICOES':
+            return renderFarmPrescricoes();
         case 'SALAS':
             return renderSalas();
         case 'HISTORICO_SALAS':
@@ -60,8 +64,18 @@ function renderContent() {
             return renderMapaLeitos();
         case 'INTERNACOES':
             return renderInternacoes();
+        case 'FILA_LEITO':
+            return renderFilaLeito();
+        case 'PAINEL_LEITOS':
+            return renderPainelLeitos();
         case 'PRONTUARIO':
             return renderProntuario();
+        case 'ENF_PAINEL':
+            return renderEnfPainel();
+        case 'ENF_CHECAGEM':
+            return renderEnfChecagem();
+        case 'ENF_PLANTAO':
+            return renderEnfPlantao();
         case 'IMAGEM':
             return renderCentralExames('IMAGENOLOGIA');
         case 'ULTRASSOM':
@@ -96,6 +110,50 @@ function renderContent() {
             return renderRecepcao();
         case 'EMERGENCIA':
             return renderEmergencia();
+        case 'TRIAGEM_CLINICA':
+            return renderTriagemClinica();
+        case 'ATENDIMENTO_MEDICO':
+            return renderAtendimentoMedico();
+        case 'ATENDIMENTO_EXAMES':
+            return renderAtendimentoExames();
+        case 'AGENDA_AMBULATORIAL':
+            return renderAgendaAmbulatorial();
+        case 'ATENDIMENTO_AMBULATORIAL':
+            return renderAtendimentoAmbulatorial();
+        case 'ATENDIMENTO_PROCEDIMENTOS':
+            return renderAtendimentoProcedimentos();
+        case 'CIRURGIAS':
+            return renderCentroCirurgico();
+        case 'UTI_PAINEL':
+            return renderPainelUti();
+        case 'NUTRICAO_DIETAS':
+            return renderMapaDietas();
+        case 'HEMOTERAPIA':
+            return renderHemoterapia();
+        case 'OBITOS':
+            return renderObitos();
+        case 'MANUTENCAO':
+            return renderManutencao();
+        case 'PATRIMONIO':
+            return renderPatrimonio();
+        case 'TRANSPORTE':
+            return renderTransporte();
+        case 'ROUPARIA':
+            return renderRouparia();
+        case 'RESIDUOS':
+            return renderResiduos();
+        case 'VOLUNTARIADO':
+            return renderVoluntariado();
+        case 'DIRECAO':
+            return renderDirecao();
+        case 'OUVIDORIA':
+            return renderOuvidoria();
+        case 'QUALIDADE':
+            return renderQualidade();
+        case 'ENSINO_PESQUISA':
+            return renderEnsino();
+        case 'PAINEL_CHAMADA':
+            return renderPainelChamada();
         case 'TRIAGEM':
             return renderTriagemDashboard();
         case 'TRIAGEM_GESTAO':

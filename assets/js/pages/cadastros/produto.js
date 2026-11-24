@@ -5,11 +5,18 @@
 // Campos novos ficam em `cadastro` no mesmo documento. O SALDO nunca é editado aqui: vem dos lotes e só muda
 // por movimentação (Adicionar Estoque, saídas, transferências, Correção OPME).
 
-const SETORES_PRODUTO = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO'];
-const rotuloSetor = (s) => ({ OPME: 'OPME', HEMODINAMICA: 'Hemodinâmica', CENTRO_CIRURGICO: 'Centro Cirúrgico' }[s] || s);
+const SETORES_PRODUTO = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'FARMACIA'];
+const rotuloSetor = (s) => ({ OPME: 'OPME', HEMODINAMICA: 'Hemodinâmica', CENTRO_CIRURGICO: 'Centro Cirúrgico', FARMACIA: 'Farmácia' }[s] || s);
 
 const produtoAtivo = (p) => !p || !p.cadastro || p.cadastro.ativo !== false;
+/** Medicamento: item do setor Farmácia ou produto cuja categoria é "Medicamento". */
+const produtoEhMedicamento = (p, setor) => setor === 'FARMACIA' || Boolean(p && p.cadastro && p.cadastro.categoria === 'Medicamento');
+/** Medicamento de controle especial (marcado na aba Medicamento): exige dados extras na dispensação. */
+const produtoControlado = (p) => Boolean(p && p.cadastro && p.cadastro.medicamento && p.cadastro.medicamento.controlado);
 const produtoEhOpme = (p, setor) => (p.cadastro && p.cadastro.eh_opme !== undefined ? Boolean(p.cadastro.eh_opme) : setor === 'OPME');
+
+// Lista de apoio (parametrizável): a farmácia do hospital pode ampliá-la. "Outra" cobre o que não estiver aqui.
+const FORMAS_FARMACEUTICAS = ['Comprimido', 'Cápsula', 'Solução injetável', 'Solução oral', 'Suspensão oral', 'Xarope', 'Gotas', 'Pó para solução', 'Pomada', 'Creme', 'Colírio', 'Supositório', 'Aerossol / inalatória', 'Adesivo', 'Outra'];
 
 const CAD_SIM_NAO = [{ id: '1', rotulo: 'Ativo' }, { id: '0', rotulo: 'Inativo' }];
 
@@ -59,6 +66,20 @@ Object.assign(CAD_DEFS.produto, {
         ] },
         { id: 'configuracao', label: 'Configuração', render: (def, st, ro) => renderProdutoConfiguracao(def, st, ro), fields: [] },
         { id: 'movimentacao', label: 'Movimentação', render: (def, st) => renderProdutoMovimentacao(st), hide: (f) => !f.__existente },
+        { id: 'medicamento', label: 'Medicamento', hide: (f) => !(f.categoria === 'Medicamento' || f.setor === 'FARMACIA'), fields: [
+            { k: 'med_principio_ativo', label: 'Princípio ativo', type: 'upper', maxlen: 120, help: 'Obrigatório para medicamentos. É o nome usado para localizar o item prescrito.' },
+            { k: 'med_nome_generico', label: 'Nome genérico / denominação comum', type: 'upper', maxlen: 120 },
+            { k: 'med_concentracao', label: 'Concentração', type: 'text', maxlen: 60, ph: 'Ex.: 500 mg, 10 mg/mL' },
+            { k: 'med_forma', label: 'Forma farmacêutica', type: 'select', opts: FORMAS_FARMACEUTICAS },
+            { k: 'med_via', label: 'Via de administração habitual', type: 'text', maxlen: 60, ph: 'Ex.: oral, endovenosa' },
+            { k: 'med_registro_anvisa', label: 'Registro ANVISA', type: 'text', maxlen: 20 },
+            { k: 'med_controlado', label: 'Controle especial', type: 'check', checkLabel: 'Medicamento de controle especial', span2: true,
+                help: 'Marcado, a dispensação passa a exigir o número da receita ou notificação. A lista e as regras aplicáveis são definidas pela farmácia do hospital.' },
+            { k: 'med_lista_controle', label: 'Lista / classificação do controle', type: 'text', maxlen: 60, ph: 'Conforme definido pela farmácia' },
+            { k: 'med_alto_risco', label: 'Segurança do paciente', type: 'check', checkLabel: 'Medicamento de alto risco (conforme a lista do hospital)', span2: true },
+            { k: 'med_conservacao', label: 'Conservação', type: 'text', maxlen: 120, ph: 'Ex.: refrigerado, protegido da luz', span2: true },
+            { k: 'med_observacoes', label: 'Observações da farmácia', type: 'textarea', span2: true, maxlen: 500 }
+        ] },
         { id: 'opme', label: 'OPME', hide: (f) => !f.__existente, show: (f) => Boolean(f.eh_opme), hintOff: 'Marque "É OPME" na aba Dados para habilitar.', fields: [
             { k: 'opme_classificacao', label: 'Classificação do material', type: 'select', opts: ['Órtese', 'Prótese', 'Material especial', 'Material de uso único'] },
             { k: 'opme_tipo_material', label: 'Tipo de material', type: 'select', opts: ['Próprio', 'Consignado'] },
@@ -128,7 +149,8 @@ function produtoRow(p, setor) {
     return {
         id: `${p.barcode}_${setor}`, codigo: p.barcode, codigo_fabricante: c.codigo_fabricante || '', nome: p.material, descricao: p.descricao, fabricante: p.empresa || '', marca: p.marca || '',
         setor, estoque, min: p.min ?? 0, max: c.max ?? '', ativo: c.ativo !== false,
-        tipo: produtoEhOpme(p, setor) ? 'OPME' : 'Comum',
+        tipo: produtoEhOpme(p, setor) ? 'OPME' : (produtoEhMedicamento(p, setor) ? 'Medicamento' : 'Comum'),
+        controlado: produtoControlado(p), principio_ativo: (c.medicamento && c.medicamento.principio_ativo) || '',
         classe_id: c.classe_id || '', grupo_id: c.grupo_id || '', subgrupo_id: c.subgrupo_id || '', fabricante_id: c.fabricante_id || '', unidade_id: c.unidade_id || '',
         estoque_situacao: estoque <= 0 ? 'zerado' : (estoque <= Number(p.min || 0) ? 'baixo' : 'ok'),
         lote: lotes.map(l => l.lote).join(' '),
@@ -138,7 +160,7 @@ function produtoRow(p, setor) {
 }
 
 function produtoRows() {
-    return SETORES_PRODUTO.flatMap(s => (MOCK_DATA[s] || []).map(p => produtoRow(p, s)));
+    return setoresEstoqueVisiveis().flatMap(s => (MOCK_DATA[s] || []).map(p => produtoRow(p, s)));
 }
 
 // ---------------------------------------------------------------- movimentações (registros reais do sistema)
@@ -159,8 +181,8 @@ function produtoMovimentos(codigo, setor) {
         if (h.barcode !== codigo || (h.sector || h.setor) !== setor) return;
         const qtd = Number(h.quantity ?? h.qty ?? 0);
         const acao = h.action || '';
-        const saida = ['CONSU_SALA', 'SAIDA', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO'].includes(acao);
-        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
+        const saida = ['CONSU_SALA', 'SAIDA', 'DISPENSACAO', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO'].includes(acao);
+        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', DISPENSACAO: 'Dispensação ao paciente', ESTORNO_DISPENSACAO: 'Estorno de dispensação (cancelamento)', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
             delta: saida ? -qtd : qtd, qtd, lote: h.batch ?? h.batch_code ?? '', validade: '', origem: saida ? rotuloSetor(setor) : 'Entrada', destino: saida ? (acao === 'CONSU_SALA' ? 'Sala de procedimento' : 'Saída do estoque') : rotuloSetor(setor),
             setor: rotuloSetor(setor), usuario: h.user ?? h.user_name ?? '', paciente: '', fornecedor: '', obs: '' });
     });
@@ -253,7 +275,7 @@ function renderProdutoMovimentacao(st) {
 CAD_STORES.produto = {
     watch: () => {},
     rows: () => produtoRows(),
-    defaults: () => ({ cfg_listar_inventario: true, estoque: '0 un', ativo_sel: '1', min: '5', eh_opme: false, setor: SETORES_PRODUTO.find(s => hasPermission('register', s)) || 'OPME' }),
+    defaults: () => { const setor = SETORES_PRODUTO.find(s => hasPermission('register', s)) || 'OPME'; return { cfg_listar_inventario: true, estoque: '0 un', ativo_sel: '1', min: '5', eh_opme: false, setor, categoria: setor === 'FARMACIA' ? 'Medicamento' : '' }; },
     toForm(def, r) {
         const p = r._p, c = p.cadastro || {};
         const f = { __existente: true, ativo: r.ativo, ativo_sel: r.ativo ? '1' : '0', codigo: p.barcode, codigo_fabricante: c.codigo_fabricante || '', nome: p.material || '', custo: c.custo ?? '', estoque: `${r.estoque} un`,
@@ -261,6 +283,7 @@ CAD_STORES.produto = {
             marca: p.marca || '', unidade_id: c.unidade_id || '', min: p.min ?? '', max: c.max ?? '', localizacao: c.localizacao || '', eh_opme: produtoEhOpme(p, r.setor), remessa: p.remessa || '' };
         ['desc_complementar', 'especificacoes', 'referencias', 'armazenamento', 'controle', 'documentacao', 'observacoes'].forEach(k => { f[k] = (c.adicionais || {})[k] || ''; });
         Object.entries(c.opme || {}).forEach(([k, v]) => { f['opme_' + k] = v; });
+        Object.entries(c.medicamento || {}).forEach(([k, v]) => { f['med_' + k] = v; });
         PRODUTO_OPCOES.forEach(o => { f['cfg_' + o.k] = (c.config || {})[o.k] ?? Boolean(o.padrao); });
         return f;
     },
@@ -295,6 +318,17 @@ CAD_STORES.produto = {
             max: num(form.max), localizacao: String(form.localizacao ?? '').trim(),
             adicionais: {}, opme: {}, config: {}
         };
+        const ehMedicamento = form.categoria === 'Medicamento' || setor === 'FARMACIA';
+        if (ehMedicamento) {
+            if (!String(form.med_principio_ativo || '').trim()) throw new Error('Medicamentos exigem o princípio ativo (aba Medicamento).');
+            cadastro.medicamento = {};
+            Object.keys(form).filter(k => k.startsWith('med_')).forEach(k => {
+                const v = form[k];
+                cadastro.medicamento[k.slice(4)] = typeof v === 'string' ? v.trim() : (typeof v === 'boolean' ? v : (v ?? ''));
+            });
+            cadastro.medicamento.controlado = Boolean(form.med_controlado);
+            cadastro.medicamento.alto_risco = Boolean(form.med_alto_risco);
+        } else if (p && p.cadastro && p.cadastro.medicamento) cadastro.medicamento = p.cadastro.medicamento; // preserva o que já havia
         PRODUTO_OPCOES.forEach(o => { cadastro.config[o.k] = Boolean(form['cfg_' + o.k]); });
         ['desc_complementar', 'especificacoes', 'referencias', 'armazenamento', 'controle', 'documentacao', 'observacoes'].forEach(k => { cadastro.adicionais[k] = String(form[k] ?? '').trim(); });
         if (ehOpme) {

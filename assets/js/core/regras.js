@@ -39,6 +39,15 @@ function diasAlertaValidade() {
     return Number(p && p.valor) > 0 ? Number(p.valor) : DIAS_ALERTA_VALIDADE;
 }
 
+/** Valor numérico de um parâmetro definido pelo hospital (Cadastro › Parâmetros do Sistema). null = o hospital ainda não definiu. */
+function parametroSistema(chave) {
+    const lista = (typeof CAD_DATA !== 'undefined' && CAD_DATA.parametro) || [];
+    const p = lista.find(x => x.chave === chave && x.ativo !== false);
+    if (!p || p.valor === '' || p.valor === null || p.valor === undefined) return null;
+    const n = Number(p.valor);
+    return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Dias até vencer (negativo = vencido). null quando o lote não tem validade (N/A). */
 function diasParaVencer(validade, hoje = new Date()) {
     if (!validade || validade === 'N/A') return null;

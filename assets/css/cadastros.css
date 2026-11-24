@@ -23,7 +23,7 @@
 .cd-clear { flex: none; }
 
 .cd-tablewrap { overflow-x: auto; }
-.cd-table th.is-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.cd-table th.is-sort { cursor: pointer; user-select: none; }
 .cd-table th.is-sort:hover { color: var(--tone); }
 .cd-table tr.is-off td { opacity: 0.62; }
 .cd-actcol { text-align: right; white-space: nowrap; width: 1%; }
@@ -39,7 +39,7 @@
 
 .cd-top { border-left: 0; }
 .cd-topgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.cd-tabs { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+.cd-tabs { flex-wrap: wrap; row-gap: 6px; padding-bottom: 4px; }   /* as abas quebram de linha em vez de rolar para o lado */
 .cd-tabs .at-tab { flex: none; }
 .cd-tabs .at-tab:disabled { opacity: 0.5; cursor: not-allowed; }
 .cd-ro { min-height: 52px; display: flex; align-items: center; padding: 0 14px; border-radius: 14px; background: var(--sh-surface-2); border: 1px solid var(--sh-line); color: var(--sh-ink); font-size: 16px; overflow-wrap: anywhere; }
@@ -66,6 +66,21 @@
     .cd-actcol { width: 100%; text-align: right; justify-content: flex-end; }
     .cd-actcol::before { content: none !important; }
 }
+
+/* Tabela que não cabe no espaço (medido por shell/tabelas.js): lista de cartões, rótulo acima de cada valor, sem rolagem lateral */
+.cd-tablewrap.is-cards { overflow-x: visible; padding: 12px; }
+.cd-tablewrap.is-cards .cd-table, .cd-tablewrap.is-cards .cd-table tbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; min-width: 0; }
+.cd-tablewrap.is-cards .cd-table thead { display: none; }
+.cd-tablewrap.is-cards .cd-table tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; width: 100%; padding: 14px 16px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface-2); }
+.cd-tablewrap.is-cards .cd-table td { display: block; width: auto; min-width: 0; padding: 0; border: 0; text-align: left; }
+.cd-tablewrap.is-cards .cd-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sh-muted); }
+.cd-tablewrap.is-cards .cd-table td.cd-actcol { grid-column: 1 / -1; padding-top: 10px; border-top: 1px solid var(--sh-line); text-align: right; white-space: normal; }
+.cd-tablewrap.is-cards .cd-table td.cd-actcol::before { content: none; }
+.cd-tablewrap.is-cards .cd-table td.at-empty { grid-column: 1 / -1; text-align: center; }
+.cd-tablewrap.is-cards .cd-table td.at-empty::before { content: none; }
+.cd-tablewrap.is-cards .cd-table tr:has(> td.at-empty) { display: block; padding: 0; border: 0; background: none; }
+.cd-tablewrap.is-cards .cd-row:hover { background: var(--tone-soft, #dbeafe); }
+.cd-tablewrap.is-cards .cd-row:hover td { background: transparent; }
 
 /* Abas dentro do mesmo bloco do conteúdo */
 .cd-block .cd-tabs { margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--sh-line); }
@@ -105,7 +120,7 @@
 
 .cd-lista { display: flex; flex-direction: column; gap: 8px; }
 .cd-lista__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; min-height: 40px; border: 1px solid var(--sh-line); border-radius: 8px; background: var(--sh-surface); font-weight: 700; color: var(--sh-ink); }
-.cd-plus { display: grid; place-items: center; width: 34px; height: 34px; margin-right: -6px; border: 0; border-radius: 8px; background: #22c55e; color: #fff; cursor: pointer; }
+.cd-plus { display: grid; place-items: center; width: 34px; height: 34px; margin-right: 0; border: 0; border-radius: 8px; background: #22c55e; color: #fff; cursor: pointer; }
 .cd-plus:hover { background: #16a34a; }
 .cd-lista__in { min-height: 40px; }
 .cd-lista__box { min-height: 120px; max-height: 260px; overflow-y: auto; border: 1px solid var(--sh-line); border-radius: 10px; background: var(--sh-surface); }
@@ -189,12 +204,13 @@
 .cd-clear { height: 46px; }
 .cd-filters .cd-inputbtn .at-input { height: 46px !important; }
 .at-form { align-items: end; }
-.at-form .at-field { justify-content: flex-end; }
+/* campo = grade de 1 coluna: 'stretch' faz o rótulo e o controle ocuparem toda a largura da célula (com flex-end o campo encolhia e ia para a direita) */
+.at-form .at-field { justify-content: stretch; align-content: end; }
 .at-form .at-field > .at-label { min-height: 20px; line-height: 20px; }
 
 /* Combobox global (shell/combo-global.js): o <select> nativo fica escondido e a lista é desenhada pelo sistema */
 .cdx-native { display: none !important; }
-.cdx { display: block; }
+.cdx { display: block; min-width: 84px; }
 .cdx .cd-combo__pop { position: fixed; right: auto; z-index: 10000; min-width: 200px; }
 .cdx .cd-combo__opt { height: auto; min-height: 38px; padding: 8px 12px; line-height: 1.25; text-align: left; }
 .cdx .cd-combo__opt:disabled { opacity: 0.45; cursor: not-allowed; }

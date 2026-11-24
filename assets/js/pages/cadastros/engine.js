@@ -27,6 +27,7 @@ function cadAbrir(key) {
     const st = cadState();
     st.key = key; st.mode = 'list'; st.id = null; st.tab = 'dados'; st.form = {}; st.dirty = false; st.saving = false;
     cadWatchEntity(key);
+    if (key === 'tipoatendimento' && typeof garantirTiposAtendimentoPadrao === 'function') garantirTiposAtendimentoPadrao().catch(() => {});
 }
 
 function cadWatchEntity(key) {
@@ -36,7 +37,7 @@ function cadWatchEntity(key) {
     (def.watch || []).forEach(k => db_cadWatch(k));
     // entidades referenciadas (seletores e filtros)
     const refs = new Set();
-    (def.tabs || []).forEach(t => (t.fields || []).forEach(f => f.ref && refs.add(f.ref)));
+    (def.tabs || []).forEach(t => (t.fields || []).forEach(f => { if (f.ref) refs.add(f.ref); (f.colunas || []).forEach(c => c.ref && refs.add(c.ref)); }));
     (def.filters || []).forEach(f => f.ref && refs.add(f.ref));
     refs.forEach(r => { if (CAD_DEFS[r]) cadStoreOf(CAD_DEFS[r]).watch(CAD_DEFS[r]); });
 }
@@ -325,12 +326,19 @@ function cadOperacoesOpcoes(tipoChave) {
 
 // ---------------- Tipos de campo das operações: produto, lote e tabela de itens ----------------
 
-const SETORES_ESTOQUE_OPS = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO'];
-const rotuloSetorOps = (s) => ({ OPME: 'OPME', HEMODINAMICA: 'Hemodinâmica', CENTRO_CIRURGICO: 'Centro Cirúrgico' }[s] || s);
+const SETORES_ESTOQUE_OPS = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'FARMACIA'];
+const rotuloSetorOps = (s) => ({ OPME: 'OPME', HEMODINAMICA: 'Hemodinâmica', CENTRO_CIRURGICO: 'Centro Cirúrgico', FARMACIA: 'Farmácia' }[s] || s);
+
+/** Setores de estoque que o perfil enxerga: a Farmácia só aparece para a própria equipe e o Administrador, e ela só enxerga o estoque da Farmácia. */
+function setoresEstoqueVisiveis() {
+    const role = state.currentUser && state.currentUser.role;
+    if (role === 'CHEFE_FARMACIA' || role === 'FUNC_FARMACIA') return ['FARMACIA'];
+    return SETORES_ESTOQUE_OPS.filter(s => s !== 'FARMACIA' || role === 'ADMIN');
+}
 
 /** Opções de produto de todos os setores: valor "SETOR|código". */
-function cadProdutosOpcoes() {
-    return SETORES_ESTOQUE_OPS.flatMap(s => (MOCK_DATA[s] || []).map(p => ({ id: `${s}|${p.barcode}`, rotulo: `${p.barcode} · ${p.material} — ${rotuloSetorOps(s)} (saldo ${p.qtd})` })));
+function cadProdutosOpcoes(setores = null) {
+    return setoresEstoqueVisiveis().filter(s => !setores || setores.includes(s)).flatMap(s => (MOCK_DATA[s] || []).map(p => ({ id: `${s}|${p.barcode}`, rotulo: `${p.barcode} · ${p.material} — ${rotuloSetorOps(s)} (saldo ${p.qtd})` })));
 }
 
 /** Produto escolhido num campo do tipo produto: { setor, produto } ou null. */
@@ -356,11 +364,19 @@ function cadItemAdd(k) { const st = cadState(); st.form[k] = [...(st.form[k] || 
 function cadItemRem(k, i) { const st = cadState(); st.form[k] = (st.form[k] || []).filter((_, n) => n !== i); st.dirty = true; render(); }
 
 /** Tabela de itens editável (compras, recebimentos, entregas, conferências). */
+/** Opções de uma coluna `ref` (cadastro de outra entidade, com `filtro(registro)` opcional) ou `select` (lista fixa). */
+function cadColunaOpcoes(c, atual) {
+    if (c.type === 'ref') return cadRowsOf(c.ref).filter(r => (r.ativo || r.id === atual) && (!c.filtro || c.filtro(r))).map(r => ({ id: r.id, rotulo: CAD_DEFS[c.ref].rotulo(r) })).sort((a, b) => a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
+    return cadOptsOf(c);
+}
+
 function cadItensHtml(f, st, readonly) {
     const linhas = st.form[f.k] || [];
     const ctl = (c, v, i) => {
+        if (readonly && (c.type === 'ref' || c.type === 'select')) return escapeHtml((cadColunaOpcoes(c, v).map(o => ({ id: cadOptId(o), rotulo: cadOptRotulo(o) })).find(o => o.id === v) || {}).rotulo || v || '—');
         if (readonly) return escapeHtml(c.type === 'produto' ? ((cadProdutosOpcoes().find(o => o.id === v) || {}).rotulo || v || '—') : (c.type === 'money' ? formatMoney(v) : (c.type === 'date' && v ? formatDateBR(v) : (v ?? '—'))));
         const on = `oninput="cadItemCampo('${f.k}', ${i}, '${c.k}', this.value)"`;
+        if (c.type === 'ref' || c.type === 'select') return `<select class="at-select" onchange="cadItemCampo('${f.k}', ${i}, '${c.k}', this.value)"><option value="">Selecione</option>${cadColunaOpcoes(c, v).map(o => `<option value="${escapeHtml(cadOptId(o))}" ${cadOptId(o) === v ? 'selected' : ''}>${escapeHtml(cadOptRotulo(o))}</option>`).join('')}</select>`;
         if (c.type === 'produto') return `<select class="at-select" onchange="cadItemCampo('${f.k}', ${i}, '${c.k}', this.value)"><option value="">Selecione</option>${cadProdutosOpcoes().map(o => `<option value="${escapeHtml(o.id)}" ${o.id === v ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
         if (c.ro) return `<span>${escapeHtml(v ?? '—')}</span>`;
         const tipo = c.type === 'number' || c.type === 'money' ? 'number" step="' + (c.type === 'money' ? '0.01' : '1') + '" min="0' : (c.type === 'date' ? 'date' : 'text');
@@ -368,7 +384,7 @@ function cadItensHtml(f, st, readonly) {
     };
     return `<div class="cd-itens"><div class="cd-lista__head"><span>${escapeHtml(f.label)}${f.req && !readonly ? ' *' : ''}</span>${readonly || !f.carregar ? '' : `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadItensCarregar('${f.k}')">${escapeHtml(f.carregarRotulo || 'Carregar itens')}</button>`}${readonly || f.semAdicionar ? '' : `<button type="button" class="cd-plus" title="Adicionar item" aria-label="Adicionar item" onclick="cadItemAdd('${f.k}')">${lucideIcon('plus', 'w-5 h-5')}</button>`}</div>
         <div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr>${f.colunas.map(c => `<th>${escapeHtml(c.label)}${c.req ? ' *' : ''}</th>`).join('')}${readonly || f.semAdicionar ? '' : '<th></th>'}</tr></thead>
-        <tbody>${linhas.length ? linhas.map((l, i) => `<tr>${f.colunas.map(c => `<td data-label="${escapeHtml(c.label)}">${ctl(c, l[c.k], i)}</td>`).join('')}${readonly || f.semAdicionar ? '' : `<td><button type="button" class="cd-ico cd-ico--warn" title="Remover item" aria-label="Remover item" onclick="cadItemRem('${f.k}', ${i})">${lucideIcon('trash-2', 'w-4 h-4')}</button></td>`}</tr>`).join('') : `<tr><td colspan="${f.colunas.length + 1}" class="at-empty">Nenhum item. Use o botão + para adicionar.</td></tr>`}</tbody></table></div></div>`;
+        <tbody>${linhas.length ? linhas.map((l, i) => `<tr>${f.colunas.map(c => `<td data-label="${escapeHtml(c.label)}">${ctl(c, l[c.k], i)}</td>`).join('')}${readonly || f.semAdicionar ? '' : `<td class="cd-actcol"><button type="button" class="cd-ico cd-ico--warn" title="Remover item" aria-label="Remover item" onclick="cadItemRem('${f.k}', ${i})">${lucideIcon('trash-2', 'w-4 h-4')}</button></td>`}</tr>`).join('') : `<tr><td colspan="${f.colunas.length + 1}" class="at-empty">Nenhum item. Use o botão + para adicionar.</td></tr>`}</tbody></table></div></div>`;
 }
 
 function cadControle(def, f, st, readonly) {
@@ -385,7 +401,7 @@ function cadControle(def, f, st, readonly) {
             let opts;
             if (f.type === 'uf') opts = UFS;
             else if (f.type === 'ref') {
-                opts = cadRowsOf(f.ref).filter(r => (r.ativo || r.id === val) && (!f.dep || !st.form[f.dep] || r[f.depField || f.dep] === st.form[f.dep]))
+                opts = cadRowsOf(f.ref).filter(r => (r.ativo || r.id === val) && (!f.filtro || f.filtro(r)) && (!f.dep || !st.form[f.dep] || r[f.depField || f.dep] === st.form[f.dep]))
                     .map(r => ({ id: r.id, rotulo: CAD_DEFS[f.ref].rotulo(r) })).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
             } else opts = cadOptsOf(f);
             const semOpcoes = f.type === 'ref' && !opts.length;
@@ -404,8 +420,8 @@ function cadControle(def, f, st, readonly) {
             <button type="button" class="cd-searchbtn" title="Buscar endereço pelo CEP" aria-label="Buscar endereço pelo CEP" onclick="cadBuscarCep()">${lucideIcon('search', 'w-5 h-5')}</button></div>`;
         case 'arquivo': return `<input class="at-input" type="file" accept="${f.accept || '*'}" onchange="cadArquivo('${f.k}', this)">`;
         case 'operacao': { const ops = cadOperacoesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: val, opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione a operação' : 'Nenhuma operação ativa deste tipo') : 'Escolha o tipo primeiro', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
-        case 'produto': return cadComboHtml({ id, valor: val, opts: cadProdutosOpcoes(), placeholder: 'Selecione o produto', vazio: 'Selecione', fn: 'cadSelecionar', arg: f.k });
-        case 'lote': { const ops = cadLotesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: String(val || ''), opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione o lote' : 'Sem lote com saldo') : 'Selecione o produto primeiro', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
+        case 'produto': return cadComboHtml({ id, valor: val, opts: cadProdutosOpcoes(f.setores), placeholder: 'Selecione o produto', vazio: 'Selecione', fn: 'cadSelecionar', arg: f.k });
+        case 'lote': { const ops = cadLotesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: String(val || ''), opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione o lote' : 'Sem lote com saldo') : 'Escolha o produto antes', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
         case 'municipio': {
             const uf = st.form[f.dep || 'uf'];
             const lista = (IBGE_MUNICIPIOS[uf] || []).map(([cod, nome]) => ({ id: String(cod), rotulo: nome }));
@@ -603,6 +619,17 @@ function cadDependencias(def, id) {
     }).filter(Boolean);
 }
 
+/**
+ * Vínculos que dependem de uma leitura no banco (ex.: leito ocupado), somados aos de `usedBy`. A definição traz
+ * `dependenciasAsync(registro)`, que devolve uma lista de textos como cadDependencias.
+ */
+async function cadDependenciasAsync(def, id) {
+    const deps = cadDependencias(def, id);
+    if (!def.dependenciasAsync) return deps;
+    const rec = cadStoreOf(def).rows(def).find(r => r.id === id);
+    return rec ? [...deps, ...(await def.dependenciasAsync(rec))] : deps;
+}
+
 async function cadSalvar(event) {
     event.preventDefault();
     const st = cadState();
@@ -613,7 +640,10 @@ async function cadSalvar(event) {
     if (!cadCan(def, novo ? 'criar' : 'editar')) return showMsg('Seu perfil não tem permissão para salvar.', 'error');
 
     const erros = cadValidar(def, st.form, st.id);
-    const deps = !novo && st.form.ativo === false ? cadDependencias(def, st.id) : [];
+    let deps = [];
+    if (!novo && st.form.ativo === false && !erros.length) {
+        try { deps = await cadDependenciasAsync(def, st.id); } catch (err) { return showMsg(err.message || 'Não foi possível conferir os vínculos agora.', 'error'); }
+    }
     if (!erros.length && deps.length) erros.push({ campo: null, mensagem: `Não é possível inativar: existem vínculos ativos (${deps.join(', ')}).` });
     if (erros.length) {
         const alvo = erros.find(e => e.campo);
@@ -651,7 +681,8 @@ async function cadMudarSituacao(id, ativo) {
     const rec = cadStoreOf(def).rows(def).find(r => r.id === id);
     if (!rec) return;
     if (!ativo) {
-        const deps = cadDependencias(def, id);
+        let deps;
+        try { deps = await cadDependenciasAsync(def, id); } catch (err) { return showMsg(err.message || 'Não foi possível conferir os vínculos agora.', 'error'); }
         if (deps.length) return showMsg(`Não é possível inativar "${def.rotulo(rec)}": existem vínculos ativos (${deps.join(', ')}).`, 'error');
     }
     if (!confirm(`${ativo ? 'Reativar' : 'Inativar'} "${def.rotulo(rec)}"?${ativo ? '' : '\nO registro continua no histórico, mas deixa de aparecer nos seletores.'}`)) return;
@@ -670,7 +701,8 @@ const CAD_STORES = {
     // Coleção própria cad_<entidade>
     generic: {
         watch: (def) => db_cadWatch(def.key),
-        rows: (def) => (CAD_DATA[def.key] || []).map(r => ({ ...r, ativo: r.ativo !== false })),
+        // Registros de movimentação de um setor de estoque só aparecem para quem enxerga o setor (a Farmácia não vê OPME e vice-versa)
+        rows: (def) => (CAD_DATA[def.key] || []).filter(r => !SETORES_ESTOQUE_OPS.includes(r.setor) || setoresEstoqueVisiveis().includes(r.setor)).map(r => ({ ...r, ativo: r.ativo !== false })),
         async save(def, form, id) {
             requirePermission_cad(def, id ? 'editar' : 'criar');
             const agora = nowISO();
@@ -737,7 +769,7 @@ const CAD_STORES = {
             base.provisorio = provisorio;
             const extras = {};
             ['cns', 'sexo', 'nome_mae', 'email', 'celular', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio_id', 'uf', 'estado_civil', 'nacionalidade', 'naturalidade', 'profissao', 'raca_cor', 'etnia',
-                'responsavel_nome', 'responsavel_parentesco', 'responsavel_telefone', 'observacoes'].forEach(k => {
+                'responsavel_nome', 'responsavel_parentesco', 'responsavel_telefone', 'convenio_id', 'numero_carteirinha', 'observacoes'].forEach(k => {
                 let v = String(form[k] ?? '').trim();
                 if (['cep', 'responsavel_telefone', 'celular', 'cns'].includes(k)) v = onlyDigits(v);
                 extras[k] = v;
@@ -792,22 +824,33 @@ const CAD_STORES = {
         toForm: (def, r) => ({ ...r, senha: '' }),
         async save(def, form, id) {
             requirePermission_cad(def, id ? 'editar' : 'criar');
-            const username = String(form.username ?? '').toLowerCase().trim();
-            if (!/^[a-z0-9]{3,30}$/.test(username)) throw new Error('Nome de usuário: use de 3 a 30 letras ou números.');
+            const comAuth = typeof authAtivo === 'function' && authAtivo();
+            const emailAcesso = String(form.email ?? '').trim().toLowerCase();
+            let username = String(form.username ?? '').toLowerCase().trim();
+            if (comAuth && !id) {   // com Firebase Auth o login é o e-mail; o nome de usuário é a parte antes do "@"
+                if (!validateEmail(emailAcesso)) throw new Error('Informe o e-mail de acesso: é com ele que a pessoa entra no sistema.');
+                username = emailAcesso.split('@')[0];
+                if (!/^[a-z0-9._-]{2,40}$/.test(username)) throw new Error('A parte do e-mail antes do @ deve ter de 2 a 40 letras, números, ponto, hífen ou sublinhado.');
+            } else if (!comAuth && !/^[a-z0-9]{3,30}$/.test(username)) throw new Error('Nome de usuário: use de 3 a 30 letras ou números.');
             if (!ASSIGNABLE_ROLES.includes(form.role)) throw new Error('Selecione o perfil de acesso.');
             const senha = String(form.senha ?? '');
-            if (senha && !/^[a-zA-Z0-9]{4,}$/.test(senha)) throw new Error('A senha deve ter no mínimo 4 letras ou números.');
+            if (senha && comAuth && senha.length < 6) throw new Error('A senha deve ter no mínimo 6 caracteres.');
+            if (senha && !comAuth && !/^[a-zA-Z0-9]{4,}$/.test(senha)) throw new Error('A senha deve ter no mínimo 4 letras ou números.');
+            if (senha && comAuth && id) throw new Error('A senha de outra pessoa não é trocada por aqui: o próprio usuário usa "Trocar minha senha" ou o administrador redefine no Console do Firebase (Authentication).');
             const ativoNovo = form.ativo !== false;
             const eu = state.currentUser;
             if (!id) {
                 if (USERS_DB[username]) throw new Error('Já existe um usuário com este nome de usuário.');
                 if (!senha) throw new Error('Informe a senha do novo usuário.');
-                USERS_DB[username] = { role: form.role, name: form.nome.trim(), setor: String(form.setor ?? '').trim(), email: String(form.email ?? '').trim(), ativo: true };
-                await definirSenha(USERS_DB[username], senha);
+                USERS_DB[username] = { role: form.role, name: form.nome.trim(), setor: String(form.setor ?? '').trim(), email: comAuth ? emailAcesso : String(form.email ?? '').trim(), ativo: true };
+                if (comAuth) {
+                    try { USERS_DB[username].auth_email = await authCriarConta(emailAcesso, senha); } catch (err) { delete USERS_DB[username]; throw err; }
+                } else await definirSenha(USERS_DB[username], senha);
                 await auditar({ entidade: 'usuario', entidade_id: username, acao: 'CRIAR', depois: { nome: form.nome.trim(), perfil: form.role } });
             } else {
                 const u = USERS_DB[id];
                 if (!u) throw new Error('Usuário não encontrado.');
+                if (comAuth && emailAcesso && emailAcesso !== String(u.auth_email || u.email || '').toLowerCase()) throw new Error('O e-mail de acesso não pode ser alterado por aqui (ele é o login do usuário no Firebase).');
                 if (id === eu.username && (form.role !== u.role || !ativoNovo)) throw new Error('Você não pode alterar o próprio perfil nem inativar a si mesmo.');
                 if (u.role === 'ADMIN' && (form.role !== 'ADMIN' || !ativoNovo) && Object.values(USERS_DB).filter(x => x.role === 'ADMIN' && x.ativo !== false).length <= 1) throw new Error('É preciso manter ao menos um administrador ativo.');
                 const antes = { nome: u.name, perfil: u.role, setor: u.setor || '', email: u.email || '', ativo: u.ativo !== false };
@@ -815,12 +858,16 @@ const CAD_STORES = {
                 const d = diffCampos(antes, depois, Object.keys(depois));
                 if (!d.campos.length && !senha) throw new Error('Nenhuma informação foi alterada.');
                 Object.assign(u, { name: depois.nome, role: depois.perfil, setor: depois.setor, email: depois.email, ativo: ativoNovo });
-                if (senha) await definirSenha(u, senha);
+                if (senha && !comAuth) await definirSenha(u, senha);
                 await auditar({ entidade: 'usuario', entidade_id: id, acao: 'EDITAR', antes: d.antes, depois: { ...d.depois, ...(senha ? { senha: 'alterada' } : {}) } });
             }
             saveToLocalStorage();
             const alvo = id || username;
-            if (typeof db_saveMember === 'function') await db_saveMember(alvo, USERS_DB[alvo]);
+            try { if (typeof db_saveMember === 'function') await db_saveMember(alvo, USERS_DB[alvo]); }
+            catch (err) {
+                if (!id) delete USERS_DB[alvo];
+                throw new Error(comAuth && !id ? `A conta de acesso foi criada no Firebase Authentication, mas o perfil não foi gravado (${err.message}). Tente salvar de novo com o mesmo e-mail só depois de remover a conta no Console (Authentication).` : `Não foi possível gravar o usuário: ${err.message}`);
+            }
             return USERS_DB[alvo];
         },
         async setAtivo(def, id, ativo) {

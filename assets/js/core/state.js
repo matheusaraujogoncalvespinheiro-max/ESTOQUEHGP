@@ -63,6 +63,7 @@ let MOCK_DATA = {
         }
     ],
     CENTRO_CIRURGICO: [],
+    FARMACIA: [],
     MAPA_SCHEDULE: [],
     PROCEDIMENTOS_AGENDADOS: [],
     PROCEDIMENTOS_NAO_REALIZADOS: [],

@@ -31,11 +31,13 @@ function relatorioInternacoes(internacoes, de, ate) {
     const perm = altas.length ? Math.round(altas.reduce((a, i) => a + diasEntre(i.data_hora_internacao, i.data_hora_alta), 0) / altas.length * 10) / 10 : 0;
     const origens = new Map();
     adm.forEach(i => origens.set(i.setor_origem, (origens.get(i.setor_origem) || 0) + 1));
+    const tiposAlta = new Map();
+    altas.forEach(i => { const r = ROTULOS_TIPO_ALTA[i.tipo_alta] || 'Não informado'; tiposAlta.set(r, (tiposAlta.get(r) || 0) + 1); });
     return {
         titulo: 'Internações', descricao: 'Admissões e altas no período, por setor de origem.',
         colunas: [{ k: 'origem', label: 'Setor de origem' }, { k: 'admissoes', label: 'Admissões' }],
         linhas: [...origens.entries()].sort((a, b) => b[1] - a[1]).map(([origem, admissoes]) => ({ origem, admissoes })),
-        resumo: [{ rot: 'Admissões', valor: adm.length }, { rot: 'Altas', valor: altas.length }, { rot: 'Permanência média (dias)', valor: perm }, { rot: 'Internados agora', valor: internacoes.filter(i => i.status === 'ATIVA').length }]
+        resumo: [{ rot: 'Admissões', valor: adm.length }, { rot: 'Altas', valor: altas.length }, { rot: 'Permanência média (dias)', valor: perm }, { rot: 'Internados agora', valor: internacoes.filter(i => i.status === 'ATIVA').length }, ...[...tiposAlta.entries()].map(([r, n]) => ({ rot: 'Saídas: ' + r, valor: n }))]
     };
 }
 
@@ -136,6 +138,27 @@ function relatorioRastreabilidadeOpme(laudos, de, ate, termo = '') {
         titulo: 'Rastreabilidade de OPME', descricao: 'Do material ao paciente: item, lote, validade, procedimento e responsável, a partir dos laudos.',
         colunas: [{ k: 'data', label: 'Data' }, { k: 'paciente', label: 'Paciente' }, { k: 'cns', label: 'CNS' }, { k: 'procedimento', label: 'Procedimento' }, { k: 'produto', label: 'Material' }, { k: 'codigo', label: 'Código' }, { k: 'lote', label: 'Lote' }, { k: 'validade', label: 'Validade' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'setor', label: 'Setor' }, { k: 'responsavel', label: 'Responsável' }],
         linhas, resumo: [{ rot: 'Itens utilizados', valor: linhas.reduce((a, l) => a + (Number(l.quantidade) || 0), 0) }, { rot: 'Registros', valor: linhas.length }]
+    };
+}
+
+/**
+ * Rastreabilidade por paciente e lote: dispensações da Farmácia, saídas de estoque para paciente e uso em laudos num só relatório.
+ * `setores` (lista de ids) limita ao que o perfil enxerga. Registros cancelados continuam na lista, marcados como cancelados.
+ */
+function relatorioRastreabilidade({ dispensacoes = [], saidas = [], laudos = [], setores = null } = {}, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const okSetor = (s) => !setores || setores.includes(s);
+    const situacao = (r) => (r.ativo === false ? 'Cancelada' : 'Ativa');
+    const linhas = [];
+    dispensacoes.filter(d => okSetor(d.setor) && dentro(d.criado_em, de, ate)).forEach(d => linhas.push({ ordem: String(d.criado_em), data: formatDateTimeBR(d.criado_em), tipo: 'Dispensação (Farmácia)', paciente: d.paciente_nome || '—', prontuario: d.prontuario || '—', produto: d.produto_desc || '—', lote: d.lote_codigo || '—', quantidade: Number(d.quantidade) || 0, responsavel: d.dispensado_por_nome || '—', situacao: situacao(d) }));
+    saidas.filter(s => s.destino === 'Paciente' && okSetor(s.setor) && dentro(s.criado_em, de, ate)).forEach(s => linhas.push({ ordem: String(s.criado_em), data: formatDateTimeBR(s.criado_em), tipo: 'Saída para paciente', paciente: s.destino_detalhe || '—', prontuario: '—', produto: s.produto_desc || '—', lote: s.lote_codigo || '—', quantidade: Number(s.quantidade) || 0, responsavel: s.criado_por || '—', situacao: situacao(s) }));
+    laudos.filter(l => okSetor(l.setor) && dentro(dataBr(l.data), de, ate)).forEach(l => (l.itens_opme || []).forEach(i => linhas.push({ ordem: dataBr(l.data) + ' ' + (l.hora || ''), data: formatDateBR(dataBr(l.data)) + (l.hora ? ' ' + l.hora : ''), tipo: 'Uso em laudo', paciente: l.paciente || '—', prontuario: '—', produto: i.descricao || i.material || '—', lote: i.lote || '—', quantidade: Number(i.quantidade) || 0, responsavel: l.usuario || '—', situacao: 'Ativa' })));
+    const lista = linhas.filter(l => !t || searchKey(Object.values(l).join(' ')).includes(t)).sort((a, b) => String(b.ordem).localeCompare(String(a.ordem)));
+    const ativas = lista.filter(l => l.situacao === 'Ativa');
+    return {
+        titulo: 'Rastreabilidade por paciente e lote', descricao: 'Do estoque ao paciente: dispensações da Farmácia, saídas para paciente e uso em laudos, com produto, lote, quantidade e responsável. Pesquise pelo nome do paciente ou pelo lote para ver o caminho completo.',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'tipo', label: 'Origem' }, { k: 'paciente', label: 'Paciente' }, { k: 'prontuario', label: 'Prontuário' }, { k: 'produto', label: 'Produto' }, { k: 'lote', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'responsavel', label: 'Responsável' }, { k: 'situacao', label: 'Situação' }],
+        linhas: lista, resumo: [{ rot: 'Registros', valor: lista.length }, { rot: 'Pacientes', valor: new Set(ativas.map(l => l.paciente)).size }, { rot: 'Lotes', valor: new Set(ativas.map(l => l.lote).filter(x => x !== '—')).size }, { rot: 'Unidades', valor: ativas.reduce((a, l) => a + l.quantidade, 0) }]
     };
 }
 
@@ -316,4 +339,161 @@ function relatorioPermissoes() {
 function relatorioParaCsv(rel) {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     return '﻿' + [rel.colunas.map(c => esc(c.label)).join(';'), ...rel.linhas.map(l => rel.colunas.map(c => esc(l[c.k])).join(';'))].join('\r\n');
+}
+
+// ============ Apoio e infraestrutura (Etapa 9) ============
+// Relatórios de manutenção, transporte, rouparia, resíduos e voluntariado. Nenhum mostra nome de paciente.
+
+const apoioNumBr = (n) => (n === null || n === undefined ? '—' : String(n).replace('.', ','));
+
+/** Ordens de serviço do período: por tipo e prioridade, com tempos médios (da abertura até assumir e até concluir). */
+function relatorioManutencaoTela(osLista, de, ate) {
+    const ind = indicadoresManutencao(osLista, de, ate);
+    const lista = (osLista || []).filter(o => (!de || o.dia >= de) && (!ate || o.dia <= ate)).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    return {
+        titulo: 'Manutenção e equipamentos',
+        descricao: 'Ordens de serviço abertas no período (a tela carrega as abertas de qualquer data e as dos últimos 90 dias). Não há prazo de atendimento definido pelo hospital: os tempos são só informativos.',
+        colunas: [{ k: 'dia', label: 'Dia' }, { k: 'protocolo', label: 'OS' }, { k: 'tipo', label: 'Tipo' }, { k: 'prioridade', label: 'Prioridade' }, { k: 'objeto', label: 'Equipamento ou local' }, { k: 'situacao', label: 'Situação' }, { k: 'horas', label: 'Horas até concluir' }],
+        linhas: lista.map(o => ({ dia: formatDateBR(o.dia), protocolo: o.protocolo, tipo: TIPOS_OS[o.tipo] || o.tipo, prioridade: PRIORIDADES_OS[o.prioridade] || o.prioridade,
+            objeto: o.equipamento_nome ? `${o.equipamento_nome}${o.patrimonio ? ' (' + o.patrimonio + ')' : ''}` : (o.local || '—'), situacao: SITUACOES_OS[o.status] || o.status,
+            horas: o.status === 'CONCLUIDA' && o.concluido_em ? apoioNumBr(Math.round((new Date(o.concluido_em) - new Date(o.criado_em)) / 360000) / 10) : '—' })),
+        resumo: [{ rot: 'OS no período', valor: ind.abertas_no_periodo }, { rot: 'Em aberto agora', valor: ind.em_aberto }, { rot: 'Concluídas', valor: ind.concluidas }, { rot: 'Canceladas', valor: ind.canceladas },
+            { rot: 'Média até assumir (h)', valor: apoioNumBr(ind.horas_ate_assumir) }, { rot: 'Média até concluir (h)', valor: apoioNumBr(ind.horas_ate_concluir) }]
+    };
+}
+
+/** Solicitações de transporte do período, com tempos médios. Não lista o nome do paciente. */
+function relatorioTransporteTela(lista, de, ate) {
+    const ind = indicadoresTransporte(lista, de, ate);
+    const itens = (lista || []).filter(t => (!de || t.dia >= de) && (!ate || t.dia <= ate)).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    return {
+        titulo: 'Transporte',
+        descricao: 'Solicitações dos últimos 7 dias (a tela carrega só esse período, mais as ainda abertas). Não identifica o paciente e não há prazo de atendimento definido.',
+        colunas: [{ k: 'dia', label: 'Dia' }, { k: 'protocolo', label: 'Protocolo' }, { k: 'tipo', label: 'Tipo' }, { k: 'origem', label: 'Origem' }, { k: 'destino', label: 'Destino' }, { k: 'prioridade', label: 'Prioridade' }, { k: 'situacao', label: 'Situação' }],
+        linhas: itens.map(t => ({ dia: formatDateBR(t.dia), protocolo: t.protocolo, tipo: TIPOS_TRANSPORTE[t.tipo] || t.tipo, origem: t.origem, destino: t.destino, prioridade: PRIORIDADES_TRANSPORTE[t.prioridade] || t.prioridade || '—', situacao: SITUACOES_TRANSPORTE[t.status] || t.status })),
+        resumo: [{ rot: 'Solicitações', valor: ind.total }, { rot: 'Em aberto', valor: ind.em_aberto }, { rot: 'Concluídos', valor: ind.concluidos }, { rot: 'Cancelados', valor: ind.cancelados },
+            { rot: 'Média até aceitar (min)', valor: apoioNumBr(ind.min_ate_aceitar) }, { rot: 'Média em transporte (min)', valor: apoioNumBr(ind.min_em_transporte) }]
+    };
+}
+
+/** Rouparia por setor e peça: coletadas, entregues, baixas e diferença. Registros anulados não entram. */
+function relatorioRoupariaTela(lista, de, ate) {
+    const r = resumoRouparia(lista, de, ate);
+    return {
+        titulo: 'Rouparia e lavanderia',
+        descricao: 'Movimentos dos últimos 30 dias (a tela carrega só esse período). A diferença é coletadas menos entregues: não considera estoque nem enxoval mínimo.',
+        colunas: [{ k: 'setor', label: 'Setor' }, { k: 'peca', label: 'Peça' }, { k: 'coletadas', label: 'Coletadas' }, { k: 'entregues', label: 'Entregues' }, { k: 'diferenca', label: 'Diferença' }, { k: 'baixas', label: 'Baixas' }, { k: 'kg_coletado', label: 'Kg coletado' }, { k: 'kg_entregue', label: 'Kg entregue' }],
+        linhas: r.linhas.map(l => ({ setor: l.setor, peca: l.peca_rotulo, coletadas: l.coletadas, entregues: l.entregues, diferenca: l.diferenca, baixas: l.baixas, kg_coletado: apoioNumBr(l.kg_coletado), kg_entregue: apoioNumBr(l.kg_entregue) })),
+        resumo: [{ rot: 'Peças coletadas', valor: r.total.coletadas }, { rot: 'Peças entregues', valor: r.total.entregues }, { rot: 'Baixas', valor: r.total.baixas }, { rot: 'Kg coletado', valor: apoioNumBr(r.total.kg_coletado) }, { rot: 'Kg entregue', valor: apoioNumBr(r.total.kg_entregue) }]
+    };
+}
+
+/** Resíduos por setor e grupo (kg). Registros anulados não entram. */
+function relatorioResiduosTela(lista, de, ate) {
+    const r = resumoResiduos(lista, de, ate);
+    const grupos = Object.keys(GRUPOS_RESIDUO);
+    return {
+        titulo: 'Resíduos por grupo e setor',
+        descricao: 'Pesagens dos últimos 30 dias (a tela carrega só esse período), em kg. Os grupos são uma lista de apoio: confira com o PGRSS do hospital.',
+        colunas: [{ k: 'setor', label: 'Setor' }, { k: 'registros', label: 'Registros' }, ...grupos.map(g => ({ k: 'g_' + g, label: 'Grupo ' + g + ' (kg)' })), { k: 'total', label: 'Total (kg)' }],
+        linhas: r.setores.map(s => { const l = { setor: s.setor, registros: s.registros, total: apoioNumBr(s.total_kg) }; grupos.forEach(g => { l['g_' + g] = apoioNumBr(s[g] || 0); }); return l; }),
+        resumo: [{ rot: 'Registros', valor: r.registros }, { rot: 'Total (kg)', valor: apoioNumBr(r.total_kg) }, ...grupos.map(g => ({ rot: 'Grupo ' + g + ' (kg)', valor: apoioNumBr(r.por_grupo[g] || 0) }))]
+    };
+}
+
+/** Horas de voluntariado por pessoa no período (só presenças encerradas). */
+function relatorioVoluntariadoTela(presencas, de, ate) {
+    const horas = horasDosVoluntarios(presencas, de, ate);
+    const total = horas.reduce((s, h) => s + h.minutos, 0);
+    return {
+        titulo: 'Voluntariado e horas',
+        descricao: 'Presenças encerradas dos últimos 60 dias (a tela carrega só esse período). Presença sem saída registrada não conta horas.',
+        colunas: [{ k: 'nome', label: 'Voluntário' }, { k: 'area', label: 'Área' }, { k: 'presencas', label: 'Presenças' }, { k: 'horas', label: 'Horas' }],
+        linhas: horas.map(h => ({ nome: h.nome, area: AREAS_VOLUNTARIADO[h.area] || h.area, presencas: h.presencas, horas: formatarMinutos(h.minutos) })),
+        resumo: [{ rot: 'Voluntários com horas', valor: horas.length }, { rot: 'Presenças', valor: horas.reduce((s, h) => s + h.presencas, 0) }, { rot: 'Total de horas', valor: formatarMinutos(total) }]
+    };
+}
+
+// ============ Gestão (Etapa 10) ============
+// Relatórios de ouvidoria, qualidade e ensino e pesquisa. O da ouvidoria nunca traz o nome de quem se manifestou.
+
+/** Manifestações do período (data do recebimento). Sem identidade. */
+function relatorioOuvidoriaTela(lista, de, ate, hoje = todayISO()) {
+    const ind = indicadoresOuvidoria(lista, de, ate, hoje);
+    const itens = (lista || []).filter(m => (!de || m.dia >= de) && (!ate || m.dia <= ate)).sort((a, b) => String(b.recebida_em).localeCompare(String(a.recebida_em)));
+    return {
+        titulo: 'Ouvidoria',
+        descricao: 'Manifestações recebidas no período (a tela carrega as abertas de qualquer data e as dos últimos 180 dias). Sem identificação de quem se manifestou. O prazo é o digitado pela ouvidoria: o sistema não aplica prazo legal.',
+        colunas: [{ k: 'dia', label: 'Recebida em' }, { k: 'protocolo', label: 'Protocolo' }, { k: 'tipo', label: 'Tipo' }, { k: 'canal', label: 'Canal' }, { k: 'setor', label: 'Setor envolvido' }, { k: 'situacao', label: 'Situação' }, { k: 'prazo', label: 'Prazo de resposta' }, { k: 'dias', label: 'Dias até a 1ª resposta' }],
+        linhas: itens.map(m => ({ dia: formatDateBR(m.dia), protocolo: m.protocolo, tipo: TIPOS_MANIFESTACAO[m.tipo] || m.tipo, canal: CANAIS_OUVIDORIA[m.canal] || m.canal, setor: m.setor_envolvido || '—', situacao: SITUACOES_OUVIDORIA[m.status] || m.status,
+            prazo: m.prazo_resposta ? formatDateBR(m.prazo_resposta) : '—', dias: (m.respostas || []).length ? apoioNumBr(gestaoDiasEntre(m.recebida_em, m.respostas[0].em)) : '—' })),
+        resumo: [{ rot: 'No período', valor: ind.total }, { rot: 'Em aberto agora', valor: ind.em_aberto }, { rot: 'Com prazo vencido', valor: ind.vencidas }, { rot: 'Concluídas', valor: ind.concluidas }, { rot: 'Arquivadas', valor: ind.arquivadas },
+            { rot: 'Média até a 1ª resposta (dias)', valor: apoioNumBr(ind.dias_ate_responder) }]
+    };
+}
+
+/** Não conformidades do período, com o número de ações abertas de cada uma. */
+function relatorioQualidadeTela({ ncs = [], acoes = [], docs = [] } = {}, de, ate, hoje = todayISO()) {
+    const ind = indicadoresQualidade({ ncs, acoes, docs }, de, ate, hoje);
+    const itens = ncs.filter(n => (!de || n.dia >= de) && (!ate || n.dia <= ate)).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    return {
+        titulo: 'Qualidade',
+        descricao: 'Não conformidades registradas no período (a tela carrega as abertas de qualquer data e as dos últimos 180 dias). Ações e documentos entram no resumo pela situação de hoje.',
+        colunas: [{ k: 'dia', label: 'Detectada em' }, { k: 'protocolo', label: 'Protocolo' }, { k: 'origem', label: 'Origem' }, { k: 'setor', label: 'Setor' }, { k: 'situacao', label: 'Situação' }, { k: 'abertas', label: 'Ações abertas' }, { k: 'dias', label: 'Dias até concluir' }],
+        linhas: itens.map(n => ({ dia: formatDateBR(n.detectada_em), protocolo: n.protocolo, origem: ORIGENS_NC[n.origem] || n.origem, setor: n.setor, situacao: SITUACOES_NC[n.status] || n.status,
+            abertas: acoes.filter(a => a.nc_id === n.id && acaoAberta(a)).length, dias: n.status === 'CONCLUIDA' && n.concluido_em ? apoioNumBr(gestaoDiasEntre(n.criado_em, n.concluido_em)) : '—' })),
+        resumo: [{ rot: 'Não conformidades no período', valor: ind.nc_no_periodo }, { rot: 'Em aberto agora', valor: ind.nc_em_aberto }, { rot: 'Concluídas', valor: ind.nc_concluidas }, { rot: 'Ações abertas', valor: ind.acoes_abertas },
+            { rot: 'Ações atrasadas', valor: ind.acoes_atrasadas }, { rot: 'Documentos vigentes', valor: ind.docs_vigentes }, { rot: 'Documentos com revisão vencida', valor: ind.docs_revisao_vencida }]
+    };
+}
+
+/** Atividades de ensino e pesquisa que começam no período. Sem nomes de participantes. */
+function relatorioEnsinoTela(lista, de, ate) {
+    const ind = indicadoresEnsino(lista, de, ate);
+    const itens = (lista || []).filter(a => (!de || a.inicio >= de) && (!ate || a.inicio <= ate)).sort((a, b) => String(b.inicio).localeCompare(String(a.inicio)));
+    return {
+        titulo: 'Ensino e pesquisa',
+        descricao: 'Atividades com início no período (a tela carrega as em aberto e as dos últimos 365 dias). Não lista participantes.',
+        colunas: [{ k: 'inicio', label: 'Início' }, { k: 'protocolo', label: 'Protocolo' }, { k: 'tipo', label: 'Tipo' }, { k: 'titulo', label: 'Título' }, { k: 'setor', label: 'Setor' }, { k: 'participantes', label: 'Participantes' }, { k: 'situacao', label: 'Situação' }, { k: 'parecer', label: 'Parecer do comitê de ética' }],
+        linhas: itens.map(a => ({ inicio: formatDateBR(a.inicio), protocolo: a.protocolo, tipo: TIPOS_ENSINO[a.tipo] || a.tipo, titulo: a.titulo, setor: a.setor, participantes: a.participantes === null || a.participantes === undefined ? '—' : a.participantes,
+            situacao: SITUACOES_ENSINO[a.status] || a.status, parecer: a.tipo === 'PESQUISA' ? (a.parecer_cep || 'Não informado') : '—' })),
+        resumo: [{ rot: 'Atividades no período', valor: ind.total }, { rot: 'Planejadas ou em andamento agora', valor: ind.em_aberto }, { rot: 'Concluídas', valor: ind.concluidas }, { rot: 'Canceladas', valor: ind.canceladas },
+            { rot: 'Participantes', valor: ind.participantes }, { rot: 'Pesquisas sem nº do parecer', valor: ind.pesquisas_sem_parecer }]
+    };
+}
+
+// ---------- Farmácia (#50) ----------
+/** Dispensações da Farmácia no período, por produto. Canceladas aparecem à parte e não entram nas unidades. */
+function relatorioFarmaciaDispensacoes(dispensacoes, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const lista = (dispensacoes || []).filter(d => dentro(d.criado_em, de, ate) && (!t || searchKey(`${d.produto_desc} ${d.paciente_nome} ${d.lote_codigo} ${d.codigo}`).includes(t)));
+    const ativas = lista.filter(d => d.ativo !== false);
+    const porProduto = new Map();
+    ativas.forEach(d => {
+        const k = d.produto_desc || '—';
+        const x = porProduto.get(k) || { produto: k, dispensacoes: 0, unidades: 0, controle: 0, pacientes: new Set(), lotes: new Set() };
+        x.dispensacoes += 1; x.unidades += Number(d.quantidade) || 0; if (d.controle === 'Controle especial') x.controle += 1;
+        x.pacientes.add(d.paciente_nome); if (d.lote_codigo) x.lotes.add(d.lote_codigo);
+        porProduto.set(k, x);
+    });
+    const linhas = [...porProduto.values()].sort((a, b) => b.unidades - a.unidades).map(x => ({ produto: x.produto, dispensacoes: x.dispensacoes, unidades: x.unidades, controle: x.controle, pacientes: x.pacientes.size, lotes: x.lotes.size }));
+    return {
+        titulo: 'Dispensações da Farmácia', descricao: 'Medicamentos dispensados a pacientes internados no período, somados por produto. Dispensação cancelada não conta nas unidades. Sem "De" e "Até" mostra todas as carregadas.',
+        colunas: [{ k: 'produto', label: 'Produto' }, { k: 'dispensacoes', label: 'Dispensações' }, { k: 'unidades', label: 'Unidades' }, { k: 'controle', label: 'Controle especial' }, { k: 'pacientes', label: 'Pacientes' }, { k: 'lotes', label: 'Lotes' }],
+        linhas, resumo: [{ rot: 'Dispensações', valor: ativas.length }, { rot: 'Unidades', valor: ativas.reduce((a, d) => a + (Number(d.quantidade) || 0), 0) }, { rot: 'Controle especial', valor: ativas.filter(d => d.controle === 'Controle especial').length }, { rot: 'Canceladas', valor: lista.length - ativas.length }]
+    };
+}
+
+/** Requisições das unidades à Farmácia: situação, prioridade e itens pedidos. A requisição não baixa estoque. */
+function relatorioFarmaciaRequisicoes(requisicoes, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const lista = (requisicoes || []).filter(r => dentro(r.criado_em, de, ate) && (!t || searchKey(`${r.codigo} ${r.unidade} ${r.solicitante_nome}`).includes(t)))
+        .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+    const cont = (f) => lista.filter(f).length;
+    return {
+        titulo: 'Requisições à Farmácia', descricao: 'Pedidos das unidades à Farmácia no período, com situação e prioridade. A requisição não baixa estoque: a saída só acontece na dispensação ou na saída registrada.',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'codigo', label: 'Código' }, { k: 'unidade', label: 'Unidade' }, { k: 'prioridade', label: 'Prioridade' }, { k: 'situacao', label: 'Situação' }, { k: 'itens', label: 'Itens' }, { k: 'solicitante', label: 'Solicitante' }],
+        linhas: lista.map(r => ({ data: formatDateTimeBR(r.criado_em), codigo: r.codigo, unidade: r.unidade, prioridade: r.prioridade, situacao: r.situacao, itens: (r.itens || []).length, solicitante: r.solicitante_nome || '—' })),
+        resumo: [{ rot: 'Requisições', valor: lista.length }, { rot: 'Solicitadas', valor: cont(r => r.situacao === 'Solicitada') }, { rot: 'Atendidas', valor: cont(r => r.situacao === 'Atendida') }, { rot: 'Urgentes', valor: cont(r => r.prioridade !== 'Rotina') }]
+    };
 }

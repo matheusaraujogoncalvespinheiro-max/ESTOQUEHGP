@@ -100,7 +100,7 @@ function validateFuncionarioForm(form, { editando = false } = {}) {
     return erros;
 }
 
-const EXTRAS_FUNCIONARIO = ['setor', 'telefone', 'email', 'admissao', 'usuario_acesso', 'registro_conselho', 'observacoes', 'anotacoes'];
+const EXTRAS_FUNCIONARIO = ['setor', 'telefone', 'email', 'admissao', 'usuario_acesso', 'registro_conselho', 'especialidade', 'observacoes', 'anotacoes'];
 const CAMPOS_FUNCIONARIO = ['nome', 'cargo', 'categoria', 'situacao', ...EXTRAS_FUNCIONARIO];
 
 /** Cria (editandoId vazio) ou atualiza um funcionário. A matrícula identifica o funcionário e não muda depois. */

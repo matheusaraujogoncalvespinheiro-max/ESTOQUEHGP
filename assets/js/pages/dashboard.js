@@ -3,7 +3,7 @@
 // Dashboard e métricas
 
 function getDashboardStats() {
-    const allItems = [...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME];
+    const allItems = todosProdutosEstoque();
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
     const expiredItems = allItems.filter(item => {
         if (item.validade === 'N/A') return false;
@@ -216,7 +216,7 @@ function renderDashboard() {
                         </tr>
                     </thead>
                     <tbody>
-                        ${[...MOCK_DATA.OPME, ...MOCK_DATA.HEMODINAMICA, ...MOCK_DATA.OPME]
+                        ${produtosEstoqueComSetor().map(({ produto, setor }) => ({ ...produto, _setor: setor }))
                 .filter(item => item.qtd <= item.min)
                 .slice(0, 5)
                 .map(item => `
@@ -228,7 +228,7 @@ function renderDashboard() {
                                 <td class="py-4 px-6 text-sm">${item.marca || item.empresa}</td>
                                 <td class="py-4 px-6 text-sm font-mono">${item.barcode}</td>
                                 <td class="py-4 px-6 text-sm">
-                                    ${item.id > 200 ? 'HEMODINAMICA' : item.id > 100 ? 'OPME' : 'OPME'}
+                                    ${rotuloSetorOps(item._setor)}
                                 </td>
                                 <td class="py-4 px-6 text-sm">
                                     <span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-1 rounded-full">

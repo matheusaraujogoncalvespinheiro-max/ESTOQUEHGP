@@ -6,7 +6,7 @@
 //   - detecção de dados preenchidos e não salvos ([data-track]) para o botão HOME;
 //   - preservação do que o usuário digitou quando a tela é redesenhada ([data-keep]).
 
-const IMMERSIVE_MODULES = ['RECEPCAO', 'EMERGENCIA'];
+const IMMERSIVE_MODULES = ['RECEPCAO', 'EMERGENCIA', 'PAINEL_CHAMADA', 'PAINEL_LEITOS'];
 const isImmersiveModule = (module) => IMMERSIVE_MODULES.includes(module);
 
 /** Estrutura da página imersiva: só o conteúdo e o aviso (toast). */
@@ -68,6 +68,8 @@ function immersiveHome() {
 function resetImmersiveState() {
     state.recepcao = null;
     state.emergencia = null;
+    state.painel = null;
+    state.painelLeitos = null;
 }
 
 // ---------- Relógio ao vivo ----------

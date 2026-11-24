@@ -143,15 +143,16 @@ function validarConferencia(form) {
 
 
 // ---- Cancelamento de operação (estorno) ----
-const OPERACOES_CANCELAVEIS = { saida: 'Saída', devolucao: 'Devolução ao estoque', perda: 'Perda', baixa: 'Baixa', consigdev: 'Devolução ao fornecedor', recebimento: 'Recebimento', entrega: 'Entrega' };
-const ESTORNO_ACAO = { saida: 'ESTORNO_SAIDA', perda: 'ESTORNO_PERDA', baixa: 'ESTORNO_BAIXA', consigdev: 'ESTORNO_DEV_FORNECEDOR', devolucao: 'ESTORNO_DEVOLUCAO', recebimento: 'ESTORNO_RECEBIMENTO' };
-const VOLTAM_AO_ESTOQUE = ['saida', 'perda', 'baixa', 'consigdev']; // cancelar devolve o item ao estoque
+const OPERACOES_CANCELAVEIS = { dispensacao: 'Dispensação', saida: 'Saída', devolucao: 'Devolução ao estoque', perda: 'Perda', baixa: 'Baixa', consigdev: 'Devolução ao fornecedor', recebimento: 'Recebimento', entrega: 'Entrega' };
+const ESTORNO_ACAO = { dispensacao: 'ESTORNO_DISPENSACAO', saida: 'ESTORNO_SAIDA', perda: 'ESTORNO_PERDA', baixa: 'ESTORNO_BAIXA', consigdev: 'ESTORNO_DEV_FORNECEDOR', devolucao: 'ESTORNO_DEVOLUCAO', recebimento: 'ESTORNO_RECEBIMENTO' };
+const VOLTAM_AO_ESTOQUE = ['dispensacao', 'saida', 'perda', 'baixa', 'consigdev']; // cancelar devolve o item ao estoque
 
 function loteDoEstoque(setor, produto, codigo) { return (produto.lotes || []).find(l => String(l.lote) === String(codigo)); }
 
 /** Confere se dá para desfazer a operação (permissão, situação e saldo) e devolve os dados do estorno. */
 function validarCancelamento(form) {
-    if (!['ADMIN', 'CHEFE_OPME'].includes(state.currentUser.role)) throw new Error('Somente Administrador e Chefe OPME cancelam operações.');
+    if (!['ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA'].includes(state.currentUser.role)) throw new Error('Somente Administrador, Chefe OPME e Chefe Farmácia cancelam operações.');
+    if (state.currentUser.role === 'CHEFE_FARMACIA' && form.tipo_operacao !== 'dispensacao') throw new Error('O Chefe Farmácia cancela apenas dispensações.');
     if (!OPERACOES_CANCELAVEIS[form.tipo_operacao]) throw new Error('Escolha o tipo da operação.');
     const op = (CAD_DATA[form.tipo_operacao] || []).find(r => r.id === form.operacao);
     if (!op) throw new Error('Selecione a operação a cancelar.');

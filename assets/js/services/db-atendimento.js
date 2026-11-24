@@ -25,6 +25,8 @@ const COL = {
 };
 
 MOCK_DATA.REGISTROS_RECEPCAO = [];
+MOCK_DATA.ATENDIMENTOS = [];
+MOCK_DATA.CHAMADAS = [];
 MOCK_DATA.OCORRENCIAS_EMERGENCIA = [];
 MOCK_DATA.FUNCIONARIOS_TRIAGEM = [];
 MOCK_DATA.COMPOSICOES_TRIAGEM = [];
@@ -205,6 +207,15 @@ const WATCHER_FACTORIES = {
         db.collection(COL.REGISTROS).orderBy('criado_em', 'desc').limit(50),
         (items) => { MOCK_DATA.REGISTROS_RECEPCAO = items; }
     ),
+    atendimentos: () => onSnapshotData(
+        // Fila do dia: ontem e hoje (cobre a virada da meia-noite), até 1000. Antes eram os 300 mais recentes de qualquer data (#13).
+        db.collection('atendimentos').where('chegada_em', '>=', diaAntes(1)).orderBy('chegada_em', 'desc').limit(1000),
+        (items) => { MOCK_DATA.ATENDIMENTOS = items; }
+    ),
+    chamadas: () => onSnapshotData(
+        db.collection('chamadas').orderBy('em', 'desc').limit(40),
+        (items) => { MOCK_DATA.CHAMADAS = items; }
+    ),
     emergencia: () => onSnapshotData(
         db.collection(COL.OCORRENCIAS).orderBy('registrado_em', 'desc').limit(100),
         (items) => { MOCK_DATA.OCORRENCIAS_EMERGENCIA = items; }
@@ -219,7 +230,7 @@ const WATCHER_FACTORIES = {
     )
 };
 
-/** Liga a escuta de um módulo (idempotente). Nomes: recepcao, emergencia, funcionarios, composicoes. */
+/** Liga a escuta de um módulo (idempotente). Nomes: recepcao, atendimentos, chamadas, emergencia, funcionarios, composicoes. */
 function db_watch(name) {
     startWatcher(name, WATCHER_FACTORIES[name]);
 }
@@ -252,6 +263,8 @@ function db_stopAtendimentoWatchers() {
     Object.keys(watchers).forEach(name => { try { watchers[name](); } catch (e) { /* ignora */ } delete watchers[name]; });
     watchersWanted.clear();
     MOCK_DATA.REGISTROS_RECEPCAO = [];
+    MOCK_DATA.ATENDIMENTOS = [];
+    MOCK_DATA.CHAMADAS = [];
     MOCK_DATA.OCORRENCIAS_EMERGENCIA = [];
     MOCK_DATA.FUNCIONARIOS_TRIAGEM = [];
     MOCK_DATA.COMPOSICOES_TRIAGEM = [];
@@ -259,4 +272,5 @@ function db_stopAtendimentoWatchers() {
     if (state.recepcao) state.recepcao = null;
     if (state.emergencia) state.emergencia = null;
     if (state.triagem) state.triagem = null;
+    ['triagemClinica', 'atendMedico', 'painel'].forEach(k => { if (state[k]) state[k] = null; });
 }

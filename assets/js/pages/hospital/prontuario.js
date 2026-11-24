@@ -14,11 +14,13 @@ function prontuarioLista() {
 
 function renderProntuario() {
     db_watch('internacoes'); db_watch('solicitacoes'); db_watch('autorizacoes'); db_watch('leitos'); db_watch('config_hospital'); db_watch('prontuarios');
-    db_cadWatch('tipoexame');
+    db_cadWatch('tipoexame'); db_cadWatch('leito');
+    if (hasPermission('fila_leito')) db_watch('fila_leito');   // o botão Internar confere se o paciente espera na fila de leito
     const st = prontuarioState();
     if (!st.pacienteId) return renderProntuarioConsulta();
     if (!st.paciente) return '<div class="at-card at-empty">Carregando prontuário...</div>';
     db_watchRegistros(st.pacienteId);
+    db_watchDocumentos(st.pacienteId);
     return renderProntuarioPaciente(st);
 }
 
@@ -143,7 +145,8 @@ const idadeDe = (iso) => (iso ? ageFromBirth(iso) : '');
 function renderProntuarioPaciente(st) {
     const p = st.paciente;
     const ativa = internacaoAtivaDoPaciente(p.id);
-    const abas = [['resumo', 'Resumo'], ['internacoes', 'Internações'], ['EVOLUCAO', 'Evoluções'], ['PRESCRICAO', 'Prescrições'], ['DIAGNOSTICO', 'Diagnósticos (CID-10)'], ['exames', 'Exames'], ['procedimentos', 'Procedimentos']];
+    const abasEnfermagem = hasPermission('enfermagem_ver') ? [['CUIDADO', 'Cuidados'], ['EVOLUCAO_ENFERMAGEM', 'Evolução de enfermagem'], ['INTERCORRENCIA', 'Intercorrências'], ['sinais', 'Sinais vitais'], ['checagens', 'Checagens']] : [];
+    const abas = [['resumo', 'Resumo'], ['atendimentos', 'Atendimentos'], ['internacoes', 'Internações'], ['EVOLUCAO', 'Evoluções'], ['PRESCRICAO', 'Prescrições'], ['PROCEDIMENTO', 'Procedimentos realizados'], ...abasEnfermagem, ['DIAGNOSTICO', 'Diagnósticos (CID-10)'], ['ALERGIA', 'Alergias'], ['exames', 'Exames'], ['documentos', 'Documentos'], ['procedimentos', 'Procedimentos']];
     const loc = ativa ? `${(leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }).rotulo} · ${ativa.andar}º andar · ${ativa.ala}` : 'Sem internação ativa';
     return `
     <div class="at-stack tone-teal">
@@ -151,14 +154,28 @@ function renderProntuarioPaciente(st) {
             <div><h2 style="margin:0">${escapeHtml(p.nome)}</h2>
                 <p class="at-hint" style="margin:4px 0 0">Prontuário ${escapeHtml(p.prontuario || '—')} · ${p.data_nascimento ? escapeHtml(formatDateBR(p.data_nascimento)) + ' (' + idadeDe(p.data_nascimento) + ' anos)' : ''} · CNS ${escapeHtml(p.cns || '—')} · CPF ${p.cpf ? escapeHtml(maskCPF(p.cpf)) : '—'}</p>
                 <p style="margin:6px 0 0"><span class="at-badge ${ativa ? 'at-badge--ok' : 'at-badge--off'}">${ativa ? 'Internado' : 'Sem internação'}</span> <strong>Localização:</strong> ${escapeHtml(loc)}</p></div>
-            <div class="at-actions" style="flex:none">
+            <div class="at-actions" style="max-width:100%">
                 <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioTrocar()">${lucideIcon('arrow-left', 'w-4 h-4')} Voltar à consulta</button>
                 <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioImprimir()">${lucideIcon('printer', 'w-4 h-4')} Imprimir prontuário</button>
-                ${!ativa && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="abrirInternar()">${lucideIcon('bed-double', 'w-4 h-4')} Internar</button>` : ''}
+                ${!ativa && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="abrirInternar()">${lucideIcon('bed-double', 'w-4 h-4')} Internar</button>` : ''}
             </div>
         </section>
+        ${renderProntuarioAlertas(p)}
         <section class="at-card"><nav class="at-tabs cd-tabs">${abas.map(([id, rot]) => `<button type="button" class="at-tab ${st.tab === id ? 'is-active' : ''}" onclick="prontuarioAba('${id}')">${rot}</button>`).join('')}</nav>
             <div class="cd-panel">${renderProntuarioAba(st, p, ativa)}</div></section>
+    </div>`;
+}
+
+/** Faixa de alertas do paciente: alergias registradas e resultados de exame marcados como críticos. */
+function renderProntuarioAlertas(p) {
+    const alergias = separarAlergias(registrosDoPaciente('ALERGIA')).ativas;   // inativadas ficam só no histórico (#30)
+    const criticos = examesCriticos(MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id));
+    const linhaAlergia = alergias.length
+        ? `<strong>Alergias registradas:</strong> ${alergias.map(r => escapeHtml(String(r.texto).replace(/^Agente: /, ''))).join(' | ')}`
+        : 'Nenhuma alergia registrada neste prontuário. Isso não confirma que o paciente não tenha alergias: pergunte e registre na aba Alergias.';
+    return `<div class="pr-alertas" role="region" aria-label="Alertas do paciente">
+        <div class="tri-banner ${alergias.length ? 'tri-banner--warn' : 'tri-banner--info'}">${linhaAlergia}</div>
+        ${criticos.map(s => `<div class="tri-banner tri-banner--warn"><strong>Resultado crítico:</strong> ${escapeHtml(s.tipo_nome)} · ${escapeHtml(formatDateTimeBR(s.resultado.em))} · comunicado a ${escapeHtml(s.resultado.comunicado_a)}</div>`).join('')}
     </div>`;
 }
 
@@ -181,10 +198,13 @@ function renderProntuarioAba(st, p, ativa) {
     }
     if (st.tab === 'internacoes') {
         const lista = internacoesDoPaciente(p.id);
-        return lista.length ? `<table class="tri-table cd-table"><thead><tr><th>Internação</th><th>Leito</th><th>Origem</th><th>Situação</th><th>Alta</th></tr></thead><tbody>${lista.map(i => `<tr><td data-label="Internação">${escapeHtml(formatDateTimeBR(i.data_hora_internacao))}</td><td data-label="Leito">${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)} · ${i.andar}º andar</td><td data-label="Origem">${escapeHtml(i.setor_origem)}</td><td data-label="Situação">${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</td><td data-label="Alta">${i.data_hora_alta ? escapeHtml(formatDateTimeBR(i.data_hora_alta)) : '—'}</td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhuma internação registrada.</div>';
+        return lista.length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>Internação</th><th>Leito</th><th>Origem</th><th>Situação</th><th>Alta</th></tr></thead><tbody>${lista.map(i => `<tr><td data-label="Internação">${escapeHtml(formatDateTimeBR(i.data_hora_internacao))}</td><td data-label="Leito">${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)} · ${i.andar}º andar</td><td data-label="Origem">${escapeHtml(i.setor_origem)}</td><td data-label="Situação">${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</td><td data-label="Alta">${i.data_hora_alta ? escapeHtml(formatDateTimeBR(i.data_hora_alta)) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="at-empty">Nenhuma internação registrada.</div>';
     }
+    if (st.tab === 'atendimentos') return renderProntuarioAtendimentos(st, p);
+    if (st.tab === 'documentos') return renderProntuarioDocumentos(st, p);
     if (st.tab === 'exames') return renderProntuarioExames(st, p, ativa);
     if (st.tab === 'procedimentos') return renderProntuarioProcedimentos(p);
+    if (st.tab === 'sinais' || st.tab === 'checagens') return renderProntuarioEnfermagem(st, p, st.tab);
     return renderProntuarioClinico(st.tab, ativa);
 }
 
@@ -192,19 +212,31 @@ function renderProntuarioClinico(tipo, ativa) {
     const cfg = TIPOS_CLINICOS[tipo];
     const regs = registrosDoPaciente(tipo);
     const podeEscrever = hasPermission(cfg.permissao);
+    const exigeInternacao = !TIPOS_SEM_INTERNACAO.includes(tipo);
+    const podeNovo = podeEscrever && (!exigeInternacao || Boolean(ativa));
+    const alInativa = new Set((tipo === 'ALERGIA' ? separarAlergias(regs).inativas : []).map(r => r.id));
     const filhos = (id) => (MOCK_DATA.REGISTROS_CLINICOS.items || []).filter(r => r.complementa_id === id).sort((a, b) => String(a.em).localeCompare(String(b.em)));
+    const origem = (r) => (r.atendimento_senha ? ` · atendimento ${escapeHtml(r.atendimento_senha)}` : '');
     const cartao = (r, aninhado = false) => `<article class="pr-reg ${aninhado ? 'pr-reg--filho' : ''}">
-        <header><strong>${r.cid ? escapeHtml(r.cid) + ' · ' : ''}${aninhado ? 'Complemento' : escapeHtml(cfg.rotulo)}</strong> <small>${escapeHtml(formatDateTimeBR(r.em))} · ${escapeHtml(r.autor_nome)}${r.registro_conselho ? ' · ' + escapeHtml(r.registro_conselho) : ''} · assinado</small></header>
-        ${(r.itens || []).length ? `<table class="tri-table cd-table"><thead><tr><th>Medicamento / conduta</th><th>Dose</th><th>Via</th><th>Frequência</th><th>Duração</th><th>Obs.</th></tr></thead><tbody>${r.itens.map(i => `<tr><td data-label="Medicamento">${escapeHtml(i.medicamento)}</td><td data-label="Dose">${escapeHtml(i.dose)}</td><td data-label="Via">${escapeHtml(i.via || '—')}</td><td data-label="Frequência">${escapeHtml(i.frequencia)}</td><td data-label="Duração">${escapeHtml(i.duracao || '—')}</td><td data-label="Obs.">${escapeHtml(i.observacao || '—')}</td></tr>`).join('')}</tbody></table>` : `<p>${escapeHtml(r.texto)}</p>`}
-        ${!aninhado && podeEscrever && ativa && r.internacao_id === ativa.id ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioComplementar('${tipo}', '${r.id}')">Complementar</button>` : ''}
+        <header><strong>${r.cid ? escapeHtml(r.cid) + ' · ' : ''}${aninhado ? 'Complemento' : escapeHtml(cfg.rotulo)}${!aninhado && alInativa.has(r.id) ? ' (inativada)' : ''}</strong> <small>${escapeHtml(formatDateTimeBR(r.em))} · ${escapeHtml(r.autor_nome)}${r.registro_conselho ? ' · ' + escapeHtml(r.registro_conselho) : ''}${origem(r)} · assinado</small></header>
+        ${(r.itens || []).length && tipo === 'CUIDADO' ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>Cuidado</th><th>Frequência</th><th>Obs.</th></tr></thead><tbody>${r.itens.map(i => `<tr><td data-label="Cuidado">${escapeHtml(i.cuidado)}</td><td data-label="Frequência">${escapeHtml(i.frequencia)}</td><td data-label="Obs.">${escapeHtml(i.observacao || '—')}</td></tr>`).join('')}</tbody></table></div>`
+            : ((r.itens || []).length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>Medicamento / conduta</th><th>Dose</th><th>Via</th><th>Frequência</th><th>Duração</th><th>Obs.</th></tr></thead><tbody>${r.itens.map(i => `<tr><td data-label="Medicamento">${escapeHtml(i.medicamento)}</td><td data-label="Dose">${escapeHtml(i.dose)}</td><td data-label="Via">${escapeHtml(i.via || '—')}</td><td data-label="Frequência">${escapeHtml(i.frequencia)}</td><td data-label="Duração">${escapeHtml(i.duracao || '—')}</td><td data-label="Obs.">${escapeHtml(i.observacao || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<p>${escapeHtml(r.texto)}</p>`)}
+        ${!aninhado && podeEscrever ? `<div class="at-actions pr-acoes"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioComplementar('${tipo}', '${r.id}')">Complementar</button>${tipo === 'ALERGIA' && !alInativa.has(r.id) ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioInativarAlergia('${r.id}')">Inativar alergia</button>` : ''}</div>` : ''}
         ${!aninhado ? filhos(r.id).map(f => cartao(f, true)).join('') : ''}</article>`;
+    const formularioNovo = tipo === 'ALERGIA'
+        ? `<div class="at-form"><div class="at-field"><label class="at-label" for="pr_al_agente">Agente (medicamento, alimento, látex...) *</label><input class="at-input" id="pr_al_agente" maxlength="120" autocomplete="off" data-keep="pr_al_agente"></div>
+            <div class="at-field"><label class="at-label" for="pr_al_reacao">Reação</label><input class="at-input" id="pr_al_reacao" maxlength="200" autocomplete="off" data-keep="pr_al_reacao"></div>
+            <div class="at-field"><label class="at-label" for="pr_al_grav">Gravidade</label><select class="at-select" id="pr_al_grav" data-keep="pr_al_grav">${GRAVIDADES_ALERGIA.map(g => `<option ${g === 'Não informada' ? 'selected' : ''}>${g}</option>`).join('')}</select></div></div>`
+        : `${tipo === 'DIAGNOSTICO' ? '<div class="at-field"><label class="at-label" for="pr_cid">CID-10 *</label><input class="at-input" id="pr_cid" maxlength="7" placeholder="Ex.: I10" autocomplete="off" style="max-width:200px;text-transform:uppercase"></div>' : ''}
+            ${tipo === 'PRESCRICAO' || tipo === 'CUIDADO' ? `<div id="pr_itens"></div><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="${tipo === 'CUIDADO' ? 'cuidadoAddItem' : 'prescricaoAddItem'}()">${lucideIcon('plus', 'w-4 h-4')} Adicionar item</button>` : `<textarea class="at-textarea" id="pr_texto" rows="3" maxlength="2000" data-keep="pr_texto_${tipo}"></textarea>`}
+            ${cfg.exigeConselho ? `<div class="at-field" style="margin-top:10px;max-width:320px"><label class="at-label" for="pr_conselho">Seu registro no conselho (COREN/CRM) *</label><input class="at-input" id="pr_conselho" maxlength="30" autocomplete="off" value="${escapeHtml(conselhoLembrado())}" data-keep="pr_conselho"></div>` : ''}`;
+    const acaoNovo = tipo === 'PRESCRICAO' ? 'prontuarioRegistrarPrescricao()' : (tipo === 'CUIDADO' ? 'prontuarioRegistrarCuidado()' : (tipo === 'ALERGIA' ? 'prontuarioRegistrarAlergia()' : `prontuarioRegistrar('${tipo}')`));
     return `
-        ${podeEscrever && ativa ? `<div class="at-card" style="margin-bottom:14px"><label class="at-label" for="pr_texto">Novo registro de ${cfg.rotulo.toLowerCase()}</label>
-            ${tipo === 'DIAGNOSTICO' ? '<div class="at-field"><label class="at-label" for="pr_cid">CID-10 *</label><input class="at-input" id="pr_cid" maxlength="7" placeholder="Ex.: I10" autocomplete="off" style="max-width:200px;text-transform:uppercase"></div>' : ''}
-            ${tipo === 'PRESCRICAO' ? `<div id="pr_itens"></div><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prescricaoAddItem()">${lucideIcon('plus', 'w-4 h-4')} Adicionar item</button>` : `<textarea class="at-textarea" id="pr_texto" rows="3" maxlength="2000" data-keep="pr_texto_${tipo}"></textarea>`}
-            <div class="at-actions" style="margin-top:10px;align-items:center"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="${tipo === 'PRESCRICAO' ? 'prontuarioRegistrarPrescricao()' : `prontuarioRegistrar('${tipo}')`}">Assinar e registrar</button>
+        ${podeNovo ? `<div class="at-card" style="margin-bottom:14px"><label class="at-label" for="pr_texto">Novo registro de ${cfg.rotulo.toLowerCase()}</label>
+            ${formularioNovo}
+            <div class="at-actions pr-acoes" style="margin-top:10px;align-items:center"><button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="${acaoNovo}">Assinar e registrar</button>
             <span class="at-hint">Registros assinados não podem ser alterados. Correções entram como complemento.</span></div></div>`
-            : (podeEscrever ? '<div class="tri-banner tri-banner--warn">Sem internação ativa: não é possível registrar.</div>' : '<div class="at-hint" style="margin-bottom:10px">Seu perfil pode consultar, mas não registrar este tipo de informação.</div>')}
+            : (podeEscrever ? '<div class="tri-banner tri-banner--warn" style="margin-bottom:14px">Sem internação ativa: novos registros não são feitos aqui. O atendimento de urgência/ambulatório é registrado em Assistência › Atendimento Médico e entra neste prontuário ao ser concluído. Os registros existentes podem ser complementados.</div>' : '<div class="at-hint" style="margin-bottom:10px">Seu perfil pode consultar, mas não registrar este tipo de informação.</div>')}
         ${regs.filter(r => !r.complementa_id).map(r => cartao(r)).join('') || '<div class="at-empty">Nenhum registro.</div>'}`;
 }
 
@@ -212,8 +244,10 @@ const prontuarioRegistrar = aviso(async (tipo, complementaId = '') => {
     const st = prontuarioState();
     const ativa = internacaoAtivaDoPaciente(st.pacienteId);
     const texto = document.getElementById(complementaId ? 'pr_compl_texto' : 'pr_texto')?.value;
-    const cid = document.getElementById('pr_cid')?.value || (complementaId ? (MOCK_DATA.REGISTROS_CLINICOS.items.find(r => r.id === complementaId) || {}).cid : '');
-    await registrarClinico({ internacao: ativa, tipo, texto, cid, complementa_id: complementaId });
+    const cid = complementaId ? ((MOCK_DATA.REGISTROS_CLINICOS.items.find(r => r.id === complementaId) || {}).cid || '') : (document.getElementById('pr_cid')?.value || '');
+    const conselho = (document.getElementById(complementaId ? 'pr_compl_conselho' : 'pr_conselho') || {}).value || '';
+    await registrarClinico({ internacao: ativa, paciente_id: st.pacienteId, tipo, texto, cid, complementa_id: complementaId, registro_conselho: conselho });
+    lembrarConselho(conselho);
     showMsg('Registro assinado e salvo.');
     fecharModais();
     renderFresh();
@@ -233,14 +267,45 @@ function prescricaoAddItem() {
 const prontuarioRegistrarPrescricao = aviso(async () => {
     const st = prontuarioState();
     const itens = [...document.querySelectorAll('#pr_itens .pr-item')].map(r => Object.fromEntries(['medicamento', 'dose', 'via', 'frequencia', 'duracao', 'observacao'].map(k => [k, r.querySelector('.i-' + k).value])));
-    await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), tipo: 'PRESCRICAO', itens });
+    // Alerta (não bloqueia): medicamento com o mesmo nome de uma alergia ativa. Quem prescreve decide.
+    const ativas = separarAlergias(registrosDoPaciente('ALERGIA')).ativas;
+    const avisos = itens.map(i => [i.medicamento, cruzarAlergiaMedicamento(ativas, i.medicamento)]).filter(([, c]) => c.length).map(([m, c]) => avisoConflitoAlergia(m, c));
+    if (avisos.length && !confirm(avisos.join('\n') + '\n\nRegistrar a prescrição mesmo assim?')) return;
+    await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), paciente_id: st.pacienteId, tipo: 'PRESCRICAO', itens });
     showMsg('Prescrição assinada e salva.');
     renderFresh();
 });
 
+const prontuarioRegistrarAlergia = aviso(async () => {
+    const st = prontuarioState();
+    const v = (id) => document.getElementById(id).value;
+    const texto = montarTextoAlergia({ agente: v('pr_al_agente'), reacao: v('pr_al_reacao'), gravidade: v('pr_al_grav') });
+    await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), paciente_id: st.pacienteId, tipo: 'ALERGIA', texto });
+    showMsg('Alergia registrada e assinada.');
+    renderFresh();
+});
+
+/** Inativa uma alergia: grava um complemento assinado com o motivo. O registro original e o histórico continuam. */
+function prontuarioInativarAlergia(id) {
+    const d = hModal('Inativar alergia', `<p class="at-hint">A alergia deixa de aparecer nos alertas e nas conferências, mas continua no histórico do prontuário com o motivo, o seu nome e a data. Não é apagada.</p>
+        <label class="at-field"><span class="at-label">Motivo *</span><input class="at-input" id="pr_inat_motivo" maxlength="200" autocomplete="off" placeholder="Ex.: teste de provocação negativo, registro feito por engano"></label>
+        <p class="at-error" id="pr_inat_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="pr_inat_ok">Inativar</button></div>`, 'md');
+    d.querySelector('#pr_inat_ok').onclick = async () => {
+        d.querySelector('#pr_inat_erro').textContent = '';
+        try {
+            const st = prontuarioState();
+            await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), paciente_id: st.pacienteId, tipo: 'ALERGIA', texto: textoInativacaoAlergia(d.querySelector('#pr_inat_motivo').value), complementa_id: id });
+            showMsg('Alergia inativada (continua no histórico).');
+            fecharModais(); renderFresh();
+        } catch (err) { d.querySelector('#pr_inat_erro').textContent = err.message; }
+    };
+}
+
 function prontuarioComplementar(tipo, id) {
     const d = hModal('Complementar registro', `<p class="at-hint">O registro original continua inalterado; o complemento é assinado por você e fica ligado a ele.</p>
         <textarea class="at-textarea" id="pr_compl_texto" rows="4" maxlength="2000"></textarea>
+        ${(TIPOS_CLINICOS[tipo] || {}).exigeConselho ? `<div class="at-field" style="margin-top:10px"><label class="at-label" for="pr_compl_conselho">Seu registro no conselho (COREN/CRM) *</label><input class="at-input" id="pr_compl_conselho" maxlength="30" autocomplete="off" value="${escapeHtml(conselhoLembrado())}"></div>` : ''}
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--primary" id="pr_compl_ok">Assinar complemento</button></div>`, 'md');
     d.querySelector('#pr_compl_ok').onclick = () => prontuarioRegistrar(tipo, id);
 }
@@ -253,26 +318,31 @@ function renderProntuarioExames(st, p, ativa) {
     return `
         ${hasPermission('exame_solicitar') ? `<div class="at-actions" style="margin-bottom:14px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameAbrirForm()">${lucideIcon('plus', 'w-4 h-4')} Nova solicitação de exame</button></div>` : ''}
         <h3 class="at-label" style="margin:0 0 6px">Solicitações</h3>
-        ${sols.length ? `<table class="tri-table cd-table"><thead><tr><th>Protocolo</th><th>Exame</th><th>Prioridade</th><th>Situação</th><th>Agenda</th><th></th></tr></thead><tbody>${sols.map(s => `<tr>
+        ${sols.length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>Protocolo</th><th>Exame</th><th>Prioridade</th><th>Situação</th><th>Agenda</th><th>Ações</th></tr></thead><tbody>${sols.map(s => `<tr>
             <td data-label="Protocolo">${escapeHtml(s.protocolo)}<br><small>${escapeHtml(formatDateBR(s.data_solicitacao))}</small></td><td data-label="Exame">${escapeHtml(s.tipo_nome)}</td>
-            <td data-label="Prioridade">${badgePrioridade(s.prioridade)}</td><td data-label="Situação">${escapeHtml(rotuloStatusExame(s.status))}</td>
+            <td data-label="Prioridade">${badgePrioridade(s.prioridade)}</td><td data-label="Situação">${escapeHtml(rotuloStatusExame(s.status))}${selosDoResultado(s)}</td>
             <td data-label="Agenda">${s.agendamento ? escapeHtml(formatDateBR(s.agendamento.data) + ' ' + s.agendamento.hora) : '—'}</td>
-            <td><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameDetalhe('${s.id}')">Detalhes</button></td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhuma solicitação.</div>'}
+            <td data-label="Ações" class="rf-acoes"><div class="rf-btns"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameDetalhe('${s.id}')">Detalhes</button></div></td></tr>`).join('')}</tbody></table></div>` : '<div class="at-empty">Nenhuma solicitação.</div>'}
         <h3 class="at-label" style="margin:16px 0 6px">Resultados e laudos</h3>
-        ${resultados.map(r => `<article class="pr-reg"><header><strong>Resultado</strong> <small>${escapeHtml(formatDateTimeBR(r.em))} · ${escapeHtml(r.autor_nome)}</small></header><p>${escapeHtml(r.texto)}</p></article>`).join('') || '<div class="at-hint">Nenhum resultado registrado.</div>'}`;
+        ${resultados.filter(r => !r.complementa_id).map(r => `<article class="pr-reg"><header><strong>${escapeHtml(r.exame_nome || 'Resultado')}</strong> ${r.critico ? '<span class="at-badge at-badge--emergencia">crítico</span>' : ''} <small>${escapeHtml(formatDateTimeBR(r.em))} · ${escapeHtml(r.autor_nome)}${r.registro_conselho ? ' · ' + escapeHtml(r.registro_conselho) : ''}${r.protocolo ? ' · ' + escapeHtml(r.protocolo) : ''} · assinado</small></header>
+            <p>${escapeHtml(r.texto)}</p>${r.critico ? `<p class="at-hint">Comunicado a ${escapeHtml(r.comunicado_a)}.</p>` : ''}
+            ${hasPermission('exame_resultado') ? `<div class="at-actions pr-acoes"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioComplementar('RESULTADO', '${r.id}')">Complementar</button></div>` : ''}
+            ${resultados.filter(f => f.complementa_id === r.id).sort((a, b) => String(a.em).localeCompare(String(b.em))).map(f => `<article class="pr-reg pr-reg--filho"><header><strong>Complemento</strong> <small>${escapeHtml(formatDateTimeBR(f.em))} · ${escapeHtml(f.autor_nome)} · assinado</small></header><p>${escapeHtml(f.texto)}</p></article>`).join('')}</article>`).join('') || '<div class="at-hint">Nenhum resultado registrado.</div>'}`;
 }
 
 const badgePrioridade = (p) => `<span class="at-badge ${p === 'URGENTE' ? 'at-badge--emergencia' : 'at-badge--outros'}">${p === 'URGENTE' ? 'Urgente' : 'Eletivo'}</span>`;
 
 /** Formulário de solicitação: dados do paciente vêm do cadastro e são mostrados para conferência. */
-function exameAbrirForm() {
+/** opcoes (uso fora do prontuário, ex.: atendimento médico): { paciente, atendimento_id, aoEmitir(sol) }. Sem opções, usa o prontuário aberto. */
+function exameAbrirForm(opcoes) {
     try { requirePermission('exame_solicitar'); } catch (err) { return showMsg(err.message, 'error'); }
+    const op = opcoes && opcoes.paciente ? opcoes : {};
     const st = prontuarioState();
-    const p = st.paciente;
+    const p = op.paciente || st.paciente;
     const tipos = tiposExame();
     if (!tipos.length) return showMsg('Nenhum tipo de exame ativo. Peça ao administrador para configurar em Cadastro › Assistência › Tipos de Exame.', 'error');
     const dados = dadosPacienteParaFormulario(p);
-    const ativa = internacaoAtivaDoPaciente(p.id);
+    const ativa = op.paciente ? null : internacaoAtivaDoPaciente(p.id);
     const cfg = MOCK_DATA.CONFIG_HOSPITAL || {};
     const linha = (r, v) => `<div><dt>${escapeHtml(r)}</dt><dd>${escapeHtml(v || '—')}</dd></div>`;
     const campo = (id, rot, ctl, span2 = false) => `<div class="at-field${span2 ? ' at-span-2' : ''}"><label class="at-label" for="${id}">${rot}</label>${ctl}</div>`;
@@ -312,13 +382,13 @@ function exameAbrirForm() {
             tipo_exame_id: v('ex_tipo'), prioridade: v('ex_prior'), prioridade_justificativa: v('ex_prior_j'), proc_codigo: v('ex_cod'), proc_nome: v('ex_nome'), proc_qtd: v('ex_qtd'),
             secundarios: [...d.querySelectorAll('.ex-sec')].map(r => ({ codigo: r.querySelector('.s-cod').value, nome: r.querySelector('.s-nome').value, qtd: r.querySelector('.s-qtd').value })),
             diagnostico_descricao: v('ex_diag'), cid_principal: v('ex_cid1'), cid_secundario: v('ex_cid2'), cid_causas: v('ex_cid3'), observacoes: v('ex_obs'),
-            solic_tipo_doc: v('ex_sdoc'), solic_documento: v('ex_sdocn'), solic_registro: v('ex_sreg'), confere: d.querySelector('#ex_confere').checked
+            solic_tipo_doc: v('ex_sdoc'), solic_documento: v('ex_sdocn'), solic_registro: v('ex_sreg'), confere: d.querySelector('#ex_confere').checked, atendimento_id: op.atendimento_id || ''
         };
         try {
             const sol = await emitirSolicitacaoExame(p, ativa, form);
             d.close();
             showMsg(`Solicitação ${sol.protocolo} emitida.`);
-            renderFresh();
+            if (op.aoEmitir) op.aoEmitir(sol); else renderFresh();
         } catch (err) { d.querySelector('#ex_erro').textContent = err.message; }
     };
 }
@@ -353,29 +423,35 @@ function procedimentosDoPaciente(p) {
 
 function renderProntuarioProcedimentos(p) {
     const l = procedimentosDoPaciente(p);
-    return l.length ? `<table class="tri-table cd-table"><thead><tr><th>Data</th><th>Tipo</th><th>Procedimento</th><th>Detalhes</th><th>Responsável</th></tr></thead><tbody>${l.map(x => `<tr><td data-label="Data">${escapeHtml(formatDateTimeBR(x.quando))}</td><td data-label="Tipo">${escapeHtml(x.tipo)}</td><td data-label="Procedimento">${escapeHtml(x.descricao)}</td><td data-label="Detalhes">${escapeHtml(x.detalhe)}</td><td data-label="Responsável">${escapeHtml(x.responsavel)}</td></tr>`).join('')}</tbody></table>` : '<div class="at-empty">Nenhum procedimento registrado.</div>';
+    return l.length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>Data</th><th>Tipo</th><th>Procedimento</th><th>Detalhes</th><th>Responsável</th></tr></thead><tbody>${l.map(x => `<tr><td data-label="Data">${escapeHtml(formatDateTimeBR(x.quando))}</td><td data-label="Tipo">${escapeHtml(x.tipo)}</td><td data-label="Procedimento">${escapeHtml(x.descricao)}</td><td data-label="Detalhes">${escapeHtml(x.detalhe)}</td><td data-label="Responsável">${escapeHtml(x.responsavel)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="at-empty">Nenhum procedimento registrado.</div>';
 }
 
 /** Prontuário completo para impressão/PDF: identificação, internações, diagnósticos, evoluções, prescrições, exames e procedimentos. */
-function prontuarioImprimir() {
+async function prontuarioImprimir() {
     const st = prontuarioState();
     const p = st.paciente;
     registrarAcesso('paciente', p.id, 'Prontuário: impressão');
+    if (!st.atend || st.atend.pacienteId !== p.id || st.atend.carregando) await prontuarioCarregarAtendimentos(p.id);   // o histórico de atendimentos entra na impressão
     const d = dadosPacienteParaFormulario(p);
     const e = escapeHtml;
     const regs = (tipo) => registrosDoPaciente(tipo);
-    const reg = (r) => `<div class="r"><b>${r.cid ? e(r.cid) + ' · ' : ''}${e(formatDateTimeBR(r.em))}</b> · ${e(r.autor_nome)}${r.registro_conselho ? ' · ' + e(r.registro_conselho) : ''} (assinado)<br>${(r.itens || []).length ? r.itens.map(i => '• ' + e(textoDoItemPrescricao(i))).join('<br>') : e(r.texto)}</div>`;
+    const reg = (r) => `<div class="r"><b>${r.complementa_id ? 'Complemento · ' : ''}${r.critico ? 'CRÍTICO · ' : ''}${r.cid ? e(r.cid) + ' · ' : ''}${e(formatDateTimeBR(r.em))}</b> · ${e(r.autor_nome)}${r.registro_conselho ? ' · ' + e(r.registro_conselho) : ''} (assinado)<br>${(r.itens || []).length ? r.itens.map(i => '• ' + e(r.tipo === 'CUIDADO' ? textoDoItemCuidado(i) : textoDoItemPrescricao(i))).join('<br>') : e(r.texto)}</div>`;
     cadImprimirHtml(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Prontuário ${e(p.prontuario)}</title><style>
         @page{size:A4 portrait;margin:12mm} body{font-family:Arial,sans-serif;font-size:11px;color:#111} h1{font-size:17px;margin:0} h2{font-size:12px;background:#e5e7eb;padding:3px 6px;margin:14px 0 6px;text-transform:uppercase}
         .g{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px} .r{border-bottom:1px solid #ccc;padding:4px 0;white-space:pre-wrap} table{width:100%;border-collapse:collapse} th,td{border:1px solid #999;padding:3px 5px;text-align:left}</style></head><body>
         <h1>${e(APP_INFO.hospital)}</h1><div>Prontuário eletrônico · emitido em ${e(formatDateTimeBR(new Date().toISOString()))} por ${e(state.currentUser.name)}</div>
         <h2>Identificação</h2><div class="g"><div><b>Paciente:</b> ${e(p.nome)}</div><div><b>Prontuário:</b> ${e(p.prontuario || '')}</div><div><b>Nascimento:</b> ${p.data_nascimento ? e(formatDateBR(p.data_nascimento)) : ''}</div><div><b>Sexo:</b> ${e(d.sexo)}</div><div><b>CNS:</b> ${e(d.cns)}</div><div><b>CPF:</b> ${p.cpf ? e(maskCPF(p.cpf)) : ''}</div><div><b>Mãe:</b> ${e(d.nome_mae)}</div><div><b>Telefone:</b> ${d.telefone ? e(formatPhone(d.telefone)) : ''}</div><div style="grid-column:span 2"><b>Endereço:</b> ${e(d.endereco)} ${e([d.municipio, d.uf].filter(Boolean).join('/'))}</div></div>
+        <h2>Alergias e alertas</h2>${regs('ALERGIA').map(reg).join('') || '<div>Nenhuma alergia registrada.</div>'}
+        <h2>Atendimentos</h2><table><tr><th>Chegada</th><th>Senha</th><th>Tipo</th><th>Situação</th><th>Desfecho</th><th>Hipóteses</th></tr>${((st.atend && st.atend.itens) || []).map(({ at, consulta }) => `<tr><td>${e(formatDateTimeBR(at.chegada_em))}</td><td>${e(at.senha)}</td><td>${e(at.tipo_nome || '')}</td><td>${e(STATUS_ATENDIMENTO[at.status] || at.status)}</td><td>${at.desfecho ? e(DESFECHOS_CONSULTA[at.desfecho.tipo] || at.desfecho.tipo) : ''}</td><td>${consulta && consulta.status === 'CONCLUIDA' ? e((consulta.hipoteses || []).map(h => h.cid + ' ' + h.descricao).join(' | ')) : ''}</td></tr>`).join('') || '<tr><td colspan="6">Nenhum atendimento com senha.</td></tr>'}</table>
         <h2>Internações</h2><table><tr><th>Internação</th><th>Leito</th><th>Origem</th><th>Situação</th><th>Alta</th></tr>${internacoesDoPaciente(p.id).map(i => `<tr><td>${e(formatDateTimeBR(i.data_hora_internacao))}</td><td>${e((leitoPorId(i.leito_id) || {}).rotulo)} · ${i.andar}º andar · ${e(i.ala)}</td><td>${e(i.setor_origem)}</td><td>${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</td><td>${i.data_hora_alta ? e(formatDateTimeBR(i.data_hora_alta)) : ''}</td></tr>`).join('') || '<tr><td colspan="5">Sem internações.</td></tr>'}</table>
         <h2>Diagnósticos (CID-10)</h2>${regs('DIAGNOSTICO').map(reg).join('') || '<div>Nenhum.</div>'}
         <h2>Evoluções</h2>${regs('EVOLUCAO').map(reg).join('') || '<div>Nenhuma.</div>'}
+        <h2>Evolução de enfermagem e intercorrências</h2>${regs('EVOLUCAO_ENFERMAGEM').concat(regs('INTERCORRENCIA')).sort((a, b) => String(b.em).localeCompare(String(a.em))).map(reg).join('') || '<div>Nenhuma.</div>'}
+        <h2>Prescrição de cuidados</h2>${regs('CUIDADO').map(reg).join('') || '<div>Nenhuma.</div>'}
         <h2>Prescrições</h2>${regs('PRESCRICAO').map(reg).join('') || '<div>Nenhuma.</div>'}
         <h2>Exames solicitados</h2><table><tr><th>Protocolo</th><th>Exame</th><th>Prioridade</th><th>Situação</th></tr>${MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id).map(s => `<tr><td>${e(s.protocolo)}</td><td>${e(s.tipo_nome)}</td><td>${s.prioridade === 'URGENTE' ? 'Urgente' : 'Eletivo'}</td><td>${e(rotuloStatusExame(s.status))}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum.</td></tr>'}</table>
         <h2>Resultados e laudos</h2>${regs('RESULTADO').map(reg).join('') || '<div>Nenhum.</div>'}
+        <h2>Documentos emitidos</h2><table><tr><th>Número</th><th>Tipo</th><th>Emitido em</th><th>Por</th></tr>${((MOCK_DATA.DOCUMENTOS_CLINICOS || {}).items || []).map(x => `<tr><td>${e(x.numero)}</td><td>${e(x.tipo_rotulo)}</td><td>${e(formatDateTimeBR(x.emitido_em))}</td><td>${e(x.emitido_por_nome)}${x.registro_conselho ? ' · ' + e(x.registro_conselho) : ''}</td></tr>`).join('') || '<tr><td colspan="4">Nenhum.</td></tr>'}</table>
         <h2>Procedimentos</h2>${procedimentosDoPaciente(p).map(x => `<div class="r"><b>${e(formatDateTimeBR(x.quando))}</b> · ${e(x.tipo)}: ${e(x.descricao)} — ${e(x.detalhe)} (${e(x.responsavel)})</div>`).join('') || '<div>Nenhum.</div>'}
         <p style="margin-top:14px;color:#555;font-size:9px">Documento com dados pessoais e clínicos protegidos pela LGPD. Guarde e descarte com segurança.</p></body></html>`);
 }

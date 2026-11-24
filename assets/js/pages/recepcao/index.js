@@ -10,8 +10,10 @@ function recepcaoState() {
 }
 
 function renderRecepcao() {
-    db_watch('recepcao');
+    db_watch('recepcao'); db_watch('atendimentos'); db_cadWatch('tipoatendimento'); db_cadWatch('convenio');
+    if (state.currentUser.role === 'ADMIN' && typeof garantirTiposAtendimentoPadrao === 'function' && !renderRecepcao._seed) { renderRecepcao._seed = true; garantirTiposAtendimentoPadrao().catch(() => {}); }
     const st = recepcaoState();
+    const aba = st.aba || 'cadastro';
     const data = st.editData || {};
     const editando = Boolean(st.editingId);
     const ultimos = MOCK_DATA.REGISTROS_RECEPCAO.slice(0, 12);
@@ -42,7 +44,8 @@ function renderRecepcao() {
         ${renderImmersiveHeader({ tone: 'blue', icon: 'user-round-plus', title: 'RECEPÇÃO HGP', subtitle: 'Cadastro e identificação rápida de pacientes' })}
 
         <div class="imm-body">
-            <div class="imm-grid imm-grid--form">
+            ${renderRecepcaoAbas(aba)}
+            ${aba === 'fila' ? renderRecepcaoFila() : `<div class="imm-grid imm-grid--form">
                 <section class="at-card" aria-labelledby="rec-form-title">
                     <h2 class="at-card__title" id="rec-form-title">${lucideIcon(editando ? 'pencil' : 'user-round-plus', 'w-6 h-6')} ${editando ? 'Editar cadastro do paciente' : 'Novo paciente'}</h2>
                     ${editando ? `<p class="tri-banner tri-banner--info" style="margin-bottom:16px">Editando: <strong>${escapeHtml(data.nome || '')}</strong>. As alterações ficam registradas na auditoria.</p>` : ''}
@@ -84,7 +87,7 @@ function renderRecepcao() {
                             </li>`).join('')}</ul>` : '<div class="at-empty">Nenhum registro ainda.</div>'}
                     </section>
                 </div>
-            </div>
+            </div>`}
         </div>
     </div>`;
 }
@@ -107,7 +110,8 @@ function renderRecepcaoResultados() {
                 <span>Cadastro: ${escapeHtml(formatDateTimeBR(p.criado_em))}</span>
             </div>
             <div class="at-item__actions">
-                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="recepcaoNovoAtendimento(${escapeHtml(JSON.stringify(p.id))})">${lucideIcon('plus-circle', 'w-4 h-4')} Novo atendimento</button>
+                <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="recepcaoCheckin(${escapeHtml(JSON.stringify(p.id))})">${lucideIcon('ticket', 'w-4 h-4')} Fazer check-in</button>
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="recepcaoHistorico(${escapeHtml(JSON.stringify(p.id))})">${lucideIcon('history', 'w-4 h-4')} Histórico</button>
                 ${podeEditar ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="recepcaoEditar(${escapeHtml(JSON.stringify(p.id))})">${lucideIcon('pencil', 'w-4 h-4')} Editar</button>` : ''}
             </div>
         </li>`).join('')}</ul>`;
@@ -218,9 +222,10 @@ function recepcaoConfirmarCadastro(paciente) {
     showMsg(`Paciente cadastrado: ${paciente.nome}`);
     showSuccessConfirm({
         titulo: 'Paciente cadastrado!',
-        linhas: [paciente.nome, `Prontuário: ${paciente.prontuario || '—'}`, `Atendimento registrado em ${formatDateTimeBR(nowISO())}`],
+        linhas: [paciente.nome, `Prontuário: ${paciente.prontuario || '—'}`, `Cadastro registrado em ${formatDateTimeBR(nowISO())}`, 'Para entrar na fila, faça o check-in.'],
         tone: 'blue',
-        botoes: [{ rotulo: 'NOVO CADASTRO', primario: true, acao: () => document.getElementById('rec_nome')?.focus() }]
+        botoes: [{ rotulo: 'FAZER CHECK-IN', primario: true, acao: () => recepcaoCheckin(paciente.id) },
+            { rotulo: 'NOVO CADASTRO', acao: () => document.getElementById('rec_nome')?.focus() }]
     });
 }
 
@@ -238,7 +243,7 @@ function recepcaoMostrarDuplicados(duplicados) {
                 <span>Nasc.: ${escapeHtml(formatDateBR(d.paciente.data_nascimento))}</span>
             </div>
             <div class="at-item__actions">
-                <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="recepcaoUsarExistente(${escapeHtml(JSON.stringify(d.paciente.id))})">Usar este paciente (novo atendimento)</button>
+                <button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="recepcaoUsarExistente(${escapeHtml(JSON.stringify(d.paciente.id))})">Usar este paciente (check-in)</button>
             </div>
         </li>`).join('');
 
@@ -309,20 +314,8 @@ function recepcaoCancelarEdicao() {
     renderFresh();
 }
 
+/** Abre o check-in (gera senha e coloca o paciente na fila). `observacoes` vira a queixa inicial. */
 async function recepcaoNovoAtendimento(id, observacoes = null) {
-    try {
-        const paciente = await db_getPaciente(id);
-        if (!paciente) throw new Error('Paciente não encontrado.');
-        const obs = observacoes !== null ? observacoes : (document.getElementById('rec_observacoes')?.value || '');
-        await registrarAtendimento(paciente, obs);
-        showMsg(`Novo atendimento registrado para ${paciente.nome}.`);
-        showSuccessConfirm({
-            titulo: 'Atendimento registrado!',
-            linhas: [paciente.nome, `Prontuário: ${paciente.prontuario || '—'}`, formatDateTimeBR(nowISO())],
-            tone: 'blue',
-            botoes: [{ rotulo: 'OK', primario: true }]
-        });
-    } catch (err) {
-        showMsg(err.message, 'error');
-    }
+    const queixa = observacoes !== null ? observacoes : (document.getElementById('rec_observacoes')?.value || '');
+    return recepcaoCheckin(id, queixa);
 }

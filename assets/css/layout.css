@@ -446,7 +446,7 @@
 .shell-root .pesquisa {
     position: relative;
     flex: 0 1 420px;
-    min-width: 0;
+    min-width: 150px;
 }
 
 .shell-root .pesquisa__campo {
@@ -668,6 +668,20 @@
         padding: 0 16px;
     }
 
+    /* o nome do usuário sai da barra para a pesquisa nunca ficar espremida (continua no menu do avatar) */
+    .shell-root .usermenu__name,
+    .shell-root .usermenu__chev {
+        display: none;
+    }
+
+    .shell-root .usermenu__button {
+        padding: 0 4px;
+    }
+
+    .shell-root .pesquisa {
+        flex: 1 1 0;
+    }
+
     .shell-root .pagebar {
         padding: 16px 16px 0;
     }
@@ -686,12 +700,14 @@
         display: none;
     }
 
+    /* tela curta: a pesquisa de telas sai da barra (ficava espremida); ficam menu, logo, tema, contato e usuário */
     .shell-root .pesquisa {
-        flex: 1 1 0;
+        display: none;
     }
 
     .shell-root .topbar__espaco {
-        display: none;
+        display: block;
+        flex: 1 1 auto;
     }
 
     .shell-root .pagebar {
@@ -700,6 +716,38 @@
 
     .shell-root .pagebar__filtro {
         flex: 1 1 100%;
+    }
+}
+
+/* Celular: botões do topo mais compactos para a pesquisa ter espaço e o avatar nunca sair da tela */
+@media (max-width: 560px) {
+    .shell-root .pesquisa {
+        min-width: 0;
+    }
+
+    .shell-root .topbar {
+        gap: 6px;
+        padding: 0 12px;
+    }
+
+    .shell-root .menu-toggle,
+    .shell-root .tema-toggle {
+        width: 40px;
+        height: 40px;
+    }
+
+    .shell-root .topbar__marca {
+        padding: 0;
+    }
+
+    .shell-root .topbar__logo {
+        width: 34px;
+        height: 34px;
+    }
+
+    .shell-root .pesquisa__campo {
+        gap: 6px;
+        padding: 0 10px;
     }
 }
 
@@ -715,6 +763,14 @@
 
     .shell-root .breadcrumb {
         display: none;
+    }
+
+    /* no celular o título da tela quebra em duas linhas em vez de ser cortado com reticências ("Mapa de Ocupaçã...") */
+    .shell-root .pagebar h1 {
+        overflow: visible;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
     }
 }
 

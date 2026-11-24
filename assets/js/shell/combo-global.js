@@ -20,6 +20,9 @@
         if (t.textContent !== texto) t.textContent = texto;
         t.classList.toggle('is-ph', vazio);
         if (btn.disabled !== sel.disabled) btn.disabled = sel.disabled;
+        // texto longo aparece com reticências no botão: o título mostra o nome inteiro
+        const dica = vazio ? '' : texto;
+        if ((btn.getAttribute('title') || '') !== dica) { if (dica) btn.setAttribute('title', dica); else btn.removeAttribute('title'); }
     }
 
     function enhance(sel) {

@@ -7,6 +7,14 @@
 .hs-kpi { padding: 14px 18px; border-radius: 16px; border: 1px solid var(--sh-line); background: var(--sh-surface); display: flex; flex-direction: column; gap: 2px; }
 .hs-kpi strong { font-size: 26px; font-weight: 800; color: var(--c); }
 .hs-kpi span { font-size: 13px; color: var(--sh-muted); }
+/* Indicadores do mapa (6 ou 7 cartões): 2 colunas no celular, 3 no tablet e todos em uma linha no monitor; o cartão que sobra ocupa a linha inteira em vez de ficar sozinho */
+.cd-kpis.hs-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hs-kpis[data-n="7"] > :last-child { grid-column: 1 / -1; }
+@media (min-width: 480px) { .cd-kpis.hs-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1180px) {
+    .cd-kpis.hs-kpis { grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); }
+    .hs-kpis[data-n="7"] > :last-child { grid-column: auto; }
+}
 .hs-sel { min-height: 48px; height: 48px; font-size: 15px; }
 .hs-legenda { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-left: auto; font-size: 13px; color: var(--sh-muted); }
 .hs-legenda i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 6px; }
@@ -30,6 +38,20 @@ html[data-tema='escuro'] .hs-leito { background: transparent; }
 .pr-reg header small { color: var(--sh-muted); }
 .pr-reg p { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pr-reg--filho { margin: 8px 0 0 18px; background: var(--sh-surface-2); }
+.pr-reg .about-list { margin: 8px 0; }
+.pr-reg h4.at-label { margin: 12px 0 4px; }
+.pr-alertas { display: grid; gap: 8px; }
+.pr-alertas .tri-banner { overflow-wrap: anywhere; }
+.pr-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.pr-acoes .at-btn { flex: 0 0 auto; }
+.pr-det { margin-top: 10px; }
+.pr-det summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+@media (max-width: 560px) {
+    .pr-reg--filho { margin-left: 8px; }
+    .pr-acoes .at-btn { flex: 1 1 100%; }
+    .pr-head .at-actions { width: 100%; }
+    .pr-head .at-actions .at-btn { flex: 1 1 100%; }   /* botões do topo do prontuário: mesma largura, um por linha */
+}
 
 /* Pré-visualização de impressão */
 .prev-corpo { display: flex; flex-direction: column; gap: 10px; }
@@ -37,3 +59,55 @@ html[data-tema='escuro'] .hs-leito { background: transparent; }
 .prev-quadro { width: 100%; height: 68vh; border: 1px solid var(--sh-line); border-radius: 10px; background: #fff; }
 
 .pagebar__imprimir { margin-left: auto; flex: none; }
+
+/* Painel de disponibilidade de leitos: tela imersiva escura (mesma base do painel de chamadas, .pn-*). Só números, nada de paciente. */
+.pl-main { flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 20px 24px 28px; min-width: 0; }
+.pl-kpis { display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); gap: 14px; }   /* uma linha só no monitor; 3 ou 2 por linha quando estreita, sempre em colunas iguais */
+.pl-kpi { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; padding: 16px 18px; border-radius: 18px; background: #12306b; }
+.pl-kpi strong { font-size: clamp(32px, 4.4vw, 56px); line-height: 1; font-variant-numeric: tabular-nums; }
+.pl-kpi span { font-size: 15px; line-height: 1.3; opacity: 0.88; overflow-wrap: anywhere; }
+.pl-kpi--livre strong, .pl-num--livre strong { color: #4ade80; }
+.pl-kpi--ocupado strong, .pl-num--ocupado strong { color: #f87171; }
+.pl-kpi--higien strong, .pl-num--higien strong { color: #fbbf24; }
+.pl-kpi--bloq strong, .pl-num--bloq strong { color: #cbd5e1; }
+.pl-kpi--taxa strong { color: #93c5fd; }
+.pl-kpi--fila strong { color: #5eead4; }
+.pl-nota { margin: 0; display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.5; opacity: 0.88; }
+.pl-nota svg { flex: none; margin-top: 3px; }
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: stretch; }
+.pl-andar { min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: 22px; background: #0f2552; }
+.pl-andar__top h2 { margin: 0; font-size: 26px; color: #fff; }
+.pl-andar__top p { margin: 4px 0 0; font-size: 16px; opacity: 0.88; }
+.pl-alas { display: flex; flex-direction: column; gap: 12px; }
+.pl-ala { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); }
+.pl-ala__top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.pl-ala__top h3 { flex: 1 1 160px; min-width: 0; margin: 0; font-size: 17px; color: #fff; overflow-wrap: anywhere; }
+.pl-ala__top span { font-size: 14px; opacity: 0.88; white-space: nowrap; }
+.pl-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255, 255, 255, 0.14); }
+.pl-seg { display: block; height: 100%; }
+.pl-seg--livre { background: #4ade80; }
+.pl-seg--ocupado { background: #f87171; }
+.pl-seg--higien { background: #fbbf24; }
+.pl-seg--bloq { background: #cbd5e1; }
+.pl-ala { container-type: inline-size; }
+.pl-nums { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }   /* 2x2 por padrão; 4 em linha só quando o quadro da ala é largo: nunca sobra um número sozinho nem o rótulo quebra no meio da palavra */
+@container (min-width: 400px) { .pl-nums { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.pl-num { display: flex; flex-direction: column; min-width: 0; }
+.pl-num strong { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pl-num span { font-size: 12px; line-height: 1.25; opacity: 0.85; }
+@media (max-width: 1100px) { .pl-kpis[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .pl-kpis[data-n="5"], .pl-kpis[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+    .pl-main { padding: 14px 12px 22px; }
+    .pl-andar { padding: 16px 14px; }
+}
+
+/* ---------- Etapa 6: enfermagem (aprazamento, painel) ---------- */
+.enf-horarios { display: grid; gap: 8px; }
+.enf-horario { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.enf-horario .at-input { height: 46px; box-sizing: border-box; min-width: 0; }
+.enf-horario .cd-ico { width: 44px; height: 46px; margin: 0; }
+.enf-kpis { grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); }
+@media (max-width: 1100px) { .enf-kpis[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .enf-kpis[data-n="5"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } .enf-kpis[data-n="5"] > :last-child { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .enf-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .enf-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; } }

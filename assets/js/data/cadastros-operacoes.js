@@ -3,9 +3,11 @@
 // Registros de movimentação são IMUTÁVEIS (só consulta): correção = novo lançamento, nunca edição.
 
 const R_OPS = ['ADMIN', 'CHEFE_OPME', 'FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO'];
-const ROLES_MOV = { ver: R_OPS, criar: R_OPS, editar: [], inativar: [] };
-const ROLES_MOV_EST = { ver: R_EST, criar: R_EST, editar: [], inativar: [] };
-const SETORES_OPS_OPTS = [{ id: 'OPME', rotulo: 'OPME' }, { id: 'HEMODINAMICA', rotulo: 'Hemodinâmica' }, { id: 'CENTRO_CIRURGICO', rotulo: 'Centro Cirúrgico' }];
+// A equipe da Farmácia também lança saídas, devoluções e perdas; o setor de cada produto limita o que ela movimenta (hasPermission por setor).
+const R_MOV_FARM = [...R_OPS, 'CHEFE_FARMACIA', 'FUNC_FARMACIA'];
+const ROLES_MOV = { ver: R_MOV_FARM, criar: R_MOV_FARM, editar: [], inativar: [] };
+const ROLES_MOV_EST = { ver: [...R_EST, 'CHEFE_FARMACIA'], criar: [...R_EST, 'CHEFE_FARMACIA'], editar: [], inativar: [] };
+const SETORES_OPS_OPTS = [{ id: 'OPME', rotulo: 'OPME' }, { id: 'HEMODINAMICA', rotulo: 'Hemodinâmica' }, { id: 'CENTRO_CIRURGICO', rotulo: 'Centro Cirúrgico' }, { id: 'FARMACIA', rotulo: 'Farmácia' }];
 const dataHoraCol = { k: 'criado_em', label: 'Registrado em', sort: true, get: (r) => (r.criado_em ? formatDateTimeBR(r.criado_em) : '—') };
 const fProduto = { k: 'produto', label: 'Produto', type: 'produto', req: true, span2: true };
 const fLote = { k: 'lote', label: 'Lote (com saldo)', type: 'lote', dep: 'produto', req: true };
@@ -206,12 +208,19 @@ Object.assign(CAD_DEFS, {
     },
     parametro: {
         key: 'parametro', label: 'Parâmetros do Sistema', singular: 'Parâmetro', icon: 'sliders-horizontal', prefix: 'PAR', roles: roles(['ADMIN']), semInativar: true,
-        desc: 'Ajustes do painel e dos alertas. Hoje: quantos dias antes do vencimento um lote passa a ser alertado.',
-        rotulo: (r) => `${r.chave}: ${r.valor}`, search: ['chave', 'descricao'], unique: ['chave'], filters: [],
+        desc: 'Prazos, metas e ajustes definidos pela direção do hospital: alerta de validade, janela de retorno, prazo da ouvidoria e metas do painel.',
+        rotulo: (r) => `${r.chave}: ${r.valor}`, search: ['chave', 'valor'], unique: ['chave'], filters: [],
         columns: [{ k: 'chave', label: 'Parâmetro', sort: true, get: (r) => (PARAMETROS_SISTEMA.find(p => p.id === r.chave) || { rotulo: r.chave }).rotulo }, { k: 'valor', label: 'Valor', sort: true, num: true }],
         tabs: [{ id: 'dados', label: 'Parâmetro', fields: [{ k: 'chave', label: 'Parâmetro', type: 'select', req: true, opts: () => PARAMETROS_SISTEMA, roEdit: true },
-            { k: 'valor', label: 'Valor', type: 'number', req: true, min: 1, max: 365 }, { ...OBS }] }]
+            { k: 'valor', label: 'Valor', type: 'number', req: true, min: 1, max: 10000 }, { ...OBS }] }]
     }
 });
 
-const PARAMETROS_SISTEMA = [{ id: 'dias_alerta_validade', rotulo: 'Dias de alerta de validade dos lotes (padrão 30)' }];
+// Parâmetros que o HOSPITAL define. Os que não têm padrão ficam sem efeito até alguém informar o valor (o sistema não inventa prazo nem meta).
+const PARAMETROS_SISTEMA = [
+    { id: 'dias_alerta_validade', rotulo: 'Dias de alerta de validade dos lotes (padrão 30)' },
+    { id: 'janela_retorno_dias', rotulo: 'Janela de retorno: dias em que um novo atendimento conta como retorno (sem valor: qualquer atendimento anterior)' },
+    { id: 'ouvidoria_prazo_dias', rotulo: 'Ouvidoria: prazo de resposta sugerido, em dias (sem valor: o prazo fica em branco)' },
+    { id: 'meta_espera_chamada_min', rotulo: 'Meta de espera até a chamada, em minutos (aparece no Painel da Direção)' },
+    { id: 'meta_ocupacao_pct', rotulo: 'Meta de ocupação dos leitos, em % (aparece no Painel da Direção)' }
+];

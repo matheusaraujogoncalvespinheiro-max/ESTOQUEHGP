@@ -136,7 +136,8 @@ async function handleDeleteCorrecao(e) {
     const username = state.currentUser.username;
 
     // Confere a senha do usuário logado
-    if (!(await conferirSenha(USERS_DB[username], password)).ok) {
+    const senhaOk = (typeof authAtivo === 'function' && authAtivo()) ? await authSenhaConfere(password) : (await conferirSenha(USERS_DB[username], password)).ok;
+    if (!senhaOk) {
         showMsg("Senha incorreta. Acesso negado.", "error");
         return;
     }

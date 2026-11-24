@@ -1,8 +1,9 @@
-// REGRAS DO FIRESTORE — projeto "opme-389fb" (Hospital Geral de Palmas)
+// REGRAS DO FIRESTORE — projeto "erp-hospitalar" (Hospital Geral de Palmas)
 //
-// ATENÇÃO: NÃO PUBLIQUE ESTE ARQUIVO AGORA. Ele exige usuários autenticados no Firebase Auth com a "claim" `role`
-// (perfil) e `username`. O sistema atual ainda autentica pelo próprio cadastro de usuários (coleção app_users), sem
-// Firebase Auth; publicar estas regras BLOQUEARIA todo o sistema. Veja docs/seguranca-firebase.md (passo a passo da migração).
+// COMO IDENTIFICA O USUÁRIO: Firebase Auth (e-mail e senha). O nome de usuário é a parte do e-mail antes do "@" e o PERFIL fica no
+// documento app_users/<usuário> (campos role, ativo, auth_email). Só vale se auth_email for IGUAL ao e-mail da conta: assim ninguém
+// ganha acesso criando uma conta com o mesmo começo de e-mail. Não usa claims, então não precisa de Cloud Functions.
+// ANTES DE PUBLICAR: crie o primeiro administrador (docs/firebase-conexao.md) ou todo o sistema fica bloqueado.
 //
 // Teste sempre no emulador antes de publicar:  firebase emulators:start --only firestore
 rules_version = '2';
@@ -10,9 +11,18 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------- Funções ----------
-    function logado() { return request.auth != null; }
-    function perfil() { return request.auth.token.role; }
-    function usuario() { return request.auth.token.username; }
+    function usuario() { return request.auth.token.email.split('@')[0].lower(); }
+    function cadastro() { return get(/databases/$(database)/documents/app_users/$(usuario())).data; }
+    // Administrador raiz (bootstrap): a conta admin@admin.com é ADMIN mesmo sem documento em app_users. O e-mail é único no Firebase Auth,
+    // então ninguém mais consegue essa conta enquanto ela existir. Se for apagada, remova esta linha ou recrie a conta antes de qualquer outra.
+    function adminRaiz() { return request.auth != null && request.auth.token.email == 'admin@admin.com'; }
+    function logado() {
+      return adminRaiz() || (request.auth != null && request.auth.token.email != null
+        && exists(/databases/$(database)/documents/app_users/$(usuario()))
+        && cadastro().get('ativo', true) != false
+        && cadastro().get('auth_email', '') == request.auth.token.email);
+    }
+    function perfil() { return adminRaiz() ? 'ADMIN' : cadastro().role; }
     function ehAdmin() { return logado() && perfil() == 'ADMIN'; }
     function temPerfil(lista) { return logado() && (perfil() == 'ADMIN' || perfil() in lista); }
 
@@ -23,11 +33,22 @@ service cloud.firestore {
     function exames() { return ['MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR']; }
     function estoque() { return ['CHEFE_OPME', 'FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM']; }
     function atendimento() { return ['FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM', 'FUNC_ENFERMAGEM', 'MEDICO']; }
+    function imagem() { return ['FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM']; }   // setores que atendem a fila de exames e assinam laudos
+    function procedimentos() { return ['FUNC_CENTRO_CIRURGICO', 'FUNC_HEMODINAMICA', 'CHEFE_HEMODINAMICA']; }   // Etapa 8: atendem a fila PROCEDIMENTOS (não leem triagens nem o prontuário)
+    function apoio() { return ['FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA']; }   // Etapa 8: leem só a internação (paciente e leito) para a dieta e a transfusão
+    function farmacia() { return ['CHEFE_FARMACIA', 'FUNC_FARMACIA']; }   // Etapa 7: dispensam o que foi prescrito; leem só prescrições e a internação (nome, leito), nunca o resto do prontuário
+
+    // ---------- Administrador: lê tudo e cria/altera em qualquer coleção, EXCETO nas de registro imutável (histórico, prontuário, chamadas...) e nunca apaga ----------
+    match /{col}/{id} {
+      allow read: if ehAdmin();
+      allow create, update: if ehAdmin() && !(col in ['historico_alteracoes', 'registros_clinicos', 'documentos_clinicos', 'prontuarios_abertos', 'sinais_vitais', 'chamadas', 'balanco_hidrico', 'rouparia_mov', 'residuos_registros', 'obito_paciente']);
+    }
 
     // ---------- Usuários: só o administrador lê e altera (nunca expor hashes) ----------
     match /app_users/{id} {
       allow read: if ehAdmin() || (logado() && usuario() == id);
-      allow create, update: if ehAdmin();
+      allow create: if ehAdmin();
+      allow update: if ehAdmin() || (logado() && usuario() == id && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']));   // o próprio usuário só altera o nome
       allow delete: if false;
     }
 
@@ -39,18 +60,36 @@ service cloud.firestore {
     }
 
     // ---------- Prontuário: registros assinados só são CRIADOS (sem alterar nem apagar) ----------
+    // Etapa 4: o setor de imagem registra o LAUDO (tipo RESULTADO) e só lê registros desse tipo (consulta com where tipo == 'RESULTADO'). RASCUNHO: não testado no emulador.
+    // Etapa 7: a Farmácia lê só registros do tipo PRESCRICAO (consulta com where tipo == 'PRESCRICAO'), para dispensar o que foi prescrito.
     match /registros_clinicos/{id} {
-      allow read: if temPerfil(clinico());
-      allow create: if temPerfil(clinico())
+      allow read: if temPerfil(clinico()) || (temPerfil(imagem()) && resource.data.tipo == 'RESULTADO') || (temPerfil(farmacia()) && resource.data.tipo == 'PRESCRICAO');
+      // Etapa 8: quem atende Procedimentos grava só o registro do tipo PROCEDIMENTO
+      allow create: if (temPerfil(clinico()) || (temPerfil(imagem()) && request.resource.data.tipo == 'RESULTADO') || (temPerfil(procedimentos()) && request.resource.data.tipo == 'PROCEDIMENTO'))
         && request.resource.data.autor == usuario()
         && request.resource.data.assinado == true;
       allow update, delete: if false;
     }
 
+    // Documentos emitidos ao paciente (receita, atestado, encaminhamento, declaração de comparecimento): só são criados, nunca alterados nem apagados.
+    // A recepção emite apenas a declaração de comparecimento (sem dados clínicos). RASCUNHO: não testado no emulador.
+    match /documentos_clinicos/{id} {
+      allow read: if temPerfil(clinico()) || (temPerfil(['FUNC_RECEPCAO']) && resource.data.tipo == 'COMPARECIMENTO');
+      allow create: if (temPerfil(['MEDICO']) || (temPerfil(['FUNC_RECEPCAO']) && request.resource.data.tipo == 'COMPARECIMENTO'))
+        && request.resource.data.emitido_por == usuario();
+      allow update, delete: if false;
+    }
+
     // ---------- Leitos e internações ----------
+    // Etapa 5 (fila de leito e painel de disponibilidade): alocar um leito é UMA transação que grava `internacoes`, `leitos_estado`, `internacao_ativa`
+    // e atualiza o `atendimentos` (fila INTERNACAO), por isso os perfis abaixo precisam das 4 permissões juntas (Enfermagem e Recepção as têm).
+    // O painel de disponibilidade lê só `leitos_estado` e `cad_leito`, sem dados de paciente. RASCUNHO: não testado no emulador; as regras não conferem
+    // a ordem da fila nem o motivo da alocação (isso é validado no serviço `alocarLeitoDaFila`).
     match /leitos_estado/{id} {
-      allow read: if temPerfil(leitos());
-      allow create, update: if temPerfil(['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO']);
+      allow read: if temPerfil(leitos()) || temPerfil(farmacia()) || temPerfil(['DIRETORIA']);
+      // Etapa 9: o médico muda o leito para higienização só ao registrar um óbito (o serviço grava tudo numa transação).
+      allow create, update: if temPerfil(['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO'])
+        || (temPerfil(['MEDICO']) && request.resource.data.status == 'HIGIENIZACAO');
       allow delete: if false;
     }
     match /prontuarios_abertos/{id} {
@@ -59,12 +98,32 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /internacoes/{id} {
-      allow read: if temPerfil(leitos());
-      allow create, update: if temPerfil(internacao());
+      allow read: if temPerfil(leitos()) || temPerfil(farmacia()) || temPerfil(apoio()) || temPerfil(['DIRETORIA']);   // Etapa 10: indicadores da Direção (mesmo aviso dos atendimentos)
+      // Etapa 9: o médico só encerra a internação com tipo de alta ÓBITO (registrar óbito); alta comum continua com a enfermagem e a recepção.
+      allow create, update: if temPerfil(internacao()) || (temPerfil(['MEDICO']) && request.resource.data.tipo_alta == 'OBITO');
       allow delete: if false;
     }
     match /internacao_ativa/{id} {
-      allow read, create, update: if temPerfil(internacao());
+      allow read, create, update: if temPerfil(internacao()) || (temPerfil(['MEDICO']) && request.resource.data.obito == true);
+      allow delete: if false;
+    }
+
+    // ---------- Enfermagem (Etapa 6): sinais vitais, checagem de medicação e cuidados, passagem de plantão ----------
+    // RASCUNHO: não testado no emulador. Sinais vitais e checagens nunca são apagados; uma medição errada é corrigida com uma nova medição (o serviço exige a observação).
+    // A decisão de uma checagem (administrar, não administrar, suspender) é uma transação que relê o documento: aqui só se confere o perfil.
+    match /sinais_vitais/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow update, delete: if false;
+    }
+    match /checagens/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create, update: if temPerfil(['FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+    match /passagens_plantao/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create, update: if temPerfil(['FUNC_ENFERMAGEM']);
       allow delete: if false;
     }
 
@@ -87,13 +146,41 @@ service cloud.firestore {
     }
     match /config_hospital/{id} {
       allow read: if logado();
-      allow write: if temPerfil(['AUTORIZADOR']);
+      allow create, update: if temPerfil(['AUTORIZADOR']);
     }
 
     // ---------- Pacientes e atendimento (dados pessoais: LGPD) ----------
     match /pacientes/{id} {
-      allow read: if temPerfil(atendimento());
+      // Etapa 8: o centro cirúrgico e a hemodinâmica leem o cadastro ao marcar cirurgia e ao concluir procedimento (Nutrição e Hemoterapia usam só o nome gravado na internação)
+      allow read: if temPerfil(atendimento()) || temPerfil(procedimentos());
       allow create, update: if temPerfil(['FUNC_RECEPCAO']);
+      allow delete: if false;
+    }
+    // Atendimento (Etapas 2 e 3): fila, chamadas, triagem clínica e consultas. RASCUNHO: ainda não testado no emulador.
+    // `atendimentos` só guarda dados operacionais; os dados clínicos ficam em `triagens` e `consultas`, com leitura mais restrita.
+    // Etapa 4: o setor de imagem lê a fila e só altera atendimentos que estão na fila EXAMES (chamar, atender, encerrar ou devolver ao médico).
+    // Etapa 8: quem atende Procedimentos lê a fila e só altera atendimentos que estão na fila PROCEDIMENTOS (chamar, atender, concluir ou devolver ao médico).
+    match /atendimentos/{id} {
+      // Etapa 10: o Painel da Direção lê os atendimentos só para contar. As regras não limitam a "só agregados": a Direção passa a ler o documento inteiro (com nome do paciente). Alternativa: um documento de totais por dia (pendência 75).
+      allow read: if temPerfil(atendimento()) || temPerfil(imagem()) || temPerfil(procedimentos()) || temPerfil(['DIRETORIA']);
+      allow create: if temPerfil(['FUNC_RECEPCAO']);
+      allow update: if temPerfil(['FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'FUNC_ENFERMAGEM', 'MEDICO'])
+        || (temPerfil(imagem()) && resource.data.fila == 'EXAMES')
+        || (temPerfil(procedimentos()) && resource.data.fila == 'PROCEDIMENTOS');
+      allow delete: if false;
+    }
+    match /chamadas/{id} {
+      allow read: if temPerfil(['FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'FUNC_ENFERMAGEM', 'MEDICO']) || temPerfil(imagem()) || temPerfil(procedimentos());
+      allow create: if temPerfil(['FUNC_EMERGENCIA', 'FUNC_ENFERMAGEM', 'MEDICO']) || temPerfil(imagem()) || temPerfil(procedimentos());
+      allow update, delete: if false;
+    }
+    match /triagens/{id} {
+      allow read: if temPerfil(['FUNC_EMERGENCIA', 'FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create, update: if temPerfil(['FUNC_EMERGENCIA', 'FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+    match /consultas/{id} {
+      allow read, create, update: if temPerfil(['MEDICO']);
       allow delete: if false;
     }
     match /{col}/{id} {
@@ -101,17 +188,188 @@ service cloud.firestore {
       allow create, update: if logado() && col in ['registros_recepcao', 'ocorrencias_emergencia', 'funcionarios', 'equipes_triagem', 'composicoes_mensais', 'integrantes_equipes'] && temPerfil(atendimento());
     }
 
+    // ---------- Ambulatório e Centro Cirúrgico (Etapa 8). RASCUNHO: não testado no emulador ----------
+    // `agenda_slots` são as travas de horário (paciente, profissional e sala): gravadas na mesma transação do agendamento, nunca apagadas (liberar = ocupado: false).
+    // O médico altera a consulta só para marcá-la como realizada ao concluir o atendimento (o serviço confere a situação).
+    match /agenda_consultas/{id} {
+      allow read: if temPerfil(['FUNC_RECEPCAO', 'MEDICO', 'FUNC_ENFERMAGEM']);
+      allow create: if temPerfil(['FUNC_RECEPCAO']);
+      allow update: if temPerfil(['FUNC_RECEPCAO', 'MEDICO']);
+      allow delete: if false;
+    }
+    match /agenda_slots/{id} {
+      allow read, create, update: if temPerfil(['FUNC_RECEPCAO', 'FUNC_CENTRO_CIRURGICO']);
+      allow delete: if false;
+    }
+    // Cirurgia: o centro cirúrgico marca e cancela; a enfermagem assina o checklist, inicia, avalia a RPA e dá a alta (o serviço confere a situação em transação).
+    // O checklist e as avaliações só acrescentam dentro do documento; as regras não conferem isso (validado no serviço).
+    match /cirurgias/{id} {
+      allow read: if temPerfil(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create: if temPerfil(['FUNC_CENTRO_CIRURGICO']);
+      allow update: if temPerfil(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+
+    // ---------- UTI, Nutrição e Hemoterapia (Etapa 8). RASCUNHO: não testado no emulador ----------
+    // Balanço hídrico e dispositivos nunca são apagados: lançamento errado é anulado por um novo registro (id anul_<id>), retirada de dispositivo é um update com motivo.
+    match /balanco_hidrico/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow update, delete: if false;
+    }
+    match /dispositivos/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create, update: if temPerfil(['FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+    // Dieta: o médico e a Nutrição prescrevem; `dieta_ativa/{internacao}` é o ponteiro da dieta vigente (uma por internação).
+    match /dietas/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_NUTRICAO']);
+      allow create, update: if temPerfil(['MEDICO', 'FUNC_NUTRICAO']);
+      allow delete: if false;
+    }
+    match /dieta_ativa/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_NUTRICAO']);
+      allow create, update: if temPerfil(['MEDICO', 'FUNC_NUTRICAO']);
+      allow delete: if false;
+    }
+    // Transfusão: o médico solicita; a agência reserva e entrega a bolsa (id = número da bolsa: o mesmo número não entra duas vezes); a enfermagem transfunde.
+    // A conferência por um segundo profissional e a ordem dos passos são validadas no serviço (as regras só conferem o perfil).
+    match /solicitacoes_transfusao/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_HEMOTERAPIA']);
+      allow create: if temPerfil(['MEDICO']);
+      allow update: if temPerfil(['MEDICO', 'FUNC_HEMOTERAPIA', 'FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+    match /bolsas_sangue/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_HEMOTERAPIA']);
+      allow create: if temPerfil(['FUNC_HEMOTERAPIA']);
+      allow update: if temPerfil(['FUNC_HEMOTERAPIA', 'FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+
+    // ---------- Farmácia (Etapa 7): dispensação e requisição. RASCUNHO: não testado no emulador ----------
+    // A dispensação traz o nome do paciente: só a Farmácia e a Enfermagem leem (a checagem de medicação mostra se o item já foi dispensado). Nunca é apagada;
+    // o cancelamento (estorno do estoque) é um update feito pelo Chefe da Farmácia e grava também um `cad_cancelamento`.
+    // O saldo do lote é baixado em `products`/`product_batches`, que já aceitam qualquer usuário logado (ver o bloco de estoque abaixo).
+    match /cad_dispensacao/{id} {
+      allow read: if temPerfil(farmacia()) || temPerfil(['FUNC_ENFERMAGEM']);
+      allow create: if temPerfil(farmacia());
+      allow update: if temPerfil(['CHEFE_FARMACIA']);
+      allow delete: if false;
+    }
+    match /cad_requisicao/{id} {
+      allow read: if temPerfil(farmacia()) || temPerfil(['FUNC_ENFERMAGEM']);
+      allow create: if temPerfil(farmacia()) || temPerfil(['FUNC_ENFERMAGEM']);
+      allow update: if temPerfil(farmacia());
+      allow delete: if false;
+    }
+    match /cad_cancelamento/{id} {
+      allow create: if temPerfil(['CHEFE_FARMACIA']);
+    }
+
+    // ---------- Apoio e infraestrutura (Etapa 9). RASCUNHO: não testado no emulador ----------
+    // Nada é apagado. Ordens de serviço: qualquer usuário logado abre chamado e lê (o chamado traz só equipamento/local, nunca paciente); só a manutenção
+    // atende, conclui e cancela (o autor também pode cancelar o próprio chamado ainda aberto). As transições são validadas no serviço.
+    match /os_manutencao/{id} {
+      allow read, create: if logado();
+      allow update: if temPerfil(['FUNC_MANUTENCAO']) || (logado() && resource.data.solicitante == usuario());
+      allow delete: if false;
+    }
+    match /manut_planos/{id} {
+      allow read: if temPerfil(['FUNC_MANUTENCAO', 'CHEFE_HEMODINAMICA']);
+      allow create, update: if temPerfil(['FUNC_MANUTENCAO']);
+      allow delete: if false;
+    }
+    // Transporte: quem solicita lê o que abriu; a equipe de transporte lê e atende tudo. O serviço restringe o transporte de paciente a certos perfis.
+    match /transportes/{id} {
+      allow read: if temPerfil(['FUNC_TRANSPORTE']) || (logado() && resource.data.solicitante == usuario());
+      allow create: if logado();
+      allow update: if temPerfil(['FUNC_TRANSPORTE']) || (logado() && resource.data.solicitante == usuario());
+      allow delete: if false;
+    }
+    // Rouparia e resíduos: livros que só acrescentam (a anulação é um documento novo anul_<id>), por isso não há update.
+    match /rouparia_mov/{id} {
+      allow read, create: if temPerfil(['FUNC_LAVANDERIA', 'FUNC_HIGIENIZACAO']);
+      allow update, delete: if false;
+    }
+    match /residuos_registros/{id} {
+      allow read, create: if temPerfil(['FUNC_HIGIENIZACAO']);
+      allow update, delete: if false;
+    }
+    // Voluntariado: cadastro e presença pelo perfil de voluntariado; a portaria também registra entrada e saída. voluntario_aberta é a trava de uma presença aberta por vez.
+    match /voluntarios/{id} {
+      allow read: if temPerfil(['FUNC_VOLUNTARIADO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA']);
+      allow create, update: if temPerfil(['FUNC_VOLUNTARIADO']);
+      allow delete: if false;
+    }
+    match /voluntario_presencas/{id} {
+      allow read, create, update: if temPerfil(['FUNC_VOLUNTARIADO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA']);
+      allow delete: if false;
+    }
+    match /voluntario_aberta/{id} {
+      allow read, create, update: if temPerfil(['FUNC_VOLUNTARIADO', 'FUNC_PORTARIA', 'CHEFE_PORTARIA']);
+      allow delete: if false;
+    }
+    // ÓBITOS: dado sigiloso. Só médico e enfermagem leem; o médico registra; a enfermagem acompanha (comunicação à família e liberação do corpo).
+    // Quem pode fazer cada passo e a retificação do nº da DO (com motivo) são validados no serviço. Os acessos ficam em auditoria.
+    match /obitos/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
+      allow create: if temPerfil(['MEDICO']);
+      allow update: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
+      allow delete: if false;
+    }
+    match /obito_paciente/{id} {
+      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
+      allow create: if temPerfil(['MEDICO']);
+      allow update, delete: if false;
+    }
+
+    // ---------- Gestão (Etapa 10). RASCUNHO: não testado no emulador ----------
+    // Nada é apagado. Ouvidoria: só a ouvidoria e a direção leem; só a ouvidoria grava. A identidade de quem se manifestou NÃO se protege por campo
+    // nas regras (o Firestore lê o documento inteiro): a tela esconde o nome da Direção, mas quem lê a coleção direto vê o nome. Antes de publicar,
+    // separar a identidade em outra coleção (pendência 76).
+    match /ouvidoria/{id} {
+      allow read: if temPerfil(['FUNC_OUVIDORIA', 'DIRETORIA']);
+      allow create, update: if temPerfil(['FUNC_OUVIDORIA']);
+      allow delete: if false;
+    }
+    // Qualidade e ensino e pesquisa: a equipe grava; a Direção só lê.
+    match /qualidade_nc/{id} {
+      allow read: if temPerfil(['FUNC_QUALIDADE', 'DIRETORIA']);
+      allow create, update: if temPerfil(['FUNC_QUALIDADE']);
+      allow delete: if false;
+    }
+    match /qualidade_acoes/{id} {
+      allow read: if temPerfil(['FUNC_QUALIDADE', 'DIRETORIA']);
+      allow create, update: if temPerfil(['FUNC_QUALIDADE']);
+      allow delete: if false;
+    }
+    match /qualidade_docs/{id} {
+      allow read: if temPerfil(['FUNC_QUALIDADE', 'DIRETORIA']);
+      allow create, update: if temPerfil(['FUNC_QUALIDADE']);
+      allow delete: if false;
+    }
+    match /ensino_pesquisa/{id} {
+      allow read: if temPerfil(['FUNC_ENSINO', 'DIRETORIA']);
+      allow create, update: if temPerfil(['FUNC_ENSINO']);
+      allow delete: if false;
+    }
+
     // ---------- Cadastros (coleções cad_*): contadores e demais cadastros ----------
+    // Atenção: `cad_*` só é gravado pelo Chefe OPME (e Administrador); as demais áreas que usam o motor de cadastros (movimentações do estoque, escala de enfermagem etc.)
+    // precisam de regra própria antes de publicar. A dispensação tem leitura restrita acima e, por isso, fica fora da leitura geral.
     match /{col}/{id} {
-      allow read: if logado() && col.matches('cad_.*');
-      allow create, update: if col == 'cad_contadores' ? logado() : (col.matches('cad_.*') && temPerfil(['CHEFE_OPME']));
+      allow read: if logado() && col.matches('cad_.*') && col != 'cad_dispensacao';
+      allow create, update: if col == 'cad_contadores' ? logado() : (col.matches('cad_.*') && (temPerfil(['CHEFE_OPME']) || (col == 'cad_equipamento' && temPerfil(['FUNC_MANUTENCAO']))));
     }
 
     // ---------- Estoque e demais módulos já existentes ----------
     match /{col}/{id} {
       allow read: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
       allow create, update: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
-      allow delete: if temPerfil(estoque());
+      // Correção (achada no teste do emulador): antes este delete valia para QUALQUER coleção (usuários, atendimentos...). Agora só para as do estoque.
+      allow delete: if col in ['products', 'product_batches', 'mapa_schedule'] && temPerfil(estoque());
     }
 
     // Tudo o que não foi listado acima fica NEGADO (padrão do Firestore).

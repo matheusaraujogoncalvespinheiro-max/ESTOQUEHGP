@@ -27,8 +27,29 @@ function montarEstruturaHospital(especialidade = (typeof getLeitoSpecialty === '
     return leitos;
 }
 
+// Estrutura padrão (fixa) + leitos adicionais cadastrados em Cadastro > Assistência > Quartos e Leitos (ativos).
+let _fixaCache = null;
+const estruturaFixa = () => (_fixaCache = _fixaCache || montarEstruturaHospital());
+
+function leitosCadastrados() {
+    const linhas = typeof cadRowsOf === 'function' ? cadRowsOf('leito') : [];
+    return linhas.filter(r => r.ativo && r.quarto && r.identificador).map(r => ({
+        id: `${r.quarto}${r.identificador}`.toUpperCase(), andar: String(r.andar || ''), andarNome: nomeAndar(r.andar), ala: r.unidade_nome || 'Ala não informada',
+        quarto: r.quarto, letra: r.identificador, rotulo: `${r.quarto}-${r.identificador}`, tipo_leito: r.tipo_leito || '', adicional: true
+    })).filter(l => ANDARES_HOSPITAL.includes(l.andar));
+}
+
 let _estruturaCache = null;
-const estruturaHospital = () => (_estruturaCache = _estruturaCache || montarEstruturaHospital());
+let _estruturaChave = '';
+function estruturaHospital() {
+    const extras = leitosCadastrados();
+    const chave = extras.map(l => `${l.id}|${l.andar}|${l.ala}`).join(';');
+    if (!_estruturaCache || chave !== _estruturaChave) {
+        _estruturaChave = chave;
+        _estruturaCache = [...estruturaFixa(), ...extras];
+    }
+    return _estruturaCache;
+}
 const leitoPorId = (id) => estruturaHospital().find(l => l.id === String(id || '').toUpperCase().trim()) || null;
 
 /** Árvore para o mapa: [{ andar, andarNome, alas: [{ ala, quartos: [{ quarto, leitos: [leito] }] }] }]. */

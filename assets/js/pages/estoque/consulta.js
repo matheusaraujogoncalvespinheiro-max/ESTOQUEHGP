@@ -1,10 +1,15 @@
 // Estoque OPME, Hemodinâmica e Centro Cirúrgico: lista de produtos e lotes
 
+// Estoques em que a quantidade só muda por uma operação com rastro (dispensação, saída, devolução, perda...), nunca por +/- direto na lista.
+const SETORES_SEM_AJUSTE_DIRETO = ['FARMACIA'];
+const MSG_SEM_AJUSTE_DIRETO = 'Neste estoque a quantidade só muda por dispensação, saída, devolução ou perda, para ficar rastreada.';
+
 function updateQuantity(setor, id, delta, batchId = null) {
     if (!hasPermission('update_stock', setor)) {
         showMsg("Sem permissão para alterar este estoque", "error");
         return;
     }
+    if (SETORES_SEM_AJUSTE_DIRETO.includes(setor)) return showMsg(MSG_SEM_AJUSTE_DIRETO, 'error');
 
     const produto = MOCK_DATA[setor].find(i => i.id === id);
     if (!produto) return;
@@ -80,6 +85,7 @@ function removeFromSpecificBatch(setor, productId, batchId, quantidade) {
         showMsg("Sem permissão para alterar este estoque", "error");
         return;
     }
+    if (SETORES_SEM_AJUSTE_DIRETO.includes(setor)) return showMsg(MSG_SEM_AJUSTE_DIRETO, 'error');
 
     if (removeFromBatch(setor, productId, batchId, quantidade)) {
         showMsg("Baixa realizada com sucesso!");
@@ -186,7 +192,7 @@ function renderProductList(data, setor) {
                             </div>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="text-sm font-bold whitespace-nowrap ${lote.quantidade <= 10 ? 'text-red-600' : 'text-slate-700'}">${lote.quantidade} un</span>
-                                ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
+                                ${hasPermission('update_stock', setor) && !SETORES_SEM_AJUSTE_DIRETO.includes(setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
                                 <div class="flex gap-1">
                                     <button onclick="removeFromSpecificBatch('${setor}', '${item.id}', '${lote.id}', 1)" class="w-6 h-6 rounded bg-red-50 hover:bg-red-100 flex items-center justify-center" title="Remover 1 unidade">
                                         <i data-lucide="minus" class="w-3 h-3 text-red-600"></i>
@@ -206,7 +212,7 @@ function renderProductList(data, setor) {
                 ` : ''}
 
                 <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                    ${hasPermission('update_stock', setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
+                    ${hasPermission('update_stock', setor) && !SETORES_SEM_AJUSTE_DIRETO.includes(setor) && state.currentUser.role !== 'CHEFE_OPME' && state.currentUser.role !== 'FUNC_CENTRO_CIRURGICO' ? `
                     <div class="flex items-center gap-3">
                         <button onclick="updateQuantity('${setor}', ${item.id}, -1)" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
                             <i data-lucide="minus" class="w-4 h-4 text-slate-600"></i>

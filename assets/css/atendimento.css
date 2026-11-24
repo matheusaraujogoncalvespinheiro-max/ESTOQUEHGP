@@ -286,6 +286,7 @@ html[data-tema='escuro'] .at-radio--outros input:checked + span { background: rg
 
 .tri-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .tri-toolbar .at-input { height: 48px; font-size: 16px; width: auto; }
+.tri-toolbar .at-btn, .tri-toolbar .at-tab { min-height: 48px; }
 .tri-month { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: 100%; }
 .tri-month .at-input { flex: 1 1 150px; min-width: 0; }
 
@@ -354,3 +355,319 @@ html[data-tema='escuro'] .tri-banner--warn { background: rgba(245, 158, 11, 0.18
 @media (max-width: 640px) {
     .at-input, .at-select, .at-textarea { font-size: 16px; }
 }
+
+/* =====================================================================
+   Recepção, Triagem Clínica, Atendimento Médico e Painel de chamadas (Etapas 2 e 3)
+   Padrão da tela: cabeçalho, resumo, barra de ferramentas e fila. A fila é tabela quando há espaço e vira
+   lista de cartões quando o bloco fica estreito (medido pelo próprio bloco, não pela janela). Nada rola na
+   horizontal, nenhum campo é cortado e os botões de um mesmo grupo têm sempre o mesmo tamanho.
+   ===================================================================== */
+
+/* Botões pequenos nunca crescem para preencher a linha (o botão primário comum cresce) */
+.at-btn--sm { flex: 0 0 auto; }
+
+/* ---------- Cabeçalho da tela ---------- */
+.cd-head__btns { margin-left: auto; }
+@media (max-width: 640px) {
+    .cd-head__btns { width: 100%; margin-left: 0; }
+    .cd-head__btns .at-btn { width: 100%; }
+}
+
+/* ---------- Resumo: cartões de mesmo tamanho e mesma altura em qualquer largura (sem cartão esticado sozinho na última linha) ---------- */
+.rf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.at-stack > .rf-kpis { margin-bottom: 0; }
+.rf-kpi { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface); overflow-wrap: anywhere; }
+.rf-kpi strong { font-size: 26px; line-height: 1.1; color: var(--sh-ink); }
+.rf-kpi span { font-size: 14px; color: var(--sh-ink); }
+.rf-kpi small { font-size: 12px; color: var(--sh-muted); }
+@media (max-width: 560px) { .rf-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Abas, filtros e barra de ferramentas ---------- */
+.rf-abas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.rf-abas .at-btn { min-height: 46px; padding: 0 14px; white-space: nowrap; }
+.rf-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 16px; margin-bottom: 16px; align-items: end; }
+.rf-filtros .at-field { margin: 0; }
+.rf-filtros .at-input, .rf-filtros .cd-combo__btn { height: 46px; min-height: 46px; font-size: 15px; box-sizing: border-box; }
+.tc-barra { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+.tc-barra .rf-abas { margin: 0; }
+.tc-local { flex: 1 1 260px; max-width: 420px; margin: 0; }
+.tc-local .at-input, .tc-local .cd-combo__btn { height: 46px; min-height: 46px; box-sizing: border-box; }
+@media (max-width: 560px) {
+    .rf-abas .at-btn { flex: 1 1 calc(50% - 4px); padding: 0 8px; gap: 6px; font-size: 14px; }
+    .tc-local { flex-basis: 100%; max-width: none; }
+    .tc-barra .rf-abas { width: 100%; }
+}
+
+/* ---------- Fila: tabela larga ---------- */
+.tri-tablewrap { container-type: inline-size; width: 100%; min-width: 0; }
+.tri-tablewrap table { width: 100%; }
+.rf-tabela td, .rf-tabela th, .rf-lista td, .rf-lista th { vertical-align: middle; }
+.rf-senha-t { font-size: 18px; letter-spacing: 0.5px; }
+.rf-queixa { max-width: 240px; overflow-wrap: anywhere; }
+.rf-resultado { text-align: center; }
+.rf-senha { font-size: 64px; font-weight: 800; letter-spacing: 3px; margin: 6px 0 10px; color: var(--sh-ink); }
+
+/* Ações da linha: grade de botões do mesmo tamanho (duas por linha na tabela) */
+.rf-acoes { width: 1%; }
+.rf-btns { display: grid; grid-template-columns: repeat(2, 132px); gap: 6px; }
+.rf-btns .at-btn { width: 100%; min-height: 38px; padding: 4px 8px; border-radius: 10px; font-size: 13.5px; line-height: 1.15; letter-spacing: 0; text-align: center; }
+
+/* ---------- Fila: lista de cartões (bloco estreito) ----------
+   Entre 700 e 1200 px: colunas de 150 px que se ajustam ao espaço. Abaixo de 700 px: duas colunas; nome, senha, queixa
+   e situação ocupam a linha toda para o texto nunca ficar espremido. */
+@container (max-width: 1200px) {
+    .rf-tabela thead { display: none; }
+    .tri-tablewrap table.rf-tabela, .rf-tabela tbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; }
+    .tri-tablewrap .rf-tabela tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 16px; width: 100%; padding: 14px 16px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface-2); }
+    .tri-tablewrap .rf-tabela td { display: block; width: auto; min-width: 0; max-width: none; padding: 0; border: 0; text-align: left; }
+    .tri-tablewrap .rf-tabela td::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sh-muted); }
+    .tri-tablewrap .rf-tabela td { order: 3; }
+    .tri-tablewrap .rf-tabela td[data-label="Senha"] { order: 1; }
+    .tri-tablewrap .rf-tabela td[data-label="Paciente"] { order: 2; }
+    .tri-tablewrap .rf-tabela td.rf-acoes { order: 9; }
+    .tri-tablewrap .rf-tabela td.rf-queixa { grid-column: span 2; }
+    .tri-tablewrap .rf-tabela td.rf-acoes { grid-column: 1 / -1; width: auto; padding-top: 12px; border-top: 1px solid var(--sh-line); }
+    .tri-tablewrap .rf-tabela td.rf-acoes::before { content: none; }
+    .tri-tablewrap .rf-tabela .at-badge { max-width: 100%; white-space: normal; border-radius: 12px; line-height: 1.25; text-align: left; }
+    .tri-tablewrap .rf-tabela tr:has(> td.at-empty) { display: block; padding: 0; border: 0; background: none; }
+    .tri-tablewrap .rf-tabela td.at-empty::before { content: none; }
+    .tri-tablewrap .rf-tabela .rf-btns { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+}
+@container (max-width: 699px) {
+    .tri-tablewrap .rf-tabela tr { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .tri-tablewrap .rf-tabela td { grid-column: span 3; }
+    .tri-tablewrap .rf-tabela td[data-label="Ordem"],
+    .tri-tablewrap .rf-tabela td[data-label="Risco"],
+    .tri-tablewrap .rf-tabela td[data-label="Chegada"],
+    .tri-tablewrap .rf-tabela td[data-label="Espera"],
+    .tri-tablewrap .rf-tabela td[data-label="Fila"] { grid-column: span 2; }
+    .tri-tablewrap .rf-tabela td.rf-queixa,
+    .tri-tablewrap .rf-tabela td[data-label="Senha"],
+    .tri-tablewrap .rf-tabela td[data-label="Paciente"],
+    .tri-tablewrap .rf-tabela td[data-label="Situação"],
+    .tri-tablewrap .rf-tabela td[data-label="Tipo"] { grid-column: 1 / -1; }
+    .tri-tablewrap .rf-tabela .rf-btns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tri-tablewrap .rf-tabela .rf-btns > .at-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* Listas curtas (não compareceram, atendidos, histórico): mesma ideia, só que viram cartões mais cedo */
+@container (max-width: 720px) {
+    .rf-lista thead { display: none; }
+    .tri-tablewrap table.rf-lista, .rf-lista tbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: 100%; }
+    .tri-tablewrap .rf-lista tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; width: 100%; padding: 14px 16px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface-2); }
+    .tri-tablewrap .rf-lista td { display: block; width: auto; min-width: 0; max-width: none; padding: 0; border: 0; text-align: left; }
+    .tri-tablewrap .rf-lista td::before { content: attr(data-label); display: block; margin-bottom: 2px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sh-muted); }
+    .tri-tablewrap .rf-lista td[data-label="Paciente"],
+    .tri-tablewrap .rf-lista td[data-label="Desfecho"],
+    .tri-tablewrap .rf-lista td[data-label="Recebido por"],
+    .tri-tablewrap .rf-lista td[data-label="Queixa / observação"] { grid-column: 1 / -1; }
+    .tri-tablewrap .rf-lista td.rf-acoes { grid-column: 1 / -1; width: auto; padding-top: 12px; border-top: 1px solid var(--sh-line); }
+    .tri-tablewrap .rf-lista td.rf-acoes::before { content: none; }
+    .tri-tablewrap .rf-lista .at-badge { max-width: 100%; white-space: normal; border-radius: 12px; line-height: 1.25; text-align: left; }
+    .tri-tablewrap .rf-lista tr:has(> td.at-empty) { display: block; padding: 0; border: 0; background: none; }
+    .tri-tablewrap .rf-lista td.at-empty::before { content: none; }
+    .tri-tablewrap .rf-lista .rf-btns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tri-tablewrap .rf-lista .rf-btns > .at-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+/* ---------- Etapa 3: situação, risco e tempo ---------- */
+.tc-risco { display: inline-block; max-width: 100%; padding: 3px 10px; border-radius: 12px; background: var(--cor); color: #fff; font-size: 13px; font-weight: 700; line-height: 1.25; text-align: center; }
+.tc-risco--sem { background: #e2e8f0; color: #475569; font-weight: 600; }
+html[data-tema='escuro'] .tc-risco--sem { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+.tc-tempo { font-weight: 700; }
+.tc-tempo--aviso { color: #b45309; }
+.tc-tempo--estourado { color: #b91c1c; }
+.tc-alvo { display: block; font-size: 12px; color: var(--sh-muted); }
+[hidden].at-field { display: none; }
+
+/* ---------- Janelas clínicas (triagem, reavaliação, consulta) ---------- */
+.tc-paciente, .tc-triagem { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid var(--sh-line); border-radius: 12px; background: var(--sh-surface); margin-bottom: 12px; }
+.tc-paciente small { color: var(--sh-muted); }
+.tc-form { align-items: start; }
+
+/* Sinais vitais: 5 colunas em janela larga (2 linhas), 2 colunas em janela estreita; rótulo e unidade sempre em linhas próprias */
+.tc-sinais { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: end; }
+@media (min-width: 760px) { .tc-sinais { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.tc-sinais .at-field { margin: 0; align-content: end; }
+.tc-sinais .at-label { line-height: 1.25; }
+.tc-sinais .tc-un { display: block; min-height: 15px; font-size: 11.5px; font-weight: 500; color: var(--sh-muted); }
+.tc-sinais .at-input { height: 46px; box-sizing: border-box; }
+
+/* Níveis de risco: 5 em linha, 2 por linha (o último ocupa a linha toda) ou 1 por linha */
+.tc-riscos { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 10px; }
+@media (min-width: 560px) {
+    .tc-riscos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tc-riscos > .tc-riscoopt:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (min-width: 1000px) {
+    .tc-riscos { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .tc-riscos > .tc-riscoopt:last-child:nth-child(odd) { grid-column: auto; }
+}
+.tc-riscoopt { display: flex; align-items: center; gap: 10px; min-height: 58px; padding: 10px 12px; border: 2px solid var(--sh-line); border-radius: 12px; cursor: pointer; background: var(--sh-surface); }
+.tc-riscoopt input { flex: none; accent-color: var(--cor); }
+.tc-riscoopt:has(input:checked) { border-color: var(--cor); background: color-mix(in srgb, var(--cor) 12%, transparent); }
+.tc-riscoopt strong { display: block; color: var(--cor); }
+.tc-riscoopt small { display: block; font-size: 12px; color: var(--sh-muted); }
+
+/* Botões de ação ao pé das janelas: mesmo tamanho, alinhados à direita (um embaixo do outro no celular);
+   a barra fica visível ao rolar a janela */
+.modal .at-actions { justify-content: flex-end; gap: 10px; }
+.modal .at-actions .at-btn { flex: 0 1 auto; min-width: 200px; min-height: 52px; padding: 0 22px; font-size: 16px; }
+.modal__body > .at-actions:last-child { position: sticky; bottom: -20px; z-index: 2; margin: 14px -22px -20px; padding: 12px 22px; border-top: 1px solid var(--sh-line); background: var(--sh-surface); }
+@media (max-width: 560px) {
+    .modal .at-actions .at-btn { flex: 1 1 100%; min-width: 0; }
+    .modal__body > .at-actions:last-child { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+}
+
+/* ---------- Formulários das janelas da Recepção: duas colunas alinhadas, rótulo acima, controles da mesma altura ---------- */
+.rf-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: end; }
+.rf-form .at-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; margin: 0; }
+.rf-form .at-field[hidden] { display: none; }
+.rf-form .at-label { margin: 0; text-align: left; }
+.rf-form .at-input, .rf-form .cd-combo { width: 100%; box-sizing: border-box; }
+.rf-form textarea.at-input { height: auto; min-height: 84px; padding-top: 10px; }
+.rf-form .cd-check { min-height: 46px; display: flex; align-items: center; gap: 8px; }
+.rf-span { grid-column: 1 / -1; }
+@media (max-width: 560px) { .rf-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Painel de chamadas (TV da sala de espera): sem nome do paciente, só senha e local ---------- */
+.pn-root { min-height: 100vh; display: flex; flex-direction: column; background: #0b1d3f; color: #fff; }
+.pn-top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 24px; background: #0a1630; }
+.pn-top h1 { display: flex; align-items: center; gap: 10px; font-size: 24px; margin: 0; flex: 1 1 240px; min-width: 0; color: #fff; }
+.pn-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pn-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.08); color: #fff; font-weight: 600; cursor: pointer; }
+.pn-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.pn-sel { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.pn-sel select { min-height: 42px; border-radius: 10px; padding: 0 10px; background: #fff !important; color: #0f172a !important; border: 0; }
+.pn-sel select option { color: #0f172a; background: #fff; }
+.pn-clock { font-variant-numeric: tabular-nums; font-size: 18px; }
+.pn-main { flex: 1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 24px; padding: 24px; }
+.pn-atual { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; border-radius: 24px; background: #12306b; padding: 24px; min-height: 360px; min-width: 0; }
+.pn-rot { font-size: clamp(18px, 3vw, 40px); text-transform: uppercase; letter-spacing: 4px; opacity: 0.85; margin: 0; }
+.pn-senha { max-width: 100%; font-size: clamp(72px, 16vw, 260px); font-weight: 800; line-height: 1; letter-spacing: 6px; margin: 10px 0; overflow-wrap: anywhere; }
+.pn-local { max-width: 100%; font-size: clamp(26px, 6vw, 96px); font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.pn-fila { font-size: clamp(16px, 2vw, 28px); opacity: 0.8; margin: 8px 0 0; }
+.pn-vazio { opacity: 0.5; margin-top: 20px; }
+.pn-hist { min-width: 0; border-radius: 24px; background: #0f2552; padding: 20px; }
+.pn-hist h2 { font-size: 22px; margin: 0 0 12px; color: #fff; }
+.pn-hist ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pn-hist li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.07); font-size: 20px; }
+.pn-hist li span { min-width: 0; overflow-wrap: anywhere; }
+.pn-hist li strong { font-size: 30px; }
+.pn-hist li time { opacity: 0.7; font-size: 18px; }
+.pn-hist li.pn-nada { display: block; opacity: 0.7; font-size: 18px; }
+@keyframes pn-pulse { 0%, 100% { background: #12306b; } 25%, 75% { background: #1d4ed8; } }
+.pn-pulse { animation: pn-pulse 1s ease-in-out 3; }
+@media (max-width: 900px) {
+    .pn-main { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 16px; }
+    .pn-top { padding: 12px 16px; }
+    .pn-atual { min-height: 260px; padding: 18px; }
+    .pn-hist { padding: 16px; }
+}
+@media (max-width: 560px) {
+    .pn-tools { width: 100%; }
+    .pn-tools .pn-sel { flex: 1 1 100%; }
+    .pn-tools .pn-sel select { flex: 1; min-width: 0; }
+    .pn-tools .pn-btn { flex: 1 1 0; }
+    .pn-clock { flex: 1 1 100%; }
+}
+.pn-tools .pn-btn--ico { flex: 0 0 46px; width: 46px; padding: 0; }
+@media (prefers-reduced-motion: reduce) { .pn-pulse { animation: none; } }
+
+/* ---------- Etapa 8: centro cirúrgico (checklist e RPA), UTI, nutrição e hemoterapia ---------- */
+
+/* Chips E / P / S do checklist de cada cirurgia */
+.e8-chips { display: inline-flex; gap: 4px; align-items: center; }
+.e8-chip { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; font-size: 12px; font-weight: 800; background: #e2e8f0; color: #475569; }
+.e8-chip--completo { background: #dcfce7; color: #166534; }
+.e8-chip--incompleto { background: #fee2e2; color: #991b1b; }
+html[data-tema='escuro'] .e8-chip { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+html[data-tema='escuro'] .e8-chip--completo { background: rgba(34, 197, 94, 0.18); color: #86efac; }
+html[data-tema='escuro'] .e8-chip--incompleto { background: rgba(220, 38, 38, 0.22); color: #fca5a5; }
+
+/* Itens do checklist: enunciado, resposta (Sim / Não / Não se aplica) e observação, um abaixo do outro */
+/* Tabelas da Etapa 8 em cartões (abaixo de 700 px): textos longos (especialidade, procedimento, dieta...) ocupam a linha toda para nunca
+   quebrar no meio da palavra; só os campos curtos ficam lado a lado, sempre em pares (sem metade vazia). */
+@container (max-width: 699px) {
+    .tri-tablewrap .e8-tab td { grid-column: 1 / -1; }
+    .tri-tablewrap .e8-tab td[data-label="Data e hora"],
+    .tri-tablewrap .e8-tab td[data-label="Tipo"],
+    .tri-tablewrap .e8-tab td[data-label="Checklist"],
+    .tri-tablewrap .e8-tab td[data-label="Protocolo"],
+    .tri-tablewrap .e8-tab td[data-label="Urgência"],
+    .tri-tablewrap .e8-tab td[data-label="Leito"],
+    .tri-tablewrap .e8-tab td[data-label="Unidade"],
+    .tri-tablewrap .e8-tab td[data-label="Ordem"],
+    .tri-tablewrap .e8-tab td[data-label="Espera"] { grid-column: span 3; }
+    .tri-tablewrap .e8-tab.e8-tab--leito-cheio td[data-label="Leito"],
+    .tri-tablewrap .e8-tab.e8-tab--bolsa-cheia td[data-label="Bolsa"] { grid-column: 1 / -1; }
+    .tri-tablewrap .e8-tab td[data-label="Especialidade"],
+    .tri-tablewrap .e8-tab td[data-label="Consulta"],
+    .tri-tablewrap .e8-tab td[data-label="Procedimento"],
+    .tri-tablewrap .e8-tab td[data-label="Equipe"],
+    .tri-tablewrap .e8-tab td[data-label="Hemocomponente"],
+    .tri-tablewrap .e8-tab td[data-label="Dieta"],
+    .tri-tablewrap .e8-tab td[data-label="Restrições"] { order: 4; }
+    .tri-tablewrap .e8-tab td[data-label="Situação"] { order: 5; }
+}
+
+.e8-lista { display: grid; gap: 10px; }
+.e8-item { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface); min-width: 0; }
+.e8-item__txt { min-width: 0; overflow-wrap: anywhere; font-weight: 600; color: var(--sh-ink); }
+.e8-item__resp { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.e8-item__resp .cd-check { min-height: 44px; }
+.e8-item__obs { width: 100%; min-width: 0; }
+
+/* Fases do checklist no detalhe da cirurgia (cartões do mesmo tamanho, sem cortar) */
+.e8-fases { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: stretch; }
+.e8-fase { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 14px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface); }
+.e8-fase > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.e8-fase > small { color: var(--sh-muted); overflow-wrap: anywhere; }
+.e8-fase > .at-btn { align-self: flex-start; margin-top: auto; }
+
+/* Resumo de respostas e avaliações */
+.e8-resumo { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.e8-resumo li { min-width: 0; overflow-wrap: anywhere; font-size: 14px; color: var(--sh-ink); }
+.e8-resumo li strong { margin-left: 4px; }
+.e8-resumo li.is-nao strong { color: #b91c1c; }
+html[data-tema='escuro'] .e8-resumo li.is-nao strong { color: #fca5a5; }
+
+/* Lançamento anulado (balanço hídrico): continua visível, riscado */
+.e8-anulado { opacity: 0.6; text-decoration: line-through; }
+
+@media (max-width: 560px) {
+    .e8-item { padding: 10px 12px; }
+    .e8-item__resp { gap: 4px 18px; }
+}
+/* ---------- Etapa 9: apoio e infraestrutura ----------
+   Tabelas com colunas longas (descrição, local) e curtas (data, situação). Em cartão, a célula longa ocupa a linha toda e as curtas
+   se agrupam em pares (e9-curto), para não sobrar meia célula sozinha. */
+@container (max-width: 1200px) {
+    .tri-tablewrap .rf-tabela.e9-tab td { grid-column: 1 / -1; }
+    .tri-tablewrap .rf-tabela.e9-tab td.e9-curto { grid-column: auto; }
+}
+@container (max-width: 699px) {
+    .tri-tablewrap .rf-tabela.e9-tab td { grid-column: 1 / -1; }
+    .tri-tablewrap .rf-tabela.e9-tab td.e9-curto { grid-column: span 3; }
+}
+@container (max-width: 720px) {
+    .tri-tablewrap .rf-lista.e9-tab td { grid-column: 1 / -1; }
+    .tri-tablewrap .rf-lista.e9-tab td.e9-curto { grid-column: auto; }
+}
+.e9-tab td { overflow-wrap: anywhere; }
+.e9-tab .at-badge { box-sizing: border-box; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+
+/* ---------- Etapa 10: painel da direção ----------
+   Cada indicador é um cartão do mesmo tamanho (grade que se ajusta ao espaço): rótulo, número grande e o critério de contagem. */
+.e10-sec__t { margin: 0 0 12px; font-size: 16px; font-weight: 800; color: var(--sh-ink); }
+.e10-sec { container-type: inline-size; }
+/* 4 colunas, 2 colunas ou 1 (nunca 3: com 7 cartões sobraria um sozinho); com 2 colunas o último cartão ímpar ocupa a linha toda */
+.e10-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@container (max-width: 899px) { .e10-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .e10-grid > .e10-ind:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@container (max-width: 459px) { .e10-grid { grid-template-columns: minmax(0, 1fr); } }
+.e10-ind { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px; border: 1px solid var(--sh-line); border-radius: 14px; background: var(--sh-surface-2); }
+.e10-ind__r { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sh-muted); overflow-wrap: anywhere; }
+.e10-ind__v { font-size: 26px; font-weight: 800; line-height: 1.15; color: var(--sh-ink); overflow-wrap: anywhere; }
+.e10-ind__c { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--sh-muted); overflow-wrap: anywhere; }
+.e10-det { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
+.e10-det__t { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--sh-ink); }

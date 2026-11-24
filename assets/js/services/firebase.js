@@ -3,13 +3,13 @@
 // ==========================================
 
 const firebaseConfig = {
-    apiKey: "AIzaSyB5wzFyr5GVDF5IWjZSBdk3lhqFen-_9eg",
-    authDomain: "opme-389fb.firebaseapp.com",
-    projectId: "opme-389fb",
-    storageBucket: "opme-389fb.firebasestorage.app",
-    messagingSenderId: "640694822403",
-    appId: "1:640694822403:web:b755ec063a2716d8f85036",
-    measurementId: "G-PW14E4S0ZY"
+    apiKey: "AIzaSyCaewbn-cjvIG0mBcN082aXjKmNxAuFD7M",
+    authDomain: "erp-hospitalar.firebaseapp.com",
+    projectId: "erp-hospitalar",
+    storageBucket: "erp-hospitalar.firebasestorage.app",
+    messagingSenderId: "537044074144",
+    appId: "1:537044074144:web:2702054d85bda691aa53c5",
+    measurementId: "G-HQZYCVSEHC"
 };
 
 let db = null;
@@ -22,11 +22,33 @@ async function initFirebase() {
     db = firebase.firestore();
     console.log('Firebase Client Initialized');
 
-    // Initial Sync
-    await db_syncAll();
+    if (typeof authAtivo === 'function' && authAtivo()) {
+        // Com login pelo Firebase Auth nada é lido antes de entrar: a leitura começa em iniciarSincronizacao(), depois do login.
+        auth = firebase.auth();
+        try { await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION); } catch (e) { /* segue com o padrão */ }
+        auth.onAuthStateChanged(authMudou);
+        return;
+    }
 
-    // Setup Real-time Subscriptions
+    // Modo antigo (sem Auth): lê tudo já na abertura
+    await db_syncAll();
     db_setupSubscriptions();
+}
+
+/** Primeira leitura e escuta em tempo real. No modo Firebase Auth roda uma vez, logo depois do login. */
+let sincronizacaoIniciada = false;
+async function iniciarSincronizacao() {
+    if (sincronizacaoIniciada || !db) return;
+    sincronizacaoIniciada = true;
+    await db_syncAll();
+    db_setupSubscriptions();
+}
+
+/** Para as leituras e esquece os dados na memória (logout). */
+function pararSincronizacao() {
+    subscriptions.forEach(unsub => { try { unsub(); } catch (e) { /* ignora */ } });
+    subscriptions = [];
+    sincronizacaoIniciada = false;
 }
 
 // ==========================================
@@ -58,7 +80,8 @@ function db_setupSubscriptions() {
         { name: 'portaria_config', sync: db_syncPortariaConfig }
     ];
 
-    tables.forEach(table => {
+    const ehAdmin = state.currentUser && state.currentUser.role === 'ADMIN';
+    tables.filter(t => t.name !== 'app_users' || !authAtivo() || ehAdmin).forEach(table => {   // só o administrador lê a lista de usuários
         const unsub = db.collection(table.name).onSnapshot(async (snapshot) => {
             console.log(`Change detected on ${table.name}`);
 
@@ -123,6 +146,7 @@ async function db_syncProducts() {
         MOCK_DATA.OPME = [];
         MOCK_DATA.HEMODINAMICA = [];
         MOCK_DATA.CENTRO_CIRURGICO = [];
+        MOCK_DATA.FARMACIA = [];
 
         products.forEach(p => {
             const productBatches = batches.filter(b => b.product_id === p.id);
@@ -343,6 +367,15 @@ async function db_syncHistory() {
 // 7. Sync Members (Users)
 async function db_syncMembers() {
     if (!db) return;
+    if (authAtivo()) {   // com Firebase Auth o próprio perfil vem de authCarregarPerfil; a lista completa só o administrador lê
+        if (!(state.currentUser && state.currentUser.role === 'ADMIN')) return;
+        try {
+            snapshotToArray(await db.collection('app_users').get()).forEach(u => {
+                if (u.username) USERS_DB[u.username] = { role: u.role, name: u.name, ativo: u.ativo !== false, setor: u.setor || '', email: u.email || '', auth_email: u.auth_email || '' };
+            });
+        } catch (err) { console.error('Error syncing members:', err); }
+        return;
+    }
     try {
         const snapshot = await db.collection('app_users').get();
         const data = snapshotToArray(snapshot);
@@ -583,6 +616,7 @@ async function db_saveProductHistory(item) {
             product_desc: item.product,
             quantity: item.quantity ?? item.qty ?? 0,
             batch_code: item.batch ?? item.lote ?? '',
+            obs: item.obs || '',
             created_at: new Date().toISOString()
         });
     } catch (err) {
@@ -616,10 +650,10 @@ async function db_saveNotification(notif) {
     if (!db) return;
     try {
         await db.collection('notifications').add({
-            type: notif.type,
-            message: notif.message,
-            barcode: notif.barcode,
-            is_read: notif.isRead,
+            type: notif.type || 'info',
+            message: notif.message || '',
+            barcode: notif.barcode || '',
+            is_read: notif.read === true || notif.isRead === true,   // a notificação usa "read"; o Firestore recusa "undefined"
             created_at: new Date().toISOString()
         });
     } catch (err) {
@@ -631,6 +665,13 @@ async function db_saveNotification(notif) {
 async function db_saveMember(username, user) {
     if (!db) return;
     try {
+        if (authAtivo()) {   // sem senha nem hash: quem guarda a senha é o Firebase Auth
+            await db.collection('app_users').doc(username).set({
+                username, role: user.role, name: user.name, ativo: user.ativo !== false, setor: user.setor || '', email: user.email || '',
+                auth_email: user.auth_email || ''
+            }, { merge: true });
+            return;
+        }
         await db.collection('app_users').doc(username).set({
             username: username,
             password: user.password || '',
@@ -645,6 +686,7 @@ async function db_saveMember(username, user) {
         }, { merge: true });
     } catch (err) {
         console.error('Error saving member:', err);
+        if (authAtivo()) throw err;   // com Firebase Auth o chamador precisa saber que o perfil não foi gravado
     }
 }
 

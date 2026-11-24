@@ -9,6 +9,15 @@ function examesState(setor) {
 
 const dataHoraSol = (s) => String(s.criado_em || s.data_solicitacao);
 
+/** Selos da lista: exame realizado ainda sem laudo e resultado marcado como crítico. */
+function selosDoResultado(s) {
+    const critico = s.resultado && s.resultado.critico ? ' <span class="at-badge at-badge--emergencia" title="Resultado marcado como crítico por quem assinou o laudo">crítico</span>' : '';
+    const semLaudo = s.status === 'REALIZADO' && !(s.resultado && s.resultado.registro_id) ? ' <span class="at-badge at-badge--urgente">sem laudo</span>' : '';
+    return semLaudo + critico;
+}
+
+const crmLembradoDoUsuario = () => { try { return localStorage.getItem(`hgp_crm_${state.currentUser.username}`) || ''; } catch (e) { return ''; } };
+
 /** Fila: urgentes primeiro; dentro de cada prioridade, a mais antiga primeiro. A ordem NUNCA muda a prioridade clínica. */
 function ordenarFila(lista) {
     return [...lista].sort((a, b) => (a.prioridade === b.prioridade ? 0 : a.prioridade === 'URGENTE' ? -1 : 1) || dataHoraSol(a).localeCompare(dataHoraSol(b)));
@@ -29,7 +38,7 @@ function renderCentralExames(setor) {
     const contagem = (s) => abertas.filter(x => x.status === s).length;
     const op = (id, valor, lista, vazio) => `<select class="at-select hs-sel" onchange="exameFiltro('${setor}', '${id}', this.value)" data-keep="ex_${setor}_${id}"><option value="">${vazio}</option>${lista.map(o => `<option value="${escapeHtml(o.id)}" ${valor === o.id ? 'selected' : ''}>${escapeHtml(o.rotulo)}</option>`).join('')}</select>`;
 
-    const kpis = [['Na fila', abertas.length], ['Urgentes', abertas.filter(s => s.prioridade === 'URGENTE').length], ['Aguardando agendamento', contagem('AGUARDANDO_AGENDAMENTO')], ['Agendados', contagem('AGENDADO')], ['Pend. autorização', contagem('PENDENTE_AUTORIZACAO')], ['Realizados', todas.filter(s => s.status === 'REALIZADO').length]];
+    const kpis = [['Na fila', abertas.length], ['Urgentes', abertas.filter(s => s.prioridade === 'URGENTE').length], ['Aguardando agendamento', contagem('AGUARDANDO_AGENDAMENTO')], ['Agendados', contagem('AGENDADO')], ['Pend. autorização', contagem('PENDENTE_AUTORIZACAO')], ['Realizados', todas.filter(s => s.status === 'REALIZADO').length], ['Realizados sem laudo', examesSemLaudo(todas).length], ['Resultados críticos', examesCriticos(todas).length]];
     const cabeca = `
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon(setor === 'IMAGENOLOGIA' ? 'scan-line' : 'activity', 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>${setor === 'IMAGENOLOGIA' ? 'Central de Imagenologia' : 'Ultrassonografia'}</h2><p>Fila de solicitações, agendamento e acompanhamento dos exames. A prioridade clínica só muda com justificativa de profissional autorizado.</p></div></header>
@@ -49,7 +58,7 @@ function renderCentralExames(setor) {
             <tbody>${fila.length ? fila.map((s, i) => `<tr class="cd-row" tabindex="0" onclick="exameDetalhe('${s.id}')" onkeydown="if (event.key === 'Enter') exameDetalhe('${s.id}')">
                 <td data-label="Posição">${i + 1}</td><td data-label="Paciente">${escapeHtml(s.paciente_dados.nome)}<br><small>Pront. ${escapeHtml(s.paciente_dados.prontuario || '—')}</small></td>
                 <td data-label="Exame">${escapeHtml(s.tipo_nome)}</td><td data-label="Prioridade">${badgePrioridade(s.prioridade)}</td>
-                <td data-label="Situação">${escapeHtml(rotuloStatusExame(s.status))}${(s.pendencias || []).some(p => !p.resolvida) ? ' <span class="at-badge at-badge--urgente">pendência</span>' : ''}</td>
+                <td data-label="Situação">${escapeHtml(rotuloStatusExame(s.status))}${(s.pendencias || []).some(p => !p.resolvida) ? ' <span class="at-badge at-badge--urgente">pendência</span>' : ''}${selosDoResultado(s)}</td>
                 <td data-label="Agenda">${s.agendamento ? escapeHtml(formatDateBR(s.agendamento.data) + ' ' + s.agendamento.hora) : '—'}</td>
                 <td data-label="Solicitado">${escapeHtml(formatDateBR(s.data_solicitacao))}<br><small>${escapeHtml(s.solicitante.nome)}</small></td></tr>`).join('') : `<tr><td colspan="7" class="at-empty">${hasPermission(permissao) ? 'Nenhuma solicitação nesta fila.' : 'Sem acesso.'}</td></tr>`}</tbody></table></div></section></div>`;
 }
@@ -105,7 +114,6 @@ function exameDetalhe(solId) {
         ${['AGENDADO', 'EM_ATENDIMENTO'].includes(sol.status) ? `<div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_reag">Reagendamento necessário (motivo)</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_reag" maxlength="200"><button type="button" class="cd-searchbtn" onclick="exameReagendar('${sol.id}')" title="Marcar reagendamento necessário">${lucideIcon('check', 'w-5 h-5')}</button></div></div>` : ''}
         ${sol.status === 'EM_ATENDIMENTO' ? `<div class="at-card" style="margin-top:10px"><strong>Registrar realização</strong>
             <div class="at-field"><label class="at-label" for="exd_prof">Profissional responsável pelo atendimento *</label><input class="at-input" id="exd_prof" value="${escapeHtml(state.currentUser.name)}"></div>
-            <div class="at-field"><label class="at-label" for="exd_res">Resultado / laudo (opcional)</label><textarea class="at-textarea" id="exd_res" rows="3" maxlength="2000"></textarea></div>
             <label class="cd-check"><input type="checkbox" id="exd_conf"> <span>Confirmo que o exame foi realizado.</span></label>
             <div style="margin-top:8px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameRealizar('${sol.id}')">Registrar como realizado</button></div></div>` : ''}
         <div class="at-field" style="margin-top:10px"><label class="at-label" for="exd_pend">Informar pendência</label><div class="cd-inputbtn has-btn"><input class="at-input" id="exd_pend" maxlength="200" placeholder="Ex.: falta guia, paciente sem jejum"><button type="button" class="cd-searchbtn" onclick="examePendencia('${sol.id}')" title="Registrar pendência">${lucideIcon('plus', 'w-5 h-5')}</button></div></div>
@@ -116,24 +124,80 @@ function exameDetalhe(solId) {
         <div class="at-field"><label class="at-label" for="exd_npj">Justificativa *</label><input class="at-input" id="exd_npj" maxlength="200"></div></div>
         <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameMudarPrioridade('${sol.id}')">Registrar alteração</button></div>` : '';
 
-    hModal(`${sol.tipo_nome} · ${sol.protocolo}`, `
+    const temResultado = Boolean(sol.resultado && sol.resultado.registro_id);
+    const podeLaudar = central && hasPermission('exame_resultado') && sol.status === 'REALIZADO' && !temResultado;
+    const blocoResultado = temResultado ? `<h3 class="at-label" style="margin:14px 0 6px">Resultado e laudo</h3>
+            <div class="at-card" id="exd_laudo_box"><p class="at-hint" style="margin:0">Carregando o laudo...</p></div>
+            ${central && hasPermission('exame_resultado') ? `<div class="at-actions" style="margin-top:8px"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameComplementarLaudo('${sol.id}')">Complementar laudo</button></div>` : ''}`
+        : (podeLaudar ? `<h3 class="at-label" style="margin:14px 0 6px">Registrar resultado / laudo</h3>
+            <div class="at-card"><div class="at-field"><label class="at-label" for="exd_laudo_txt">Resultado ou laudo *</label><textarea class="at-textarea" id="exd_laudo_txt" rows="5" maxlength="${LIMITE_LAUDO}"></textarea></div>
+                <div class="at-form"><div class="at-field"><label class="at-label" for="exd_laudo_crm">Seu registro no conselho profissional *</label><input class="at-input" id="exd_laudo_crm" maxlength="30" autocomplete="off" value="${escapeHtml(crmLembradoDoUsuario())}"></div></div>
+                <label class="cd-check" style="margin-top:8px"><input type="checkbox" id="exd_laudo_crit" onchange="exameLaudoCriticoMudou(this.checked)"> <span>Resultado crítico (comunicação imediata ao médico responsável)</span></label>
+                <div class="at-field" id="exd_laudo_com_wrap" hidden style="margin-top:8px"><label class="at-label" for="exd_laudo_com">Quem foi comunicado (nome do médico ou da equipe) *</label><input class="at-input" id="exd_laudo_com" maxlength="120" autocomplete="off"></div>
+                <p class="at-hint">O laudo é assinado e não pode ser alterado depois; correções entram como complemento no prontuário. O sistema não interpreta o resultado nem define o que é crítico: a marcação é de quem assina.</p>
+                <div style="margin-top:8px"><button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameRegistrarResultado('${sol.id}')">Assinar e registrar resultado</button></div></div>`
+            : (sol.status === 'REALIZADO' ? '<p class="at-hint" style="margin-top:12px">Exame realizado, ainda sem resultado/laudo. Quem registra o laudo é o profissional do setor do exame.</p>' : ''));
+
+    const janela = hModal(`${sol.tipo_nome} · ${sol.protocolo}`, `
         <p>${badgePrioridade(sol.prioridade)} <span class="at-badge at-badge--ok">${escapeHtml(rotuloStatusExame(sol.status))}</span> ${sol.exige_autorizacao ? `<span class="at-badge ${stAut === 'APROVADA' ? 'at-badge--ok' : 'at-badge--urgente'}">Autorização: ${STATUS_AUTORIZACAO[stAut]}</span>` : ''}</p>
         <dl class="about-list">${linha('Paciente', d.nome)}${linha('Prontuário', d.prontuario)}${linha('CNS', d.cns)}${linha('Nascimento', d.data_nascimento ? formatDateBR(d.data_nascimento) : '')}${linha('Sexo', d.sexo)}${linha('Localização', sol.localizacao ? `Leito ${(leitoPorId(sol.localizacao.leito_id) || {}).rotulo} · ${sol.localizacao.andar}º andar · ${sol.localizacao.ala}` : 'Sem internação')}
             ${linha('Procedimento principal', proc(sol.procedimento_principal))}${(sol.procedimentos_secundarios || []).map((p, i) => linha('Secundário ' + (i + 1), proc(p))).join('')}
             ${linha('Justificativa clínica', sol.diagnostico_descricao)}${linha('CID-10', [sol.cid_principal, sol.cid_secundario, sol.cid_causas].filter(Boolean).join(' · '))}${linha('Justificativa da prioridade', sol.prioridade_justificativa)}${linha('Observações', sol.observacoes)}
             ${linha('Solicitante', `${sol.solicitante.nome} · ${sol.solicitante.registro_conselho}`)}${linha('Data da solicitação', formatDateBR(sol.data_solicitacao))}${linha('Agendamento', sol.agendamento ? `${formatDateBR(sol.agendamento.data)} ${sol.agendamento.hora}` : '')}${sol.realizado ? linha('Realizado', `${formatDateTimeBR(sol.realizado.em)} · ${sol.realizado.profissional}`) : ''}</dl>
         ${(sol.pendencias || []).length ? `<h3 class="at-label" style="margin:12px 0 6px">Pendências</h3>${sol.pendencias.map((p, i) => `<p>${p.resolvida ? '✔' : '⚠'} ${escapeHtml(p.texto)} <small class="at-hint">${escapeHtml(p.por)}, ${escapeHtml(formatDateTimeBR(p.em))}</small> ${!p.resolvida && central ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameResolverPendencia('${sol.id}', ${i})">Resolver</button>` : ''}</p>`).join('')}` : ''}
-        ${acoes}${prior}
+        ${acoes}${prior}${blocoResultado}
         <h3 class="at-label" style="margin:14px 0 6px">Trajetória</h3>
         <ol class="at-timeline">${(sol.historico || []).map(h => `<li><strong>${escapeHtml(rotuloStatusExame(h.status))}</strong> · ${escapeHtml(formatDateTimeBR(h.em))} · ${escapeHtml(h.por)}${h.motivo ? '<br><small>' + escapeHtml(h.motivo) + '</small>' : ''}</li>`).join('')}${(sol.prioridade_historico || []).map(h => `<li>Prioridade ${escapeHtml(h.de)} → ${escapeHtml(h.para)} · ${escapeHtml(formatDateTimeBR(h.em))} · ${escapeHtml(h.por)}<br><small>${escapeHtml(h.justificativa)}</small></li>`).join('')}</ol>
         <div class="at-actions" style="margin-top:14px"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="exameImprimirFormulario('${sol.id}')">${lucideIcon('printer', 'w-4 h-4')} Imprimir / PDF do formulário</button></div>`, 'xl');
+    if (temResultado) preencherLaudo(janela, sol);
+}
+
+/** Lê o laudo assinado (fica no prontuário) e os complementos, e mostra no detalhe do exame. Sem acesso à leitura, mostra só o resumo. */
+async function preencherLaudo(janela, sol) {
+    const box = janela.querySelector('#exd_laudo_box');
+    if (!box) return;
+    const r = sol.resultado;
+    const resumo = `<p class="at-hint" style="margin:6px 0 0">Assinado por ${escapeHtml(r.por)}${r.registro_conselho ? ' · ' + escapeHtml(r.registro_conselho) : ''} em ${escapeHtml(formatDateTimeBR(r.em))}${r.critico ? ` · <strong>RESULTADO CRÍTICO comunicado a ${escapeHtml(r.comunicado_a)}</strong>` : ''}</p>`;
+    try {
+        const snap = await requireDb().collection(COLH.REGISTROS).where('solicitacao_id', '==', sol.id).where('tipo', '==', 'RESULTADO').get();
+        const regs = snap.docs.map(docToObj).sort((a, b) => String(a.em).localeCompare(String(b.em)));
+        const original = regs.find(x => x.id === r.registro_id);
+        const complementos = regs.filter(x => x.complementa_id === r.registro_id);
+        box.innerHTML = `<p style="white-space:pre-wrap;overflow-wrap:anywhere;margin:0">${escapeHtml(original ? original.texto : '')}</p>${resumo}
+            ${complementos.map(c => `<article class="pr-reg pr-reg--filho"><header><strong>Complemento</strong> <small>${escapeHtml(formatDateTimeBR(c.em))} · ${escapeHtml(c.autor_nome)}${c.registro_conselho ? ' · ' + escapeHtml(c.registro_conselho) : ''} · assinado</small></header><p>${escapeHtml(c.texto)}</p></article>`).join('')}`;
+    } catch (err) { box.innerHTML = `<p class="at-hint" style="margin:0">O texto do laudo está no prontuário do paciente (não foi possível ler daqui).</p>${resumo}`; }
+}
+
+function exameComplementarLaudo(solId) {
+    const d = hModal('Complementar laudo', `<p class="at-hint">O laudo original continua inalterado; o complemento é assinado por você e fica ligado a ele.</p>
+        <div class="at-field"><label class="at-label" for="cl_txt">Complemento *</label><textarea class="at-textarea" id="cl_txt" rows="5" maxlength="${LIMITE_LAUDO}"></textarea></div>
+        <div class="at-field" style="margin-top:8px"><label class="at-label" for="cl_crm">Seu registro no conselho profissional *</label><input class="at-input" id="cl_crm" maxlength="30" autocomplete="off" value="${escapeHtml(crmLembradoDoUsuario())}"></div>
+        <p class="at-error" id="cl_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="cl_ok">Assinar complemento</button></div>`, 'md');
+    d.querySelector('#cl_ok').onclick = async () => {
+        d.querySelector('#cl_erro').textContent = '';
+        try {
+            const crm = d.querySelector('#cl_crm').value;
+            await complementarResultadoExame(solId, { texto: d.querySelector('#cl_txt').value, registro_conselho: crm });
+            try { localStorage.setItem(`hgp_crm_${state.currentUser.username}`, crm); } catch (e) { /* opcional */ }
+            fecharModais(); showMsg('Complemento assinado e registrado.'); render(); exameDetalhe(solId);
+        } catch (err) { d.querySelector('#cl_erro').textContent = err.message || 'Operação não realizada.'; }
+    };
 }
 
 const apos = (msg) => { fecharModais(); showMsg(msg); render(); };
 const exameAvancar = aviso(async (id, para) => { await avancarExame(id, para); apos('Situação atualizada.'); });
 const exameAgendar = aviso(async (id) => { const v = document.getElementById('exd_vaga').value; if (!v) throw new Error('Selecione a vaga.'); await agendarExame(id, v); apos('Agendamento registrado.'); });
 const exameReagendar = aviso(async (id) => { await marcarReagendamento(id, document.getElementById('exd_reag').value); apos('Marcado como reagendamento necessário.'); });
-const exameRealizar = aviso(async (id) => { await registrarRealizacao(id, { profissional: document.getElementById('exd_prof').value, confirmado: document.getElementById('exd_conf').checked, resultado: document.getElementById('exd_res').value }); apos('Exame registrado como realizado.'); });
+const exameRealizar = aviso(async (id) => { await registrarRealizacao(id, { profissional: document.getElementById('exd_prof').value, confirmado: document.getElementById('exd_conf').checked }); fecharModais(); showMsg('Exame registrado como realizado. Registre agora o resultado/laudo.'); render(); exameDetalhe(id); });
+const exameRegistrarResultado = aviso(async (id) => {
+    const v = (k) => document.getElementById(k);
+    const form = { texto: v('exd_laudo_txt').value, registro_conselho: v('exd_laudo_crm').value, critico: v('exd_laudo_crit').checked, comunicado_a: v('exd_laudo_com').value };
+    await registrarResultadoExame(id, form);
+    try { localStorage.setItem(`hgp_crm_${state.currentUser.username}`, form.registro_conselho); } catch (e) { /* opcional */ }
+    fecharModais(); showMsg(form.critico ? 'Resultado crítico registrado e assinado.' : 'Resultado registrado e assinado.'); render(); exameDetalhe(id);
+});
+const exameLaudoCriticoMudou = (marcado) => { const c = document.getElementById('exd_laudo_com_wrap'); if (c) c.hidden = !marcado; };
 const examePendencia = aviso(async (id) => { await adicionarPendencia(id, document.getElementById('exd_pend').value); fecharModais(); showMsg('Pendência registrada.'); render(); exameDetalhe(id); });
 const exameResolverPendencia = aviso(async (id, i) => { await resolverPendencia(id, i); fecharModais(); render(); exameDetalhe(id); });
 const exameCancelar = aviso(async (id) => { await cancelarExame(id, document.getElementById('exd_canc').value); apos('Exame cancelado.'); });

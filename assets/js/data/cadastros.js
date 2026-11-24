@@ -70,12 +70,17 @@ const CAD_DEFS = {
                 { k: 'naturalidade', label: 'Naturalidade', type: 'text', col: 3 },
                 { k: 'profissao', label: 'Profissão', type: 'text', col: 3 },
                 { k: 'raca_cor', label: 'Raça/cor', type: 'select', col: 3, opts: ['Branca', 'Preta', 'Parda', 'Amarela', 'Indígena', 'Sem informação'] },
-                { k: 'etnia', label: 'Etnia', type: 'text', col: 3, help: 'Quando indígena.' }
+                { k: 'etnia', label: 'Etnia', type: 'text', col: 3, help: 'Quando indígena.' },
+                { secao: 'Convênio / fonte pagadora' },
+                { k: 'convenio_id', label: 'Convênio / fonte pagadora', type: 'ref', ref: 'convenio', col: 6 },
+                { k: 'numero_carteirinha', label: 'Nº da carteirinha / cartão', type: 'text', col: 3, maxlen: 30 }
             ] },
             { id: 'observacoes', label: 'Observações', fields: [
                 { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 },
                 { k: 'anotacoes', label: 'Anotações', type: 'lista', col: 12, ph: 'Anotação administrativa (não use para informações clínicas)' }
-            ] }
+            ] },
+            // Histórico operacional do paciente (senha, tipo, fila, situação). A triagem e a consulta ficam no prontuário.
+            { id: 'atendimentos', label: 'Atendimentos', hide: () => !cadState().id, render: (def, st) => cadPacienteAtendimentosHtml(st) }
         ]
     },
 
@@ -167,6 +172,7 @@ const CAD_DEFS = {
             ] },
             { id: 'adicionais', label: 'Adicionais', fields: [
                 { k: 'registro_conselho', label: 'Registro no conselho (COREN, CRM...)', type: 'text', col: 4 },
+                { k: 'especialidade', label: 'Especialidade', type: 'ref', ref: 'especialidade', col: 4 },
                 { k: 'usuario_acesso', label: 'Usuário de acesso ao sistema', type: 'text', col: 4, help: 'Opcional: nome de usuário do cadastro de usuários.' }
             ] },
             { id: 'observacoes', label: 'Observações', fields: [
@@ -212,7 +218,7 @@ const CAD_DEFS = {
     produto: {
         key: 'produto', store: 'produto', label: 'Produtos', singular: 'Produto', icon: 'package',
         desc: 'Cadastro de materiais e OPME. O saldo só muda por movimentação (entrada, saída ou ajuste), nunca pelo cadastro.',
-        roles: { ver: ['ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_OPME', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO'], criar: R_EST, editar: R_EST, inativar: R_EST },
+        roles: { ver: ['ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_OPME', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO', 'CHEFE_FARMACIA', 'FUNC_FARMACIA'], criar: [...R_EST, 'CHEFE_FARMACIA'], editar: [...R_EST, 'CHEFE_FARMACIA'], inativar: [...R_EST, 'CHEFE_FARMACIA'] },
         rotulo: (r) => r.nome,
         search: ['codigo', 'nome', 'codigo_fabricante', 'fabricante', 'lote'],
         columns: [
@@ -224,8 +230,8 @@ const CAD_DEFS = {
             { k: 'tipo', label: 'Tipo', sort: true }
         ],
         filters: [
-            { k: 'setor', label: 'Setor', opts: ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO'] },
-            { k: 'tipo', label: 'Tipo', opts: ['OPME', 'Comum'] },
+            { k: 'setor', label: 'Setor', opts: () => setoresEstoqueVisiveis().map(s => ({ id: s, rotulo: rotuloSetorOps(s) })) },
+            { k: 'tipo', label: 'Tipo', opts: ['OPME', 'Medicamento', 'Comum'] },
             { k: 'classe_id', label: 'Classe', ref: 'classe' },
             { k: 'estoque_situacao', label: 'Estoque', opts: [{ id: 'baixo', rotulo: 'Abaixo do mínimo' }, { id: 'zerado', rotulo: 'Zerado' }, { id: 'ok', rotulo: 'Normal' }] }
         ]
@@ -546,7 +552,7 @@ const CAD_DEFS = {
     usuario: {
         key: 'usuario', store: 'usuario', label: 'Usuários', singular: 'Usuário', icon: 'user-cog',
         desc: 'Usuários e perfis de acesso ao sistema.',
-        roles: roles(['ADMIN', 'CHEFE_OPME']),
+        roles: roles(['ADMIN']),   // só o administrador cria e altera usuários (as regras do Firestore também exigem)
         rotulo: (r) => r.nome,
         search: ['username', 'nome', 'perfil', 'setor'],
         columns: [
@@ -560,13 +566,13 @@ const CAD_DEFS = {
         tabs: [
             { id: 'dados', label: 'Identificação e acesso', fields: [
                 { k: 'nome', label: 'Nome completo', type: 'text', req: true, span2: true },
-                { k: 'username', label: 'Nome de usuário', type: 'text', req: true, maxlen: 30, help: 'Somente letras e números. Não muda depois de salvo.' },
+                { k: 'email', label: 'E-mail de acesso (login)', type: 'email', req: true, help: 'É com este e-mail e a senha que a pessoa entra. Não muda depois de salvo.' },
+                { k: 'username', label: 'Nome de usuário', type: 'text', maxlen: 40, help: 'Gerado a partir do e-mail (parte antes do @). Não muda depois de salvo.' },
                 { k: 'role', label: 'Perfil de acesso', type: 'select', req: true, opts: () => ASSIGNABLE_ROLES.map(r => ({ id: r, rotulo: getRoleLabel(r) })) },
-                { k: 'senha', label: 'Senha', type: 'password', help: 'Na edição, deixe em branco para manter a senha atual. Nunca é exibida.' }
+                { k: 'senha', label: 'Senha (mínimo 6 caracteres)', type: 'password', help: 'Só na criação. Quem já tem conta troca a própria senha em "Trocar minha senha". Nunca é exibida.' }
             ] },
             { id: 'contato', label: 'Contato e setor', fields: [
-                { k: 'setor', label: 'Setor', type: 'text' },
-                { k: 'email', label: 'E-mail', type: 'email' }
+                { k: 'setor', label: 'Setor', type: 'text' }
             ] }
         ]
     }
