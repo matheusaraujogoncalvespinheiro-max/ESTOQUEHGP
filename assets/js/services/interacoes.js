@@ -21,4 +21,36 @@ function cruzarInteracoes(medicamentos, tabela = []) {
 
 const avisoInteracao = (i) => `Interação cadastrada (${i.gravidade}): ${i.substancia_a} × ${i.substancia_b}.${i.orientacao ? ' ' + i.orientacao : ''}`;
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { cruzarInteracoes, avisoInteracao };
+// Sugestão inicial: poucos pares clássicos, para a tela já nascer com algo. NÃO é protocolo do hospital: a Farmácia revisa, edita ou inativa cada um.
+const FONTE_INTERACAO_SUGERIDA = 'Sugestão inicial do sistema (bulas e literatura geral) - revisar com a Farmácia';
+const INTERACOES_SUGERIDAS = [
+    { substancia_a: 'varfarina', substancia_b: 'ácido acetilsalicílico', gravidade: 'Grave', orientacao: 'Risco aumentado de sangramento.' },
+    { substancia_a: 'sildenafila', substancia_b: 'nitroglicerina', gravidade: 'Grave', orientacao: 'Risco de queda importante da pressão arterial.' },
+    { substancia_a: 'linezolida', substancia_b: 'fluoxetina', gravidade: 'Grave', orientacao: 'Risco de síndrome serotoninérgica.' },
+    { substancia_a: 'digoxina', substancia_b: 'amiodarona', gravidade: 'Moderada', orientacao: 'A amiodarona eleva o nível da digoxina.' },
+    { substancia_a: 'enalapril', substancia_b: 'espironolactona', gravidade: 'Moderada', orientacao: 'Risco de hipercalemia.' },
+    { substancia_a: 'clopidogrel', substancia_b: 'omeprazol', gravidade: 'Moderada', orientacao: 'O omeprazol pode reduzir o efeito do clopidogrel.' }
+];
+
+/** Das sugestões, as que ainda não estão cadastradas (qualquer ordem das substâncias, ativas ou não) (puro). */
+function interacoesSugeridasFaltantes(existentes = []) {
+    const chave = (a, b) => [interNorm(a), interNorm(b)].sort().join('|');
+    const tem = new Set((existentes || []).map(i => chave(i.substancia_a, i.substancia_b)));
+    return INTERACOES_SUGERIDAS.filter(s => !tem.has(chave(s.substancia_a, s.substancia_b)));
+}
+
+/** Cadastra as sugestões que faltam, como registros comuns (editáveis e inativáveis). Devolve quantas entraram. */
+async function carregarInteracoesSugeridas() {
+    if (!['ADMIN', 'CHEFE_FARMACIA'].includes(state.currentUser && state.currentUser.role)) throw new Error('Só o Chefe da Farmácia (ou o Administrador) carrega as interações sugeridas.');
+    const faltam = interacoesSugeridasFaltantes(cadRowsOf('interacao'));
+    const user = state.currentUser; const agora = nowISO();
+    for (const s of faltam) {
+        const reg = { ...s, fonte: FONTE_INTERACAO_SUGERIDA, id: newId('int'), codigo: await db_cadProximoCodigo('interacao', 'INT'), ativo: true, criado_em: agora, criado_por: user.username, atualizado_em: agora, atualizado_por: user.username };
+        reg.busca = searchKey(`${reg.codigo} ${s.substancia_a} ${s.substancia_b}`);
+        await db_cadSalvar('interacao', reg);
+        await auditar({ entidade: 'cad_interacao', entidade_id: reg.id, acao: 'CRIAR', depois: { origem: 'sugestão inicial', par: `${s.substancia_a} × ${s.substancia_b}` } });
+    }
+    return faltam.length;
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { cruzarInteracoes, avisoInteracao, interacoesSugeridasFaltantes, INTERACOES_SUGERIDAS };

@@ -40,6 +40,7 @@ const ARQUIVOS = [
     'assets/js/services/uti.js', 'assets/js/services/nutricao.js', 'assets/js/services/hemoterapia.js',
     'assets/js/services/apoio-comum.js', 'assets/js/services/manutencao.js', 'assets/js/services/processo-enfermagem.js', 'assets/js/services/transporte.js', 'assets/js/services/rouparia.js',
     'assets/js/services/residuos.js', 'assets/js/services/voluntariado.js', 'assets/js/services/obitos.js',
+    'assets/js/services/listas-apoio.js', 'assets/js/services/interacoes.js', 'assets/js/services/config-hospital.js',
     'assets/js/services/gestao-comum.js', 'assets/js/services/ouvidoria.js', 'assets/js/services/qualidade.js', 'assets/js/services/ensino-pesquisa.js', 'assets/js/services/direcao.js', 'assets/js/services/relatorios.js'
 ];
 

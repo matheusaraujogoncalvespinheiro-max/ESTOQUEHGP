@@ -240,7 +240,7 @@ function hasPermission(action, setor = null) {
     }
 
     if (role === 'DIRETORIA') {
-        return ['direcao_ver', 'qualidade_ver', 'ensino_ver', 'ouvidoria_ver'].includes(action);
+        return ['direcao_ver', 'qualidade_ver', 'ensino_ver', 'ouvidoria_ver', 'config_gerenciar'].includes(action);
     }
 
     // Setor 1: NIR (Núcleo Interno de Regulação) — organiza a demanda, confere e encaminha a documentação necessária ao Transporte

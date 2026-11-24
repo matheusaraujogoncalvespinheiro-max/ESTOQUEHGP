@@ -126,18 +126,19 @@ function enfRelatorio() {
 }
 
 function enfDimensionamento() {
-    const linha = (i) => `<div class="lb-linha"><input class="at-input" data-c="nome" placeholder="Categoria de cuidado" maxlength="40" aria-label="Categoria ${i + 1}"><input class="at-input" data-c="pacientes" placeholder="Pacientes" inputmode="numeric" aria-label="Pacientes ${i + 1}"><input class="at-input" data-c="horas" placeholder="Horas de enfermagem por paciente em 24 h" inputmode="decimal" aria-label="Horas ${i + 1}"></div>`;
-    const d = hModal('Dimensionamento de pessoal de enfermagem', `<p class="at-hint">Calcula QP = (horas por dia × dias da semana ÷ jornada semanal) × (1 + índice técnico). Todos os valores são informados por você: o sistema não traz horas nem categorias padrão e não classifica pacientes.</p>
-        <div id="dm_linhas">${linha(0)}</div><button type="button" class="at-btn at-btn--ghost at-btn--sm" id="dm_mais" style="margin-top:8px">+ Categoria</button>
-        <div class="at-form tc-form" style="margin-top:10px"><label class="at-field"><span class="at-label">Jornada semanal (horas) *</span><input class="at-input" id="dm_jornada" inputmode="decimal"></label>
-        <label class="at-field"><span class="at-label">Índice de segurança técnica (%) *</span><input class="at-input" id="dm_it" inputmode="decimal"></label></div>
+    const ref = REFERENCIA_DIMENSIONAMENTO;
+    const linha = (i) => { const r = ref.categorias[i] || {}; return `<div class="lb-linha"><input class="at-input" data-c="nome" placeholder="Categoria de cuidado" maxlength="40" value="${escapeHtml(r.nome || '')}" aria-label="Categoria ${i + 1}"><input class="at-input" data-c="pacientes" placeholder="Pacientes" inputmode="numeric" aria-label="Pacientes ${i + 1}"><input class="at-input" data-c="horas" placeholder="Horas de enfermagem por paciente em 24 h" inputmode="decimal" value="${r.horas || ''}" aria-label="Horas ${i + 1}"></div>`; };
+    const d = hModal('Dimensionamento de pessoal de enfermagem', `<p class="at-hint">Calcula QP = (horas por dia × dias da semana ÷ jornada semanal) × (1 + índice técnico). Horas, jornada e índice vêm preenchidos com valores de REFERÊNCIA (Resolução COFEN 543/2017): confira e ajuste ao que o hospital adota. Informe só o nº de pacientes de cada categoria; o sistema não classifica pacientes.</p>
+        <div id="dm_linhas">${ref.categorias.map((_, i) => linha(i)).join('')}</div><button type="button" class="at-btn at-btn--ghost at-btn--sm" id="dm_mais" style="margin-top:8px">+ Categoria</button>
+        <div class="at-form tc-form" style="margin-top:10px"><label class="at-field"><span class="at-label">Jornada semanal (horas) *</span><input class="at-input" id="dm_jornada" inputmode="decimal" value="${ref.jornada_semanal}"></label>
+        <label class="at-field"><span class="at-label">Índice de segurança técnica (%) *</span><input class="at-input" id="dm_it" inputmode="decimal" value="${ref.indice_tecnico}"></label></div>
         <p class="at-error" id="dm_erro" role="alert"></p><div id="dm_res"></div>
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button><button type="button" class="at-btn at-btn--primary" id="dm_ok">Calcular</button></div>`, 'lg');
     d.querySelector('#dm_mais').onclick = () => d.querySelector('#dm_linhas').insertAdjacentHTML('beforeend', linha(d.querySelectorAll('.lb-linha').length));
     d.querySelector('#dm_ok').onclick = () => {
         d.querySelector('#dm_erro').textContent = '';
         try {
-            const categorias = [...d.querySelectorAll('.lb-linha')].map(l => Object.fromEntries([...l.querySelectorAll('input')].map(i => [i.dataset.c, i.value])));
+            const categorias = [...d.querySelectorAll('.lb-linha')].map(l => Object.fromEntries([...l.querySelectorAll('input')].map(i => [i.dataset.c, i.value]))).map(c => ({ ...c, pacientes: String(c.pacientes).trim() === '' ? '0' : c.pacientes }));
             const r = dimensionarEnfermagem({ categorias, jornada_semanal: d.querySelector('#dm_jornada').value, indice_tecnico: d.querySelector('#dm_it').value });
             d.querySelector('#dm_res').innerHTML = `<section class="rf-kpis">${e9Kpi(r.horas_dia, 'Horas de assistência por dia')}${e9Kpi(String(r.quadro_calculado).replace('.', ','), 'Quadro calculado')}${e9Kpi(r.quadro_arredondado, 'Profissionais (arredondado para cima)')}</section>`;
         } catch (err) { e9Erro(d, 'dm_erro', err); }

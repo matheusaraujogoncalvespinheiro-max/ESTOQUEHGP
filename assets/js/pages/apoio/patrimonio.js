@@ -13,11 +13,11 @@ const ptRotuloPlano = { VENCIDO: 'Vencido', A_VENCER: 'A vencer', EM_DIA: 'Em di
 const ptTextoDias = (s) => (s.dias === null ? '' : (s.dias < 0 ? `${-s.dias} dia(s) de atraso` : (s.dias === 0 ? 'vence hoje' : `em ${s.dias} dia(s)`)));
 
 function renderPatrimonio() {
-    db_watch('os_abertas'); db_watch('os_recentes'); db_watch('planos_manut'); db_cadWatch('equipamento'); db_cadWatch('setor');
+    db_watch('os_abertas'); db_watch('os_recentes'); db_watch('planos_manut'); db_watch('equip_movimentacoes'); db_cadWatch('equipamento'); db_cadWatch('setor');
     const st = patrimonioState();
     const gerencia = hasPermission('manutencao_gerenciar');
     const hoje = todayISO();
-    const janela = Number(st.janela) || PLANO_JANELA_PADRAO_DIAS;
+    const janela = Number(st.janela) || janelaPlanoDias();
     const os = osConhecidas();
     const planos = MOCK_DATA.PLANOS_MANUT || [];
     const equips = cadRowsOf('equipamento').filter(e => e.ativo !== false);
@@ -35,16 +35,16 @@ function renderPatrimonio() {
             const prox = proximos[0];
             return `<tr>
                 <td data-label="Equipamento"><strong>${escapeHtml(e.nome)}</strong><br><small>${escapeHtml(e.codigo || '')}${e.patrimonio ? ' · Pat. ' + escapeHtml(e.patrimonio) : ''}${e.numero_serie ? ' · Série ' + escapeHtml(e.numero_serie) : ''}</small></td>
-                <td data-label="Setor" class="e9-curto">${e.setor ? escapeHtml(cadRotuloRef('setor', e.setor)) : '—'}</td>
+                <td data-label="Local e responsável" class="e9-curto">${(() => { const pos = posicaoAtualDoEquipamento(e, MOCK_DATA.EQUIP_MOVIMENTACOES || []); const local = pos.local || (e.setor ? cadRotuloRef('setor', e.setor) : ''); return `${escapeHtml(local || '—')}${pos.responsavel ? `<br><small>Com: ${escapeHtml(pos.responsavel)}</small>` : ''}${pos.desde ? `<br><small>desde ${escapeHtml(formatDateBR(String(pos.desde).slice(0, 10)))}</small>` : ''}`; })()}</td>
                 <td data-label="Situação" class="e9-curto"><span class="${ptBadgeEquip[s.codigo]}">${escapeHtml(s.rotulo)}</span></td>
                 <td data-label="Próxima manutenção">${prox ? `${escapeHtml(formatDateBR(prox.p.proxima_em))}<br><span class="${ptBadgePlano[prox.s.codigo]}">${escapeHtml(TIPOS_PLANO[prox.p.tipo])} · ${ptRotuloPlano[prox.s.codigo]}</span>` : '<small>Sem plano</small>'}</td>
-                <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${e9Botao('Histórico', `ptHistorico('${e.id}')`)}${e9Botao('Abrir chamado', `mnNovo('${e.id}')`)}</div></td></tr>`;
+                <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${e9Botao('Histórico', `ptHistorico('${e.id}')`)}${gerencia ? e9Botao('Movimentar', `ptMovimentar('${e.id}')`) : ''}${e9Botao('Abrir chamado', `mnNovo('${e.id}')`)}</div></td></tr>`;
         }).join('');
         return `<div class="rf-filtros">
                 ${e9Busca('patrimonio', st.q, 'Nome, código, patrimônio ou série')}
                 <label class="at-field"><span class="at-label">Situação</span>${e9Sel('patrimonio', 'sit', st.sit, [['', 'Todas'], ['PARADO', 'Parado'], ['COM_OS', 'Com OS aberta'], ['EM_MANUTENCAO_CAD', 'Em manutenção (cadastro)'], ['FORA_DE_USO', 'Fora de uso'], ['BAIXADO', 'Baixado'], ['OPERACIONAL', 'Operacional']])}</label>
             </div>
-            <div class="tri-tablewrap"><table class="tri-table cd-table rf-tabela e9-tab"><thead><tr><th>Equipamento</th><th>Setor</th><th>Situação</th><th>Próxima manutenção</th><th>Ações</th></tr></thead>
+            <div class="tri-tablewrap"><table class="tri-table cd-table rf-tabela e9-tab"><thead><tr><th>Equipamento</th><th>Local e responsável</th><th>Situação</th><th>Próxima manutenção</th><th>Ações</th></tr></thead>
                 <tbody>${linhas || `<tr><td colspan="5" class="at-empty">${equips.length ? 'Nenhum equipamento com estes filtros.' : 'Nenhum equipamento cadastrado. Cadastre em Cadastro › Apoio › Equipamentos.'}</td></tr>`}</tbody></table></div>
             <p class="at-hint" style="margin-top:12px">${lucideIcon('info', 'w-4 h-4')} A situação vem das OS abertas ("Parado" quando o chamado informa que o equipamento está fora de operação); sem OS aberta vale a situação do cadastro. Esta tela não altera o cadastro do equipamento.</p>`;
     };
@@ -181,9 +181,10 @@ function ptRegistroModal(titulo, campos, ids, botao, gravar) {
 }
 function ptMovimentar(id) {
     ptRegistroModal('Registrar movimentação', `<label class="at-field at-span-2"><span class="at-label">Novo local ou setor *</span><input class="at-input" id="pr_para" maxlength="80" autocomplete="off"></label>
+        <label class="at-field at-span-2"><span class="at-label">Com quem fica (responsável)</span><input class="at-input" id="pr_responsavel" maxlength="100" autocomplete="off"></label>
         <label class="at-field at-span-2"><span class="at-label">Motivo *</span><input class="at-input" id="pr_motivo" maxlength="200" autocomplete="off"></label>
         <label class="at-field"><span class="at-label">Quando (vazio = agora)</span><input class="at-input" type="datetime-local" id="pr_em"></label>`,
-        ['para', 'motivo', 'em'], 'Registrar', (f) => registrarMovimentacaoEquipamento(id, f));
+        ['para', 'responsavel', 'motivo', 'em'], 'Registrar', (f) => registrarMovimentacaoEquipamento(id, f));
 }
 function ptTesteEletrico(id) {
     ptRegistroModal('Registrar teste de segurança elétrica', `<label class="at-field"><span class="at-label">Resultado *</span><select class="at-input" id="pr_resultado"><option value="">-- Selecione --</option>${e9Opcoes(RESULTADOS_TESTE_ELETRICO)}</select></label>
@@ -211,7 +212,7 @@ async function ptHistorico(equipamentoId) {
             <h3 class="at-label" style="margin:14px 0 6px">Testes de segurança elétrica</h3>
             ${testes.length ? `<ul class="e8-resumo">${testes.map(t => `<li>${escapeHtml(formatDateTimeBR(t.em))} · <strong>${escapeHtml(RESULTADOS_TESTE_ELETRICO[t.resultado])}</strong> · ${escapeHtml(t.responsavel)}${t.laudo ? ` · ${escapeHtml(t.laudo)}` : ''}${t.proximo_em ? ` · próximo em ${escapeHtml(formatDateBR(t.proximo_em))}` : ''}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum teste registrado.</p>'}
             <h3 class="at-label" style="margin:14px 0 6px">Movimentações</h3>
-            ${movs.length ? `<ul class="e8-resumo">${movs.map(m => `<li>${escapeHtml(formatDateTimeBR(m.em))} · ${escapeHtml(m.de || 'origem não informada')} → <strong>${escapeHtml(m.para)}</strong> · ${escapeHtml(m.motivo)} (${escapeHtml(m.por_nome || m.por || '')})</li>`).join('')}</ul>` : '<p class="at-hint">Nenhuma movimentação registrada.</p>'}
+            ${movs.length ? `<ul class="e8-resumo">${movs.map(m => `<li>${escapeHtml(formatDateTimeBR(m.em))} · ${escapeHtml(m.de || 'origem não informada')} → <strong>${escapeHtml(m.para)}</strong>${m.responsavel ? ` · com ${escapeHtml(m.responsavel)}` : ''} · ${escapeHtml(m.motivo)} (${escapeHtml(m.por_nome || m.por || '')})</li>`).join('')}</ul>` : '<p class="at-hint">Nenhuma movimentação registrada.</p>'}
             <h3 class="at-label" style="margin:14px 0 6px">Ordens de serviço</h3>
             ${lista.length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>OS</th><th>Tipo</th><th>Situação</th><th>Descrição e solução</th></tr></thead><tbody>${lista.map(o => `<tr>
                 <td data-label="OS"><strong>${escapeHtml(o.protocolo)}</strong><br><small>${escapeHtml(formatDateTimeBR(o.criado_em))}</small></td>

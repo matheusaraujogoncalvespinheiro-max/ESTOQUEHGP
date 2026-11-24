@@ -313,6 +313,7 @@ const MENU_TREE = [
                 group(10, 'Empresa', [cadItem(10, 'Dados', 'empresa')]),
                 group(20, 'Financeiro', [cadItem(10, 'Contas a Pagar / Receber', 'titulo')]),
                 group(30, 'Cadastro', [relItem(10, 'Permissões de Usuário', 'PERMISSOES', byRole('ADMIN')), item(15, 'Perfis e Permissões', 'PERFIS_PERMISSOES', { icon: 'shield-check', access: byRole('ADMIN') }), cadItem(20, 'Setores', 'setor')]),
+                group(35, 'Hospital', [item(10, 'Configurações do Hospital', 'CONFIGURACOES', { icon: 'sliders-horizontal', access: byPermission('config_gerenciar') })]),
                 group(40, 'Dashboard', [cadItem(10, 'Configuração', 'parametro'), cadItem(20, 'Listas de Apoio', 'listaapoio'), cadItem(30, 'Painéis de TV', 'paineltv')])
             ]),
             group(20, 'Outras opções', [

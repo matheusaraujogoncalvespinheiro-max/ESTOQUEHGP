@@ -47,7 +47,7 @@ function renderObitos() {
             <td data-label="Protocolo" class="e9-curto"><strong>${escapeHtml(o.protocolo)}</strong><br><small>${escapeHtml(formatDateTimeBR(o.registrado_em))}</small></td>
             <td data-label="Óbito em" class="e9-curto">${escapeHtml(formatDateTimeBR(o.data_hora_obito))}<br><small>${escapeHtml(LOCAIS_OBITO[o.local] || o.local)}</small></td>
             <td data-label="Paciente"><strong>${nomes ? escapeHtml(o.paciente_nome) : 'Paciente'}</strong><br><small>Prontuário ${escapeHtml(o.prontuario || '—')}${o.leito_id ? ' · Leito ' + escapeHtml((leitoPorId(o.leito_id) || { rotulo: o.leito_id }).rotulo) : ''}</small></td>
-            <td data-label="Declaração de Óbito" class="e9-curto">${o.numero_do ? escapeHtml(o.numero_do) : '<span class="at-badge at-badge--emergencia">Pendente</span>'}</td>
+            <td data-label="Declaração de Óbito" class="e9-curto">${o.numero_do ? escapeHtml(o.numero_do) : `<span class="at-badge at-badge--emergencia">${passouDoPrazoHoras(o.data_hora_obito, prazoHospital('obito_prazo_do_horas')) ? 'DO em atraso' : 'Pendente'}</span>`}</td>
             <td data-label="Situação" class="e9-curto"><span class="${obBadge[o.status] || 'at-badge'}">${escapeHtml(SITUACOES_OBITO[o.status] || o.status)}</span></td>
             <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${acoes}</div></td></tr>`;
     }).join('');

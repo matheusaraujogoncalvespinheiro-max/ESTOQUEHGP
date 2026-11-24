@@ -26,6 +26,8 @@ function renderManutencao() {
     const ind = indicadoresManutencao(todas, per.de, per.ate);
     const parados = new Set(todas.filter(o => osAberta(o) && o.parado).map(o => o.equipamento_id)).size;
     const horas = (h) => (h === null ? '—' : `${String(h).replace('.', ',')} h`);
+    const prazoOs = typeof parametroSistema === 'function' ? parametroSistema('manut_prazo_os_horas') : null;
+    const foraPrazo = (o) => osForaDoPrazo(o, prazoOs);
 
     const linhas = lista.map(o => {
         let acoes = e9Botao('Detalhes', `mnDetalhe('${o.id}')`);
@@ -38,7 +40,7 @@ function renderManutencao() {
             <td data-label="Tipo" class="e9-curto">${escapeHtml(TIPOS_OS[o.tipo])}<br><span class="${e9BadgePrioridade[o.prioridade] || 'at-badge'}">${escapeHtml(PRIORIDADES_OS[o.prioridade])}</span></td>
             <td data-label="Equipamento ou local"><strong>${escapeHtml(mnLocalOuEquip(o))}</strong>${o.parado ? ' <span class="at-badge at-badge--emergencia">Parado</span>' : ''}<br><small>${escapeHtml(o.descricao)}</small></td>
             <td data-label="Aberto por" class="e9-curto">${escapeHtml(o.solicitante_nome || o.solicitante)}</td>
-            <td data-label="Situação" class="e9-curto"><span class="${e9BadgeOs[o.status] || 'at-badge'}">${escapeHtml(SITUACOES_OS[o.status])}</span>${o.atendente_nome ? `<br><small>${escapeHtml(o.atendente_nome)}</small>` : ''}</td>
+            <td data-label="Situação" class="e9-curto"><span class="${e9BadgeOs[o.status] || 'at-badge'}">${escapeHtml(SITUACOES_OS[o.status])}</span>${foraPrazo(o) ? ' <span class="at-badge at-badge--emergencia">Fora do prazo</span>' : ''}${o.atendente_nome ? `<br><small>${escapeHtml(o.atendente_nome)}</small>` : ''}</td>
             <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${acoes}</div></td></tr>`;
     }).join('');
 
@@ -49,7 +51,7 @@ function renderManutencao() {
             <div class="cd-head__btns"><button type="button" class="at-btn at-btn--primary cd-new" onclick="mnNovo()">${lucideIcon('plus', 'w-5 h-5')} Abrir chamado</button></div></header>
         <section class="rf-kpis" aria-label="Resumo">
             ${e9Kpi(abertas.length, ve ? 'OS em aberto' : 'Meus chamados em aberto')}${e9Kpi(abertas.filter(o => o.status === 'ABERTA').length, 'Aguardando atendimento')}
-            ${e9Kpi(abertas.filter(o => o.prioridade === 'URGENTE').length, 'Urgentes em aberto')}${e9Kpi(ve ? parados : base.filter(o => o.status === 'CONCLUIDA').length, ve ? 'Equipamentos parados' : 'Meus chamados concluídos')}
+            ${e9Kpi(abertas.filter(o => o.prioridade === 'URGENTE').length, 'Urgentes em aberto')}${prazoOs ? e9Kpi(abertas.filter(foraPrazo).length, `Fora do prazo (${prazoOs} h)`) : ''}${e9Kpi(ve ? parados : base.filter(o => o.status === 'CONCLUIDA').length, ve ? 'Equipamentos parados' : 'Meus chamados concluídos')}
         </section>
         <section class="at-card">
             <div class="rf-filtros">

@@ -28,7 +28,7 @@ function renderLaboratorio() {
             <td data-label="Paciente"><strong>${escapeHtml(p.paciente_nome)}</strong>${p.prontuario ? `<br><small>Pront. ${escapeHtml(p.prontuario)}</small>` : ''}</td>
             <td data-label="Exame">${escapeHtml(p.exame_nome)}${p.material ? `<br><small>${escapeHtml(p.material)}</small>` : ''}${p.prioridade === 'URGENTE' ? '<br><span class="at-badge at-badge--emergencia">Urgente</span>' : ''}</td>
             <td data-label="Pedido por" class="e9-curto">${escapeHtml(p.solicitante_nome || p.solicitante)}</td>
-            <td data-label="Situação" class="e9-curto"><span class="${labBadge[p.status] || 'at-badge'}">${escapeHtml(SITUACOES_LAB[p.status])}</span></td>
+            <td data-label="Situação" class="e9-curto"><span class="${labBadge[p.status] || 'at-badge'}">${escapeHtml(SITUACOES_LAB[p.status])}</span>${labAberto(p) && passouDoPrazoHoras(p.criado_em, prazoHospital('lab_meta_liberacao_horas')) ? ' <span class="at-badge at-badge--emergencia">Fora da meta</span>' : ''}</td>
             <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${acoes}</div></td></tr>`;
     }).join('');
     return `

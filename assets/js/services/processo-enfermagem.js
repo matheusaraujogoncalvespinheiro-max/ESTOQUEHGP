@@ -77,6 +77,13 @@ async function relatorioEnfermagemPeriodo(de, ate) {
     return { ...resumoEnfermagemPeriodo({ sinais: a.itens, processo: b.itens, curativos: c.itens, checagens: d.itens }, de, ate), truncado: [a, b, c, d].some(x => x.cheio) };
 }
 
+// Valores de REFERÊNCIA (Resolução COFEN 543/2017: horas de enfermagem por paciente em 24 h por tipo de cuidado; jornada de 36 h; índice técnico de 15 %).
+// Vêm pré-preenchidos na tela só para o cálculo já nascer pronto: a chefia de enfermagem pode alterar qualquer um, e o sistema não classifica pacientes.
+const REFERENCIA_DIMENSIONAMENTO = {
+    categorias: [{ nome: 'Cuidado mínimo', horas: 4 }, { nome: 'Cuidado intermediário', horas: 6 }, { nome: 'Alta dependência', horas: 10 }, { nome: 'Semi-intensivo', horas: 10 }, { nome: 'Intensivo', horas: 18 }],
+    jornada_semanal: 36, indice_tecnico: 15
+};
+
 /**
  * Dimensionamento de pessoal de enfermagem: QP = (horas de assistência por dia × dias da semana ÷ jornada semanal) × (1 + índice técnico).
  * TODOS os valores vêm de quem informa (horas por categoria de cuidado, jornada, índice técnico): o sistema não traz horas nem proporções padrão e

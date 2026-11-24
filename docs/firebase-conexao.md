@@ -18,7 +18,7 @@
 2. **Firestore › Dados:** criar o documento `app_users/admin` com os campos
    `username` = `admin`, `role` = `ADMIN`, `name` = nome do administrador, `ativo` = `true`, `auth_email` = o e-mail da conta de teste no Auth. Sem esse documento ninguém entra.
 3. **Publicar as regras** (depois do passo 2, senão o sistema fica trancado): `firebase deploy --only firestore:rules` ou colar o conteúdo de `firestore.rules` em Firestore › Regras. **Plano gratuito (Spark): o Storage não está disponível, então só `firestore.rules` é publicada.** `storage.rules` fica no projeto, sem uso, para o dia em que o plano mudar.
-   - Anexos (#31): dependem do Storage, que exige plano pago. No plano gratuito o envio de anexos não funciona (a tela avisa); o restante do sistema não depende dele.
+   - Anexos (#31): guardados no Firestore (arquivos de até 700 KB, coleção `anexos_conteudo`), sem Storage.
    - Leitos (#39): depois de publicar as regras, entre como Administrador, abra o Mapa de Ocupação e use **Gravar leitos no banco** (uma vez).
    - Permissões (#5), Painéis de TV (#23), Listas de Apoio (#67) e Exames de Laboratório (#29) são configurados dentro do sistema pelo Administrador.
 4. Entrar no sistema com o e-mail completo da conta de teste.

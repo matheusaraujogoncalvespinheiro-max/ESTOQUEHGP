@@ -72,6 +72,7 @@ function indicadoresTransporte(lista, de = '', ate = '') {
 
 async function solicitarTransporte(form) {
     requirePermission('transporte_solicitar');
+    if (typeof exigirSistemaEmUso === 'function') exigirSistemaEmUso('transporte', 'APOIO');
     const v = validarSolicitacaoTransporte(form);
     if (ehTransportePaciente(v.tipo)) {
         requirePermission('transporte_solicitar_paciente');

@@ -543,6 +543,7 @@ async function registrarClinico({ internacao = null, paciente_id = '', tipo, tex
         for (let idx = 0; idx < itens.length; idx++) {
             const it = itens[idx];
             if (it.tipo_item && it.tipo_item !== 'MEDICAMENTO') continue; // Dietas e cuidados ficam na prescrição/enfermagem
+            if (typeof sistemaEmUso === 'function' && sistemaEmUso('farmacia') === 'DISPENSACAO_LOTE') continue; // o hospital escolheu a dispensação com lote: não gera a fila por piso
             const disp = {
                 id: newId('far'),
                 codigo: `FAR-${todayISO().replace(/-/g, '')}-${String((MOCK_DATA.FARMACIA_DISPENSACOES || []).length + 1).padStart(4, '0')}`,
@@ -581,6 +582,7 @@ async function registrarClinico({ internacao = null, paciente_id = '', tipo, tex
  * Registra confirmação de administração com data/hora, profissional, COREN e sincroniza com a Farmácia do Piso.
  */
 async function checarItemPrescricaoEnfermagem(prescricaoId, indiceItem, { checado_por = '', coren = '', observacao = '' } = {}) {
+    if (typeof exigirSistemaEmUso === 'function') exigirSistemaEmUso('checagem', 'BEIRA_LEITO');
     if (!hasPermission('prescricao_checar') && !hasPermission('prontuario_evoluir')) {
         throw new Error('Acesso negado: apenas Enfermagem ou Médico pode checar a administração da prescrição.');
     }
@@ -1419,6 +1421,7 @@ function validarDemandaTransporteNIR(f) {
  */
 async function criarDemandaTransporteNIR(f) {
     requirePermission('transporte_solicitar');
+    if (typeof exigirSistemaEmUso === 'function') exigirSistemaEmUso('transporte', 'NIR');
     const erros = validarDemandaTransporteNIR(f);
     if (erros.length) throw new Error(erros[0].mensagem);
 

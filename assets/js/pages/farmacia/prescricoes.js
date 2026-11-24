@@ -42,7 +42,8 @@ function renderFarmPrescricoes() {
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon('pill', 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>Prescrições para a Farmácia</h2><p>Medicamentos prescritos a pacientes internados e o que já foi dispensado de cada item. Ao dispensar, o estoque da Farmácia é baixado e a dispensação fica ligada ao paciente, à prescrição e ao lote.</p></div>
             <div class="cd-head__btns"><button type="button" class="at-btn at-btn--ghost cd-new" onclick="cadAbrir('dispensacao'); navigateTo('CAD')">${lucideIcon('history', 'w-5 h-5')} Dispensações registradas</button>
-                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('FARMACIA')">${lucideIcon('package', 'w-5 h-5')} Estoque da Farmácia</button></div></header>
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('FARMACIA')">${lucideIcon('package', 'w-5 h-5')} Estoque da Farmácia</button>
+                ${['ADMIN', 'CHEFE_FARMACIA'].includes(state.currentUser && state.currentUser.role) ? `<button type="button" class="at-btn at-btn--ghost cd-new" onclick="farmCarregarInteracoes()">${lucideIcon('triangle-alert', 'w-5 h-5')} Carregar interações sugeridas</button>` : ''}</div></header>
         ${enfKpis('Resumo da farmácia', [[todos.length, 'Itens prescritos'], [pendentes.length, 'Sem dispensação'], [todos.length - pendentes.length, 'Já dispensados'], [pacientesPendentes, 'Pacientes com pendência'], [dispHoje, 'Dispensações hoje']])}
         <section class="at-card">
             <div class="tc-barra">
@@ -100,4 +101,10 @@ function farmHistorico(chave) {
         <div class="tri-tablewrap" style="margin-top:12px"><table class="tri-table cd-table rf-lista"><thead><tr><th>Código</th><th>Produto</th><th>Lote</th><th>Qtd.</th><th>Dispensado por</th><th>Situação</th></tr></thead>
             <tbody>${linhas || '<tr><td colspan="6" class="at-empty">Nenhuma dispensação registrada para este item.</td></tr>'}</tbody></table></div>
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button></div>`, 'xl');
+}
+
+async function farmCarregarInteracoes() {
+    if (!confirm("Cadastrar as interações sugeridas que ainda faltam? São sugestões iniciais do sistema (não são protocolo do hospital): a Farmácia revisa, edita ou inativa cada uma em Cadastro > Interações Medicamentosas.")) return;
+    try { db_cadWatch("interacao"); const n = await carregarInteracoesSugeridas(); showMsg(n ? n + " interação(ões) cadastrada(s). Revise em Interações Medicamentosas." : "Todas as sugestões já estão cadastradas."); }
+    catch (err) { showMsg(err.message || "Não foi possível carregar.", "error"); }
 }

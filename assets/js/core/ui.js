@@ -88,6 +88,7 @@ function getModuleTitle() {
         'RESIDUOS': 'Resíduos de Serviços de Saúde',
         'VOLUNTARIADO': 'Voluntariado',
         'DIRECAO': 'Painel da Direção',
+        'CONFIGURACOES': 'Configurações do Hospital',
         'OUVIDORIA': 'Ouvidoria',
         'QUALIDADE': 'Qualidade',
         'ENSINO_PESQUISA': 'Ensino e Pesquisa',

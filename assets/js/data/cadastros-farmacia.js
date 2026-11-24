@@ -35,7 +35,7 @@ Object.assign(CAD_DEFS, {
         columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'paciente_nome', label: 'Paciente', sort: true }, { k: 'prontuario', label: 'Prontuário', sort: true }, { k: 'medicamento_prescrito', label: 'Item prescrito' },
             { k: 'produto_desc', label: 'Produto dispensado', sort: true }, { k: 'lote_codigo', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.', sort: true, num: true },
             { k: 'controle', label: 'Controle', sort: true }, dataHoraCol],
-        validar: validarDispensacao, depois: aplicarDispensacao,
+        validar: (...a) => { if (typeof exigirSistemaEmUso === 'function') exigirSistemaEmUso('farmacia', 'DISPENSACAO_LOTE'); return validarDispensacao(...a); }, depois: aplicarDispensacao,
         tabs: [{ id: 'dados', label: 'Dados da dispensação', fields: [
             { k: 'prescricao_item', label: 'Item prescrito (paciente · medicamento)', type: 'select', req: true, span2: true, opts: () => opcoesItensPrescritos(), help: 'Só aparecem itens de prescrições de pacientes com internação ativa.' },
             { ...fProduto, setores: [FARM_SETOR], help: 'Produtos do estoque da Farmácia. Sem saldo ou inativos não podem ser dispensados.' },

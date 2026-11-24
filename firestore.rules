@@ -92,6 +92,12 @@ service cloud.firestore {
       allow create: if temAcao(clinico(), 'prontuario_evoluir') && request.resource.data.autor == usuario();
       allow update, delete: if false;
     }
+    // Conteúdo do anexo guardado no próprio banco (plano gratuito, sem Storage): arquivo pequeno em base64, id = id do anexo. Só criação.
+    match /anexos_conteudo/{id} {
+      allow read: if temAcao(clinico(), 'prontuario_ver');
+      allow create: if temAcao(clinico(), 'prontuario_evoluir') && request.resource.data.autor == usuario() && request.resource.data.base64 is string && request.resource.data.base64.size() <= 1000000;
+      allow update, delete: if false;
+    }
 
     // Documentos emitidos ao paciente (receita, atestado, encaminhamento, declaração de comparecimento): só são criados, nunca alterados nem apagados.
     // A recepção emite apenas a declaração de comparecimento (sem dados clínicos). RASCUNHO: não testado no emulador.
@@ -329,6 +335,23 @@ service cloud.firestore {
     }
     match /cad_cancelamento/{id} {
       allow create: if temPerfil(['CHEFE_FARMACIA']);
+    }
+    // Configurações do hospital (metas, prazos e listas dos módulos): quem tem `config_gerenciar` (Administrador e Direção por padrão). Nunca apagadas.
+    match /cad_parametro/{id} {
+      allow read: if logado();
+      allow create, update: if temAcao(['DIRETORIA'], 'config_gerenciar');
+      allow delete: if false;
+    }
+    match /cad_listaapoio/{id} {
+      allow read: if logado();
+      allow create, update: if temAcao(['DIRETORIA'], 'config_gerenciar');
+      allow delete: if false;
+    }
+    // Sistema em uso quando há dois fluxos para a mesma área (checagem, transporte, farmácia). Documento único `sistemas`.
+    match /config_sistema/{id} {
+      allow read: if logado();
+      allow create, update: if temAcao(['DIRETORIA'], 'config_gerenciar') && id == 'sistemas';
+      allow delete: if false;
     }
 
     // ---------- Apoio e infraestrutura (Etapa 9). RASCUNHO: não testado no emulador ----------

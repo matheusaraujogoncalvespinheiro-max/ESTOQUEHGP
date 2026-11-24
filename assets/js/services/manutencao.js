@@ -20,6 +20,23 @@ const SITUACOES_OS_ABERTAS = ['ABERTA', 'EM_ATENDIMENTO', 'AGUARDANDO_PECA'];
 const TRANSICOES_OS = { ABERTA: ['EM_ATENDIMENTO', 'CANCELADA'], EM_ATENDIMENTO: ['AGUARDANDO_PECA', 'CONCLUIDA', 'CANCELADA'], AGUARDANDO_PECA: ['EM_ATENDIMENTO', 'CANCELADA'] };
 const TIPOS_PLANO = { PREVENTIVA: 'Preventiva', CALIBRACAO: 'Calibração' };
 const PLANO_JANELA_PADRAO_DIAS = 30;   // só o filtro "a vencer" da tela, não é prazo do hospital
+
+/** Janela de "a vencer" dos planos: a definida pelo hospital em Configurações; sem ela, 30 dias. */
+function janelaPlanoDias() { return (typeof parametroSistema === 'function' && parametroSistema('manut_janela_plano_dias')) || PLANO_JANELA_PADRAO_DIAS; }
+
+/** OS aberta há mais horas que o prazo do hospital (puro). Sem prazo definido, nunca está "fora do prazo". */
+function osForaDoPrazo(os, prazoHoras, agora = new Date()) {
+    if (!prazoHoras || !os || !os.criado_em || ['CONCLUIDA', 'CANCELADA'].includes(os.status)) return false;
+    const t = new Date(os.criado_em).getTime();
+    return Number.isFinite(t) && (agora.getTime() - t) / 3600000 > prazoHoras;
+}
+
+/** Soma dias a uma data AAAA-MM-DD (puro). */
+function somarDiasISO(iso, dias) {
+    const [a, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    const dt = new Date(Date.UTC(a, m - 1, d + dias));
+    return dt.toISOString().slice(0, 10);
+}
 const ordemPrioridadeOs = { URGENTE: 0, ALTA: 1, NORMAL: 2, BAIXA: 3 };
 
 // ============ Regras puras (testáveis) ============
@@ -275,14 +292,30 @@ const RESULTADOS_TESTE_ELETRICO = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado'
 function validarMovimentacaoEquipamento(form, equip, agora = new Date()) {
     const para = apoioTexto(form.para, 'Novo local ou setor', { min: 2, max: 80 });
     const de = String(equip.local || equip.setor || '').slice(0, 80);
-    if (de && de.toLowerCase() === para.toLowerCase()) throw new Error('O novo local é igual ao atual.');
+    if (de && de.toLowerCase() === para.toLowerCase() && !String(form.responsavel || '').trim()) throw new Error('O novo local é igual ao atual.');
     return { equipamento_id: equip.id, equipamento_nome: String(equip.nome || ''), patrimonio: String(equip.patrimonio || ''), de, para,
+        responsavel: apoioTexto(form.responsavel, 'Com quem fica o equipamento (responsável)', { max: 100 }),
         motivo: apoioTexto(form.motivo, 'Motivo da movimentação', { min: 5, max: 200 }), em: apoioDataHora(form.em, 'Data e hora da movimentação', { agora }) };
+}
+
+/** Onde o equipamento está e com quem, agora: a última movimentação válida; sem ela, o que está no cadastro (puro). */
+function posicaoAtualDoEquipamento(equip, movimentacoes = []) {
+    const ult = apoioRegistrosValidos(movimentacoes.filter(m => m.equipamento_id === equip.id)).sort((a, b) => String(b.em).localeCompare(String(a.em)))[0];
+    if (ult) return { local: ult.para, responsavel: ult.responsavel || equip.responsavel || '', desde: ult.em, origem: 'movimentacao' };
+    return { local: equip.local || '', responsavel: equip.responsavel || '', desde: '', origem: 'cadastro' };
+}
+
+MOCK_DATA.EQUIP_MOVIMENTACOES = [];
+if (typeof WATCHER_FACTORIES !== 'undefined') {
+    WATCHER_FACTORIES.equip_movimentacoes = () => onSnapshotData(db.collection('equipamento_movimentacoes').limit(3000), (items) => { MOCK_DATA.EQUIP_MOVIMENTACOES = items; });
 }
 
 function validarTesteEletrico(form, equip, agora = new Date()) {
     const resultado = apoioEscolha(form.resultado, RESULTADOS_TESTE_ELETRICO, 'Resultado do teste');
-    const proximo = String(form.proximo_em || '').trim();
+    let proximo = String(form.proximo_em || '').trim();
+    // Sem data informada, usa a periodicidade que o hospital definiu em Configurações (se houver).
+    const periodo = typeof parametroSistema === 'function' ? parametroSistema('teste_eletrico_periodicidade_dias') : null;
+    if (!proximo && periodo) proximo = somarDiasISO(new Date(agora).toISOString().slice(0, 10), periodo);
     if (proximo) apoioData(proximo, 'Próximo teste', { futuro: true, agora });
     return { equipamento_id: equip.id, equipamento_nome: String(equip.nome || ''), patrimonio: String(equip.patrimonio || ''), resultado,
         responsavel: apoioTexto(form.responsavel, 'Quem executou (técnico ou empresa)', { min: 3, max: 100 }), laudo: apoioTexto(form.laudo, 'Nº do laudo ou observação', { max: 200 }),

@@ -158,6 +158,8 @@ function renderContent() {
             return renderQualidade();
         case 'PERFIS_PERMISSOES':
             return renderPerfisPermissoes();
+        case 'CONFIGURACOES':
+            return renderConfiguracoes();
         case 'ENSINO_PESQUISA':
             return renderEnsino();
         case 'PAINEL_CHAMADA':

@@ -14,7 +14,7 @@ let _semPermissoesBanco = false;
 
 const ACOES_EDITAVEIS = [
     'agenda_ambulatorial_gerenciar', 'agenda_ambulatorial_ver', 'atendimento_exames', 'atendimento_medico', 'atendimento_procedimentos', 'auditoria_ver',
-    'autorizacao_gerenciar', 'autorizacao_ver', 'cirurgia_gerenciar', 'cirurgia_registrar', 'cirurgia_ver', 'create_laudo', 'dieta_gerenciar', 'dieta_prescrever',
+    'autorizacao_gerenciar', 'autorizacao_ver', 'config_gerenciar', 'cirurgia_gerenciar', 'cirurgia_registrar', 'cirurgia_ver', 'create_laudo', 'dieta_gerenciar', 'dieta_prescrever',
     'dieta_ver', 'direcao_ver', 'documento_comparecimento', 'emergencia_acessar', 'emergencia_registrar', 'enfermagem_registrar', 'enfermagem_ver',
     'ensino_gerenciar', 'ensino_ver', 'exame_priorizar', 'exame_resultado', 'exame_solicitar', 'farmacia_dispensar', 'farmacia_requisicao', 'farmacia_ver',
     'fila_leito', 'hemoterapia_agencia', 'hemoterapia_solicitar', 'hemoterapia_transfundir', 'hemoterapia_ver', 'imagem_gerenciar', 'internacao_gerenciar',

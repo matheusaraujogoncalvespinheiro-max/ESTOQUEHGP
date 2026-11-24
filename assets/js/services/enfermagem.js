@@ -246,6 +246,7 @@ async function aprazarItem(registroId, idx, horarios) {
 /** Checagem: administrado/realizado ou não, com quem e quando. */
 async function registrarChecagem(id, form) {
     requirePermission('enfermagem_registrar');
+    if (typeof exigirSistemaEmUso === 'function') exigirSistemaEmUso('checagem', 'ENFERMAGEM');
     const d = validarDecisaoChecagem(form);
     const user = state.currentUser;
     const agora = nowISO();

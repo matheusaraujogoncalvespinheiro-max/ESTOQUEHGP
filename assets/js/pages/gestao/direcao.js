@@ -27,6 +27,15 @@ function direcaoLeitos() {
     return { total: leitos.length, ocupados: leitos.filter(l => (estado[l.id] || {}).status === 'OCUPADO').length };
 }
 
+/** Metas e prazos que o hospital definiu em Configurações (só os que têm valor). A Direção com permissão altera por lá. */
+function direcaoMetasDefinidas() {
+    if (typeof CATALOGO_PARAMETROS === 'undefined' || typeof parametroSistema !== 'function') return '';
+    const itens = CATALOGO_PARAMETROS.map(p => ({ p, v: parametroSistema(p.id) })).filter(x => x.v !== null);
+    const link = hasPermission('config_gerenciar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="navigateTo('CONFIGURACOES')">Alterar em Configurações</button>` : '';
+    return `<section class="at-card e10-sec"><h3 class="e10-sec__t">Metas e prazos definidos pelo hospital</h3>
+        ${itens.length ? `<dl class="about-list">${itens.map(x => `<div><dt>${escapeHtml(x.p.rotulo)}</dt><dd>${x.v} ${escapeHtml(x.p.unidade)}</dd></div>`).join('')}</dl>` : '<p class="at-hint">O hospital ainda não definiu metas nem prazos.</p>'}${link}</section>`;
+}
+
 function renderDirecao() {
     if (!hasPermission('direcao_ver')) return '<div class="at-stack"><p class="tri-banner tri-banner--warn">Acesso negado: seu perfil não pode ver o painel da direção.</p></div>';
     ['internacoes', 'leitos', 'os_abertas', 'os_recentes', 'ouvidoria_abertas', 'ouvidoria_recentes', 'nc_abertas', 'nc_recentes', 'acoes_qualidade_abertas', 'acoes_qualidade_recentes', 'docs_qualidade', 'ensino_abertas', 'ensino_recentes']
@@ -75,6 +84,7 @@ function renderDirecao() {
         </section>
         ${r.secoes.map(secao).join('')}
         ${detalhes}
+        ${direcaoMetasDefinidas()}
         <p class="at-hint">${lucideIcon('info', 'w-4 h-4')} Internações, ocupação e ordens de serviço usam os dados já carregados pelo sistema; atendimentos são lidos do banco para o período escolhido.</p>
     </div>`;
 }

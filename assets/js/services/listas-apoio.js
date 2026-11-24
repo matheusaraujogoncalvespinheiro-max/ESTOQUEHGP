@@ -10,7 +10,12 @@ const LISTAS_APOIO = {
     PECAS_ROUPARIA: { rotulo: 'Rouparia: peças', alvo: () => (typeof PECAS_ROUPARIA !== 'undefined' ? PECAS_ROUPARIA : null) },
     GRUPOS_RESIDUO: { rotulo: 'Resíduos: grupos', alvo: () => (typeof GRUPOS_RESIDUO !== 'undefined' ? GRUPOS_RESIDUO : null) },
     AREAS_VOLUNTARIADO: { rotulo: 'Voluntariado: áreas de atuação', alvo: () => (typeof AREAS_VOLUNTARIADO !== 'undefined' ? AREAS_VOLUNTARIADO : null) },
-    DESTINOS_CORPO: { rotulo: 'Óbito: destinos do corpo', alvo: () => (typeof DESTINOS_CORPO !== 'undefined' ? DESTINOS_CORPO : null) }
+    DESTINOS_CORPO: { rotulo: 'Óbito: destinos do corpo', alvo: () => (typeof DESTINOS_CORPO !== 'undefined' ? DESTINOS_CORPO : null) },
+    PRIORIDADES_CIRURGIA: { rotulo: 'Centro cirúrgico: prioridades da cirurgia', alvo: () => (typeof PRIORIDADES_CIRURGIA !== 'undefined' ? PRIORIDADES_CIRURGIA : null) },
+    TIPOS_DISPOSITIVO: { rotulo: 'UTI: tipos de dispositivo', alvo: () => (typeof TIPOS_DISPOSITIVO !== 'undefined' ? TIPOS_DISPOSITIVO : null) },
+    TIPOS_DIETA: { rotulo: 'Nutrição: tipos de dieta (opção nova usa via oral ou por sonda)', alvo: () => (typeof TIPOS_DIETA !== 'undefined' ? TIPOS_DIETA : null) },
+    HEMOCOMPONENTES: { rotulo: 'Hemoterapia: hemocomponentes', alvo: () => (typeof HEMOCOMPONENTES !== 'undefined' ? HEMOCOMPONENTES : null) },
+    URGENCIAS_TRANSFUSAO: { rotulo: 'Hemoterapia: urgência da transfusão', alvo: () => (typeof URGENCIAS_TRANSFUSAO !== 'undefined' ? URGENCIAS_TRANSFUSAO : null) }
 };
 const _padraoListas = {};
 
