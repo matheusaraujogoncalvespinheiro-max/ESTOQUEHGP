@@ -304,7 +304,13 @@ test('rito do óbito: comunicação e liberação do corpo uma vez cada, na orde
     assert.deepEqual(l.historico.map(h => h.status), ['REGISTRADO', 'FAMILIA_COMUNICADA', 'CORPO_LIBERADO']);
     // liberação sem comunicação prévia também vale (ex.: caso encaminhado ao IML); a situação mais avançada vence
     const o2 = Object.values(banco.store.obitos).find(o => o.protocolo === 'OB00002');
-    const l2 = await aj(`liberarCorpoObito('${o2.id}', { em: '${new Date(new Date(o2.data_hora_obito).getTime() + 3600000).toISOString()}', destino: 'IML', recebedor: 'Agente do IML' })`);
+    const em2 = new Date(new Date(o2.data_hora_obito).getTime() + 3600000).toISOString();
+    // liberar ao IML exige o encaminhamento do médico registrado antes (#68)
+    assert.match(await erroDe(`liberarCorpoObito('${o2.id}', { em: '${em2}', destino: 'IML', recebedor: 'Agente do IML' })`), /registrar antes o encaminhamento ao IML/);
+    entrar('MEDICO', 'med1', 'Dra. Teste');
+    await aj(`registrarEncaminhamentoObito('${o2.id}', { em: '${em2}', destino: 'IML', motivo: 'Morte sem causa esclarecida', registro_conselho: 'CRM 123' })`);
+    entrar('FUNC_ENFERMAGEM', 'enf1', 'Enf. Teste');
+    const l2 = await aj(`liberarCorpoObito('${o2.id}', { em: '${em2}', destino: 'IML', recebedor: 'Agente do IML' })`);
     assert.deepEqual([l2.status, l2.comunicacao], ['CORPO_LIBERADO', null]);
     // nº da DO: o médico informa; trocar um número já informado exige motivo
     entrar('FUNC_ENFERMAGEM', 'enf1');
@@ -321,6 +327,40 @@ test('rito do óbito: comunicação e liberação do corpo uma vez cada, na orde
     assert.equal(d2.status, 'CORPO_LIBERADO');   // retificar o número não mexe na situação
     assert.match(await erroDe("registrarNumeroDoObito('nao_existe', '123456')"), /não encontrado/);
     assert.ok(auditoria.some(a => a.entidade === 'obito' && a.acao === 'RETIFICAR_DO' && a.antes.numero_do === '55443322-1'));
+});
+
+test('óbito (#68): encaminhamento ao IML/SVO e hemovigilância são do médico, uma vez cada, e geram a guia interna', async () => {
+    const o = Object.values(banco.store.obitos).find(x => x.protocolo === 'OB00001');
+    const hora = (m) => new Date(new Date(o.data_hora_obito).getTime() + m * 60000).toISOString();
+    entrar('FUNC_ENFERMAGEM', 'enf1', 'Enf. Teste');
+    assert.match(await erroDe(`registrarEncaminhamentoObito('${o.id}', { em: '${hora(30)}', destino: 'SVO', motivo: 'Causa a esclarecer', registro_conselho: 'CRM 1' })`), /Acesso negado/);
+    assert.match(await erroDe(`registrarHemovigilanciaObito('${o.id}', { situacao: 'NAO_APLICAVEL', motivo: 'Sem transfusão' })`), /Acesso negado/);
+    entrar('MEDICO', 'med1', 'Dra. Teste');
+    const enc = (extra) => `{ em: '${hora(30)}', destino: 'SVO', motivo: 'Causa a esclarecer', registro_conselho: 'CRM 1'${extra || ''} }`;
+    assert.match(await erroDe(`registrarEncaminhamentoObito('${o.id}', { ...${enc()}, destino: 'CASA' })`), /Encaminhar para: escolha/);
+    assert.match(await erroDe(`registrarEncaminhamentoObito('${o.id}', { ...${enc()}, motivo: 'ab' })`), /Motivo do encaminhamento/);
+    assert.match(await erroDe(`registrarEncaminhamentoObito('${o.id}', { ...${enc()}, em: '${hora(-10)}' })`), /não pode ser anterior ao óbito/);
+    const r = await aj(`registrarEncaminhamentoObito('${o.id}', ${enc()})`);
+    assert.deepEqual([r.encaminhamento.destino, r.encaminhamento.por, r.status], ['SVO', 'med1', 'CORPO_LIBERADO']);   // não muda a situação do rito
+    assert.match(await erroDe(`registrarEncaminhamentoObito('${o.id}', ${enc()})`), /já foi registrado/);
+    // hemovigilância: comunicada (com a quem) ou "não se aplica" (com motivo)
+    assert.match(await erroDe(`registrarHemovigilanciaObito('${o.id}', { situacao: 'NAO_APLICAVEL', motivo: 'x' })`), /Motivo/);
+    assert.match(await erroDe(`registrarHemovigilanciaObito('${o.id}', { situacao: 'COMUNICADA', em: '${hora(60)}', comunicado_a: '' })`), /Comunicado a/);
+    const h = await aj(`registrarHemovigilanciaObito('${o.id}', { situacao: 'COMUNICADA', em: '${hora(60)}', comunicado_a: 'Agência transfusional' })`);
+    assert.deepEqual([h.hemovigilancia.situacao, h.hemovigilancia.comunicado_a], ['COMUNICADA', 'Agência transfusional']);
+    assert.match(await erroDe(`registrarHemovigilanciaObito('${o.id}', { situacao: 'NAO_APLICAVEL', motivo: 'Sem transfusão' })`), /já foi registrado/);
+    // documentos internos: dizem que não substituem a DO e a guia exige o encaminhamento
+    dados('__o', h);
+    const guia = val(`documentoInternoObito(__o, 'GUIA_ENCAMINHAMENTO', { hospital: 'Hospital X' })`);
+    assert.match(guia.aviso, /não substitui a Declaração de Óbito oficial/i);
+    assert.ok(guia.linhas.some(([k, v]) => k === 'Encaminhado para' && /SVO/.test(v)));
+    const ficha = val(`documentoInternoObito(__o, 'FICHA')`);
+    assert.ok(ficha.linhas.some(([k]) => k === 'Hemovigilância'));
+    dados('__sem', { ...h, encaminhamento: null });
+    assert.throws(() => call(`documentoInternoObito(__sem, 'GUIA_ENCAMINHAMENTO')`), /encaminhamento/);
+    // agenda e cirurgia recusam paciente com óbito
+    entrar('FUNC_RECEPCAO', 'rec1', 'Recepcionista');
+    assert.match(await erroDe(`agendarConsulta({ paciente_id: '${o.paciente_id}', especialidade_id: 'esp1', data: '2099-01-01', hora: '09:00' })`), /óbito registrado/);
 });
 
 test('indicadores de óbitos: contagens, pendências do rito e horas até a liberação, sem nomes', () => {
@@ -367,4 +407,23 @@ test('relatório de internações conta os tipos de alta', () => {
         { id: 'i2', status: 'ALTA', tipo_alta: 'OBITO', data_hora_internacao: '2026-06-08T10:00:00.000Z', data_hora_alta: '2026-06-10T11:00:00.000Z', setor_origem: 'Emergência' }], '2026-06-01', '2026-06-30')`)));
     assert.equal(r.resumo.find(x => x.rot === 'Saídas: Óbito').valor, 1);
     assert.equal(r.resumo.find(x => x.rot === 'Saídas: Alta melhorada').valor, 1);
+});
+
+test('processo de enfermagem e curativos (#46): só a enfermagem, só internação ativa, livro de criação com anulação', async () => {
+    guardar('internacoes', { id: 'intE', paciente_id: 'pE', paciente_nome: 'Paciente de Teste E', prontuario: '2005', leito_id: 'lE', status: 'ATIVA' });
+    const proc = (extra = '') => `{ etapa: 'AVALIACAO', texto: 'Paciente colaborativo, sem queixas.', registro_conselho: 'COREN 55'${extra} }`;
+    entrar('FUNC_RECEPCAO', 'rec1');
+    assert.match(await erroDe(`registrarProcessoEnfermagem('intE', ${proc()})`), /Acesso negado/);
+    entrar('FUNC_ENFERMAGEM', 'enf1', 'Enf. Teste');
+    assert.match(await erroDe(`registrarProcessoEnfermagem('nada', ${proc()})`), /não tem internação ativa/);
+    assert.match(await erroDe(`registrarProcessoEnfermagem('intE', { ...${proc()}, etapa: 'XX' })`), /Etapa/);
+    assert.match(await erroDe(`registrarProcessoEnfermagem('intE', { ...${proc()}, texto: 'curto' })`), /Registro: mínimo de 10/);
+    const p = await aj(`registrarProcessoEnfermagem('intE', ${proc()})`);
+    assert.deepEqual([p.etapa, p.paciente_id, p.por], ['AVALIACAO', 'pE', 'enf1']);
+    const c = await aj(`registrarCurativo('intE', { local: 'Região sacral', material: 'Cobertura de espuma', aspecto: 'LIMPO', registro_conselho: 'COREN 55' })`);
+    assert.equal(c.local, 'Região sacral');
+    assert.match(await erroDe(`registrarCurativo('intE', { local: 'Braço', material: 'Gaze', aspecto: 'OUTRO', registro_conselho: 'COREN 55' })`), /Descrição do aspecto/);
+    await aj(`anularProcessoEnfermagem('${p.id}', 'Registrado no paciente errado')`);
+    assert.match(await erroDe(`anularProcessoEnfermagem('${p.id}', 'Registrado no paciente errado')`), /já foi anulado/);
+    assert.equal(doc('processo_enfermagem', p.id).etapa, 'AVALIACAO');   // o original não muda
 });

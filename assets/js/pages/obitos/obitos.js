@@ -41,6 +41,8 @@ function renderObitos() {
         if (acompanha && !o.comunicacao) acoes += e9Botao('Comunicar família', `obComunicar('${o.id}')`);
         if (acompanha && !o.liberacao) acoes += e9Botao('Liberar corpo', `obLiberar('${o.id}')`);
         if (registra) acoes += e9Botao(o.numero_do ? 'Retificar DO' : 'Informar nº da DO', `obNumeroDo('${o.id}')`);
+        if (registra && !o.encaminhamento) acoes += e9Botao('Encaminhar IML/SVO', `obEncaminhar('${o.id}')`);
+        if (registra && !o.hemovigilancia) acoes += e9Botao('Hemovigilância', `obHemovigilancia('${o.id}')`);
         return `<tr>
             <td data-label="Protocolo" class="e9-curto"><strong>${escapeHtml(o.protocolo)}</strong><br><small>${escapeHtml(formatDateTimeBR(o.registrado_em))}</small></td>
             <td data-label="Óbito em" class="e9-curto">${escapeHtml(formatDateTimeBR(o.data_hora_obito))}<br><small>${escapeHtml(LOCAIS_OBITO[o.local] || o.local)}</small></td>
@@ -157,6 +159,58 @@ function obLiberar(id) {
         o.numero_do ? '' : '<p class="tri-banner tri-banner--warn" style="margin-top:12px">O nº da Declaração de Óbito ainda não foi informado neste registro.</p>');
 }
 
+function obEncaminhar(id) {
+    const o = obAchar(id); if (!o) return;
+    obPasso(`Encaminhamento ao IML ou SVO · ${o.protocolo}`, `
+        <label class="at-field"><span class="at-label">Encaminhar para *</span><select class="at-input" id="oe_destino"><option value="">-- Selecione --</option>${e9Opcoes(DESTINOS_ENCAMINHAMENTO)}</select></label>
+        <label class="at-field"><span class="at-label">Data e hora *</span><input class="at-input" type="datetime-local" id="oe_em" value="${e9AgoraLocal()}"></label>
+        <label class="at-field at-span-2"><span class="at-label">Motivo do encaminhamento *</span><input class="at-input" id="oe_motivo" maxlength="200" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Seu registro no conselho (CRM) *</span><input class="at-input" id="oe_registro_conselho" maxlength="30" autocomplete="off" value="${escapeHtml(obCrm())}"></label>
+        <label class="at-field at-span-2"><span class="at-label">Observação</span><input class="at-input" id="oe_observacao" maxlength="200" autocomplete="off"></label>`,
+        'oe', ['destino', 'em', 'motivo', 'registro_conselho', 'observacao'], 'Registrar encaminhamento',
+        async (f) => { await registrarEncaminhamentoObito(id, f); obGuardarCrm(f.registro_conselho); showMsg('Encaminhamento registrado. A guia interna já pode ser impressa pelos detalhes.'); },
+        '<p class="at-hint" style="margin-top:12px">Quem decide se o caso vai ao IML ou SVO é o médico. O sistema só registra a decisão e o motivo.</p>');
+}
+
+async function obHemovigilancia(id) {
+    const o = obAchar(id); if (!o) return;
+    const teve = await pacienteTeveTransfusao(o.paciente_id);
+    const aviso = teve ? '<p class="tri-banner tri-banner--warn" style="margin-top:12px">Este paciente tem transfusão registrada no sistema. Confira se a hemovigilância precisa ser comunicada.</p>'
+        : '<p class="at-hint" style="margin-top:12px">O sistema não decide qual óbito exige comunicar a hemovigilância: informe o que o médico e a rotina do hospital determinarem.</p>';
+    const d = hModal(`Hemovigilância · ${o.protocolo}`, `<div class="at-form tc-form">
+        <label class="at-field"><span class="at-label">Situação *</span><select class="at-input" id="oh_situacao"><option value="">-- Selecione --</option>${e9Opcoes(SITUACOES_HEMOVIGILANCIA)}</select></label>
+        <label class="at-field" id="oh_w_em"><span class="at-label">Data e hora da comunicação *</span><input class="at-input" type="datetime-local" id="oh_em" value="${e9AgoraLocal()}"></label>
+        <label class="at-field at-span-2" id="oh_w_a"><span class="at-label">Comunicado a (setor ou nome) *</span><input class="at-input" id="oh_comunicado_a" maxlength="100" autocomplete="off"></label>
+        <label class="at-field at-span-2" id="oh_w_m"><span class="at-label">Motivo (por que não se aplica) *</span><input class="at-input" id="oh_motivo" maxlength="200" autocomplete="off"></label>
+        <label class="at-field at-span-2"><span class="at-label">Observação</span><input class="at-input" id="oh_observacao" maxlength="200" autocomplete="off"></label></div>${aviso}
+        <p class="at-error" id="oh_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="oh_ok">Registrar</button></div>`, 'lg');
+    const ajusta = () => { const na = d.querySelector('#oh_situacao').value === 'NAO_APLICAVEL'; d.querySelector('#oh_w_em').hidden = na; d.querySelector('#oh_w_a').hidden = na; d.querySelector('#oh_w_m').hidden = !na; };
+    d.querySelector('#oh_situacao').onchange = ajusta; ajusta();
+    d.querySelector('#oh_ok').onclick = async () => {
+        d.querySelector('#oh_erro').textContent = '';
+        try {
+            const f = e9Ler(d, 'oh', ['situacao', 'em', 'comunicado_a', 'motivo', 'observacao']);
+            if (f.em) f.em = new Date(f.em).toISOString();
+            await registrarHemovigilanciaObito(id, f); d.close(); showMsg('Hemovigilância registrada.'); obRecarregar();
+        } catch (err) { e9Erro(d, 'oh_erro', err); }
+    };
+}
+
+/** Documento interno (ficha do óbito ou guia de encaminhamento) para imprimir. A impressão fica registrada como acesso ao dado sigiloso. */
+function obImprimir(id, tipo) {
+    const o = obAchar(id); if (!o) return;
+    try {
+        registrarAcesso('obito', o.id, `Óbitos: imprimir ${tipo === 'GUIA_ENCAMINHAMENTO' ? 'guia' : 'ficha'}`);
+        const doc = documentoInternoObito(o, tipo, { hospital: (typeof APP_INFO !== 'undefined' && APP_INFO.hospital) || '', emitidoPor: state.currentUser.name, emitidoEm: formatDateTimeBR(new Date().toISOString()) });
+        const e = escapeHtml; const dt = (x) => (/^\d{4}-\d{2}-\d{2}T/.test(String(x)) ? formatDateTimeBR(x) : x);
+        cadImprimirHtml(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${e(doc.titulo)}</title><style>@page{size:A4 portrait;margin:14mm} body{font-family:Arial,sans-serif;font-size:12px;color:#111} h1{font-size:16px;margin:0 0 4px} table{width:100%;border-collapse:collapse;margin-top:10px} th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top} th{width:34%;background:#f1f5f9} .av{margin-top:14px;padding:8px;border:1px solid #b45309;font-weight:bold} .as{margin-top:36px;display:flex;gap:40px} .as div{flex:1;border-top:1px solid #111;padding-top:4px;text-align:center}</style></head><body>
+            <h1>${e(doc.hospital)}</h1><div>${e(doc.titulo)} · emitido em ${e(doc.emitido_em)} por ${e(doc.emitido_por)}</div>
+            <table>${doc.linhas.map(([k, v]) => `<tr><th>${e(k)}</th><td>${e(dt(v))}</td></tr>`).join('')}</table>
+            <p class="av">${e(doc.aviso)}</p><div class="as"><div>Médico responsável</div><div>Quem recebe</div></div></body></html>`, doc.titulo);
+    } catch (err) { showMsg(err.message || 'Não foi possível montar o documento.', 'error'); }
+}
+
 function obNumeroDo(id) {
     const o = obAchar(id); if (!o) return;
     obPasso(`${o.numero_do ? 'Retificar' : 'Informar'} nº da Declaração de Óbito · ${o.protocolo}`, `
@@ -197,9 +251,13 @@ function obDetalhe(id) {
             ['Constatado por', `${o.registrado_por_nome || o.registrado_por} (${o.registro_conselho})`], ['Registrado em', dt(o.registrado_em)], ['Observação', o.observacao]])}
         <h3 class="at-label" style="margin:14px 0 6px">Comunicação à família</h3>
         ${o.comunicacao ? e9Dl([['Comunicado a', o.comunicacao.comunicado_a], ['Vínculo', o.comunicacao.parentesco], ['Quando', dt(o.comunicacao.em)], ['Registrado por', o.comunicacao.por_nome], ['Observação', o.comunicacao.observacao]]) : '<p class="at-hint">Ainda não registrada.</p>'}
+        <h3 class="at-label" style="margin:14px 0 6px">Encaminhamento ao IML ou SVO</h3>
+        ${o.encaminhamento ? e9Dl([['Destino', DESTINOS_CORPO[o.encaminhamento.destino]], ['Motivo', o.encaminhamento.motivo], ['Quando', dt(o.encaminhamento.em)], ['Médico', `${o.encaminhamento.por_nome} (${o.encaminhamento.registro_conselho})`], ['Observação', o.encaminhamento.observacao]]) : '<p class="at-hint">Nenhum encaminhamento registrado.</p>'}
+        <h3 class="at-label" style="margin:14px 0 6px">Hemovigilância</h3>
+        ${o.hemovigilancia ? e9Dl([['Situação', SITUACOES_HEMOVIGILANCIA[o.hemovigilancia.situacao]], ['Comunicado a', o.hemovigilancia.comunicado_a], ['Quando', o.hemovigilancia.em ? dt(o.hemovigilancia.em) : ''], ['Motivo', o.hemovigilancia.motivo], ['Registrado por', o.hemovigilancia.por_nome], ['Observação', o.hemovigilancia.observacao]]) : '<p class="at-hint">Não informada.</p>'}
         <h3 class="at-label" style="margin:14px 0 6px">Liberação do corpo</h3>
         ${o.liberacao ? e9Dl([['Destino', DESTINOS_CORPO[o.liberacao.destino]], ['Recebido por', o.liberacao.recebedor], ['Quando', dt(o.liberacao.em)], ['Registrado por', o.liberacao.por_nome], ['Observação', o.liberacao.observacao]]) : '<p class="at-hint">Ainda não registrada.</p>'}
         ${(o.retificacoes || []).length ? `<h3 class="at-label" style="margin:14px 0 6px">Retificações</h3><ul class="e8-resumo">${o.retificacoes.map(r => `<li>Nº da DO de ${escapeHtml(r.de)} para ${escapeHtml(r.para)} · ${escapeHtml(dt(r.em))} · ${escapeHtml(r.por_nome)}<br><small>${escapeHtml(r.motivo)}</small></li>`).join('')}</ul>` : ''}
         <h3 class="at-label" style="margin:14px 0 6px">Histórico</h3>${e9Historico(o.historico, SITUACOES_OBITO)}
-        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button></div>`, 'lg');
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button>${e9Botao('Imprimir ficha do óbito', `obImprimir('${o.id}', 'FICHA')`)}${o.encaminhamento ? e9Botao('Imprimir guia de encaminhamento', `obImprimir('${o.id}', 'GUIA_ENCAMINHAMENTO')`) : ''}</div>`, 'lg');
 }

@@ -192,6 +192,7 @@ async function agendarCirurgia(form) {
     requirePermission('cirurgia_gerenciar');
     const database = requireDb();
     const paciente = await db_getPaciente(form.paciente_id);
+    if (typeof exigirPacienteVivo === 'function') await exigirPacienteVivo(form.paciente_id);   // #68: paciente com óbito não é agendado
     const v = validarCirurgia(form, { paciente });
     const user = state.currentUser;
     const agora = nowISO();

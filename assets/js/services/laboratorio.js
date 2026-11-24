@@ -101,6 +101,40 @@ async function liberarResultadoLab(id, { linhas, observacao = '' }) {
         campos: (p, u, agora) => ({ resultado: { ...r, liberado_por: u.username, liberado_por_nome: u.name, liberado_em: agora } }) });
 }
 
+// ---------- Retificação de resultado liberado: o original NUNCA muda; a correção é um documento novo com o motivo (livro só de criação) ----------
+const COL_LAB_RETIFICACOES = 'lab_retificacoes';
+
+function validarRetificacaoLab(form) {
+    return { ...validarResultadoLab(form.linhas, form.observacao), motivo: apoioTexto(form.motivo, 'Motivo da retificação', { min: 5, max: 200 }) };
+}
+
+async function retificarResultadoLab(pedidoId, form) {
+    requirePermission('laboratorio_executar');
+    const v = validarRetificacaoLab(form);
+    const database = requireDb(); const user = state.currentUser; const agora = nowISO();
+    let ret;
+    await database.runTransaction(async (tx) => {
+        const snap = await tx.get(database.collection(COL_LAB).doc(String(pedidoId)));
+        if (!snap.exists) throw new Error('Pedido de laboratório não encontrado.');
+        const p = { id: snap.id, ...snap.data() };
+        if (p.status !== 'LIBERADO') throw new Error('Só se retifica um resultado já liberado.');
+        ret = { id: newId('lrt'), pedido_id: p.id, protocolo: p.protocolo, paciente_id: p.paciente_id, exame_nome: p.exame_nome, em: agora, dia: todayISO(),
+            linhas: v.linhas, observacao: v.observacao, motivo: v.motivo, por: user.username, por_nome: user.name };
+        tx.set(database.collection(COL_LAB_RETIFICACOES).doc(ret.id), ret);
+    });
+    await auditar({ entidade: 'laboratorio', entidade_id: pedidoId, acao: 'RETIFICAR', motivo: v.motivo });
+    return ret;
+}
+
+/** Retificações de um pedido, da mais recente para a mais antiga. */
+async function db_getRetificacoesLab(pedidoId) {
+    const snap = await requireDb().collection(COL_LAB_RETIFICACOES).where('pedido_id', '==', String(pedidoId)).get();
+    return snap.docs.map(docToObj).sort((a, b) => String(b.em).localeCompare(String(a.em)));
+}
+
+/** Resultado que vale: a retificação mais recente, se houver; senão o liberado. `retificacoes` já vem do mais novo para o mais antigo. */
+const resultadoVigenteLab = (pedido, retificacoes = []) => (retificacoes[0] ? { linhas: retificacoes[0].linhas, observacao: retificacoes[0].observacao, retificado: true } : { ...(pedido.resultado || {}), retificado: false });
+
 /** Cancela (motivo obrigatório). Quem pediu cancela só o próprio pedido ainda não coletado; o laboratório cancela qualquer aberto. */
 async function cancelarPedidoLab(id, motivo) {
     if (!(hasPermission('laboratorio_solicitar') || hasPermission('laboratorio_executar'))) throw new Error('Acesso negado: seu perfil não tem permissão para esta operação.');

@@ -54,7 +54,7 @@ function renderEnfPainel() {
             <td data-label="Paciente">${escapeHtml(i.paciente_nome)}<br><small>Prontuário ${escapeHtml(i.prontuario || '—')}</small></td>
             <td data-label="Último sinal vital">${sinal}</td>
             <td data-label="Medicação e cuidados">${pend}</td>
-            <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${podeSinais ? enfBotao('Sinais vitais', `enfSinais('${i.id}')`, true) : ''}${enfBotao('Checagem', `enfIrChecagem('${i.paciente_id}')`)}${enfBotao('Prontuário', `prontuarioAbrir('${i.paciente_id}')`)}</div></td></tr>`;
+            <td data-label="Ações" class="rf-acoes"><div class="rf-btns">${podeSinais ? enfBotao('Sinais vitais', `enfSinais('${i.id}')`, true) : ''}${enfBotao('Processo e curativos', `enfProcesso('${i.id}')`)}${enfBotao('Checagem', `enfIrChecagem('${i.paciente_id}')`)}${enfBotao('Prontuário', `prontuarioAbrir('${i.paciente_id}')`)}</div></td></tr>`;
     }).join('');
 
     const escalas = escalasDoDia(cadRowsOf('escalaenf'), hoje, st.ala);
@@ -99,6 +99,49 @@ function enfIrChecagem(pacienteId) {
     enfChecagemState().q = i ? i.paciente_nome : '';
     enfChecagemState().aba = 'checagem';
     navigateTo('ENF_CHECAGEM');
+}
+
+// ============ Processo de enfermagem e curativos (#46) ============
+
+async function enfProcesso(internacaoId) {
+    try {
+        requirePermission('enfermagem_registrar');
+        const i = (MOCK_DATA.INTERNACOES || []).find(x => x.id === internacaoId);
+        if (!i || i.status !== 'ATIVA') throw new Error('Este paciente não tem internação ativa.');
+        registrarAcesso('paciente', i.paciente_id, 'Enfermagem: processo de enfermagem e curativos');
+        const [proc, cur] = await Promise.all([db_getRegistrosEnfermagemDoPaciente(COL_PROCESSO_ENF, i.paciente_id), db_getRegistrosEnfermagemDoPaciente(COL_CURATIVOS, i.paciente_id)]);
+        const dt = (x) => escapeHtml(formatDateTimeBR(x));
+        hModal(`Processo e curativos · ${i.paciente_nome}`, `${enfCabecalhoHtml(i)}
+            <h3 class="at-label" style="margin:14px 0 6px">Processo de enfermagem</h3>
+            ${proc.length ? `<ul class="e8-resumo">${proc.map(r => `<li><strong>${escapeHtml(ETAPAS_PROCESSO_ENF[r.etapa])}</strong> · ${dt(r.em)} · ${escapeHtml(r.por_nome || r.por)} (${escapeHtml(r.registro_conselho)})<br>${escapeHtml(r.texto)}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum registro.</p>'}
+            <h3 class="at-label" style="margin:14px 0 6px">Curativos</h3>
+            ${cur.length ? `<ul class="e8-resumo">${cur.map(r => `<li>${dt(r.em)} · <strong>${escapeHtml(r.local)}</strong> · ${escapeHtml(r.material)} · ${escapeHtml(ASPECTOS_CURATIVO[r.aspecto])}${r.aspecto_detalhe ? ` (${escapeHtml(r.aspecto_detalhe)})` : ''} · ${escapeHtml(r.por_nome || r.por)}${r.observacao ? `<br>${escapeHtml(r.observacao)}` : ''}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum curativo registrado.</p>'}
+            <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button>${enfBotao('Novo registro do processo', `enfNovoProcesso('${i.id}')`)}${enfBotao('Registrar curativo', `enfNovoCurativo('${i.id}')`)}</div>`, 'lg');
+    } catch (err) { showMsg(err.message || 'Não foi possível abrir.', 'error'); }
+}
+
+function enfFormularioRegistro(titulo, campos, ids, gravar) {
+    const d = hModal(titulo, `<div class="at-form tc-form">${campos}</div><p class="at-error" id="fr_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="fr_ok">Registrar</button></div>`, 'md');
+    d.querySelector('#fr_ok').onclick = async () => {
+        d.querySelector('#fr_erro').textContent = '';
+        try { const f = e9Ler(d, 'fr', ids); if (f.em) f.em = new Date(f.em).toISOString(); await gravar(f); d.close(); showMsg('Registrado.'); } catch (err) { e9Erro(d, 'fr_erro', err); }
+    };
+}
+const enfCoren = `<label class="at-field"><span class="at-label">Seu registro no conselho (COREN) *</span><input class="at-input" id="fr_registro_conselho" maxlength="30" autocomplete="off"></label>`;
+function enfNovoProcesso(id) {
+    enfFormularioRegistro('Novo registro do processo de enfermagem', `<label class="at-field"><span class="at-label">Etapa *</span><select class="at-input" id="fr_etapa"><option value="">-- Selecione --</option>${e9Opcoes(ETAPAS_PROCESSO_ENF)}</select></label>
+        ${enfCoren}<label class="at-field at-span-2"><span class="at-label">Registro *</span><textarea class="at-input" id="fr_texto" rows="4" maxlength="1000"></textarea></label>`,
+        ['etapa', 'registro_conselho', 'texto'], (f) => registrarProcessoEnfermagem(id, f));
+}
+function enfNovoCurativo(id) {
+    enfFormularioRegistro('Registrar curativo', `<label class="at-field"><span class="at-label">Local *</span><input class="at-input" id="fr_local" maxlength="100" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Material ou cobertura *</span><input class="at-input" id="fr_material" maxlength="150" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Aspecto *</span><select class="at-input" id="fr_aspecto"><option value="">-- Selecione --</option>${e9Opcoes(ASPECTOS_CURATIVO)}</select></label>
+        <label class="at-field"><span class="at-label">Descrição do aspecto</span><input class="at-input" id="fr_aspecto_detalhe" maxlength="200" autocomplete="off"></label>
+        ${enfCoren}<label class="at-field"><span class="at-label">Quando (vazio = agora)</span><input class="at-input" type="datetime-local" id="fr_em"></label>
+        <label class="at-field at-span-2"><span class="at-label">Observação</span><input class="at-input" id="fr_observacao" maxlength="300" autocomplete="off"></label>`,
+        ['local', 'material', 'aspecto', 'aspecto_detalhe', 'registro_conselho', 'em', 'observacao'], (f) => registrarCurativo(id, f));
 }
 
 // ============ Sinais vitais do internado ============

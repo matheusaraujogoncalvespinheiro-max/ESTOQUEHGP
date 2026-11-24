@@ -53,7 +53,8 @@ function validarConclusaoOs(form, os, agora = new Date()) {
     const pecas = apoioTexto(form.pecas, 'Peças ou serviços de terceiros', { max: 200 });
     const concluidoEm = apoioDataHora(form.concluido_em, 'Data e hora da conclusão', { agora, maxAntesHoras: 24 * 90 });
     if (new Date(concluidoEm).getTime() < new Date(os.criado_em).getTime()) throw new Error('A conclusão não pode ser anterior à abertura da OS.');
-    return { solucao, pecas, concluido_em: concluidoEm };
+    const custo = apoioDecimal(form.custo, 'Custo do serviço (R$)', 0, 10000000, { opcional: true });   // #69: opcional; vazio = não informado (nunca vira 0)
+    return { solucao, pecas, concluido_em: concluidoEm, custo };
 }
 
 /** Situação da cobrança de um plano: VENCIDO (data passada), A_VENCER (até a janela) ou EM_DIA. `hoje` AAAA-MM-DD. */
@@ -200,7 +201,7 @@ async function concluirOs(id, form) {
         const v = validarConclusaoOs(form, os);
         let planoRef = null; let plano = null;
         if (os.plano_id) { planoRef = database.collection(COL_PLANOS_MANUT).doc(os.plano_id); const p = await tx.get(planoRef); if (p.exists) plano = { id: p.id, ...p.data() }; }
-        nova = { ...os, status: 'CONCLUIDA', solucao: v.solucao, pecas: v.pecas, concluido_em: v.concluido_em, concluida_por: user.username, concluida_por_nome: user.name,
+        nova = { ...os, status: 'CONCLUIDA', solucao: v.solucao, pecas: v.pecas, custo: v.custo, concluido_em: v.concluido_em, concluida_por: user.username, concluida_por_nome: user.name,
             atendente: os.atendente || user.username, atendente_nome: os.atendente_nome || user.name, iniciado_em: os.iniciado_em || agora,
             historico: [...(os.historico || []), apoioLinhaHistorico('CONCLUIDA', user, agora, v.solucao)] };
         tx.set(ref, nova);
@@ -212,6 +213,64 @@ async function concluirOs(id, form) {
     });
     await auditar({ entidade: 'os_manutencao', entidade_id: id, acao: 'CONCLUIR', depois: { protocolo: nova.protocolo, concluido_em: nova.concluido_em } });
     return nova;
+}
+
+// ---------- #69: movimentações, teste elétrico e custo por equipamento (livros que só recebem registros novos; erro = anulação) ----------
+const COL_MOVIMENTACOES = 'equipamento_movimentacoes';
+const COL_TESTES_ELETRICOS = 'equipamento_testes_eletricos';
+const RESULTADOS_TESTE_ELETRICO = { APROVADO: 'Aprovado', REPROVADO: 'Reprovado' };
+
+function validarMovimentacaoEquipamento(form, equip, agora = new Date()) {
+    const para = apoioTexto(form.para, 'Novo local ou setor', { min: 2, max: 80 });
+    const de = String(equip.local || equip.setor || '').slice(0, 80);
+    if (de && de.toLowerCase() === para.toLowerCase()) throw new Error('O novo local é igual ao atual.');
+    return { equipamento_id: equip.id, equipamento_nome: String(equip.nome || ''), patrimonio: String(equip.patrimonio || ''), de, para,
+        motivo: apoioTexto(form.motivo, 'Motivo da movimentação', { min: 5, max: 200 }), em: apoioDataHora(form.em, 'Data e hora da movimentação', { agora }) };
+}
+
+function validarTesteEletrico(form, equip, agora = new Date()) {
+    const resultado = apoioEscolha(form.resultado, RESULTADOS_TESTE_ELETRICO, 'Resultado do teste');
+    const proximo = String(form.proximo_em || '').trim();
+    if (proximo) apoioData(proximo, 'Próximo teste', { futuro: true, agora });
+    return { equipamento_id: equip.id, equipamento_nome: String(equip.nome || ''), patrimonio: String(equip.patrimonio || ''), resultado,
+        responsavel: apoioTexto(form.responsavel, 'Quem executou (técnico ou empresa)', { min: 3, max: 100 }), laudo: apoioTexto(form.laudo, 'Nº do laudo ou observação', { max: 200 }),
+        proximo_em: proximo, em: apoioDataHora(form.em, 'Data e hora do teste', { agora }) };
+}
+
+async function equipamentoDoCadastro(id) {
+    const e = (typeof cadRowsOf === 'function' ? cadRowsOf('equipamento') : []).find(x => x.id === String(id));
+    if (!e) throw new Error('Equipamento não encontrado.');
+    return e;
+}
+
+/** Registra que o equipamento mudou de local. NÃO altera o cadastro: o histórico é o livro; quem edita o cadastro é o gestor do patrimônio. */
+async function registrarMovimentacaoEquipamento(equipamentoId, form) {
+    requirePermission('manutencao_gerenciar');
+    const equip = await equipamentoDoCadastro(equipamentoId);
+    const dados = validarMovimentacaoEquipamento(form, equip);
+    return apoioGravarRegistro({ col: COL_MOVIMENTACOES, prefixoId: 'mov', dados, entidade: 'equipamento_movimentacao', perm: 'manutencao_gerenciar', resumoAuditoria: r => ({ equipamento: r.equipamento_id, de: r.de, para: r.para }) });
+}
+
+async function registrarTesteEletrico(equipamentoId, form) {
+    requirePermission('manutencao_executar');
+    const equip = await equipamentoDoCadastro(equipamentoId);
+    const dados = validarTesteEletrico(form, equip);
+    return apoioGravarRegistro({ col: COL_TESTES_ELETRICOS, prefixoId: 'tel', dados, entidade: 'equipamento_teste_eletrico', perm: 'manutencao_executar', resumoAuditoria: r => ({ equipamento: r.equipamento_id, resultado: r.resultado }) });
+}
+
+const anularMovimentacaoEquipamento = (id, motivo) => apoioAnularRegistro({ col: COL_MOVIMENTACOES, id, motivo, perm: 'manutencao_gerenciar', entidade: 'equipamento_movimentacao' });
+const anularTesteEletrico = (id, motivo) => apoioAnularRegistro({ col: COL_TESTES_ELETRICOS, id, motivo, perm: 'manutencao_executar', entidade: 'equipamento_teste_eletrico' });
+
+/** Custo de manutenção do equipamento: soma só o que foi informado nas OS concluídas; `semCusto` conta as concluídas sem valor (não entra como zero). */
+function custoManutencaoEquipamento(listaOs) {
+    const concl = (listaOs || []).filter(o => o.status === 'CONCLUIDA');
+    const comCusto = concl.filter(o => typeof o.custo === 'number');
+    return { total: Math.round(comCusto.reduce((s, o) => s + o.custo, 0) * 100) / 100, osComCusto: comCusto.length, semCusto: concl.length - comCusto.length };
+}
+
+async function db_getRegistrosDoEquipamento(col, equipamentoId) {
+    const snap = await requireDb().collection(col).where('equipamento_id', '==', String(equipamentoId)).get();
+    return apoioRegistrosValidos(snap.docs.map(docToObj)).sort((a, b) => String(b.em).localeCompare(String(a.em)));
 }
 
 /** Cancela a OS (motivo obrigatório). Quem abriu cancela só enquanto está "Aberta"; a manutenção cancela em qualquer situação aberta. */

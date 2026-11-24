@@ -53,6 +53,14 @@ test('laboratório (#29): fluxo pedido → coleta → liberação, com históric
     assert.deepEqual(store.lab_pedidos[p.id].historico.map(h => h.status), ['SOLICITADO', 'COLETADO', 'LIBERADO']);
     await assert.rejects(() => run(ctx, `cancelarPedidoLab('${p.id}', 'motivo qualquer')`), /Não é possível passar/);
     assert.deepEqual(auditoria.map(a => a.acao), ['SOLICITAR', 'COLETAR', 'LIBERAR']);
+    // retificação: o original não muda, a nova vale e fica com o motivo
+    await assert.rejects(() => run(ctx, `retificarResultadoLab('${p.id}', { linhas: [{ analito: 'Hemoglobina', valor: '13,9' }], motivo: '' })`), /Motivo da retificação/);
+    const rt = await run(ctx, `retificarResultadoLab('${p.id}', { linhas: [{ analito: 'Hemoglobina', valor: '13,9', unidade: 'g/dL' }], motivo: 'Digitação incorreta do valor' })`);
+    assert.deepEqual([rt.pedido_id, rt.por, rt.linhas[0].valor], [p.id, 'lab', '13,9']);
+    assert.equal(store.lab_pedidos[p.id].resultado.linhas[0].valor, '13,2');
+    assert.equal(store.lab_retificacoes[rt.id].motivo, 'Digitação incorreta do valor');
+    entrar(ctx, 'MEDICO', 'med');
+    await assert.rejects(() => run(ctx, `retificarResultadoLab('${p.id}', { linhas: [{ analito: 'Hb', valor: '1' }], motivo: 'Motivo qualquer' })`), /Acesso negado/);
 });
 
 test('laboratório (#29): cancelar exige motivo; o médico só cancela o próprio pedido ainda não coletado', async () => {

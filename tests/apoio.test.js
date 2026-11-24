@@ -170,11 +170,32 @@ test('atendimento da OS: assumir, aguardar peça, retomar e concluir; só a manu
     assert.match(await erroDe(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor', concluido_em: '${antes}' })`), /anterior à abertura/);
     const depois = new Date(Date.now() + 3600000).toISOString();
     assert.match(await erroDe(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor', concluido_em: '${depois}' })`), /não pode estar no futuro/);
-    const c = await aj(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor', pecas: 'Fonte 12 V' })`);
+    assert.match(await erroDe(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor', custo: '-5' })`), /Custo do serviço/);
+    const c = await aj(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor', pecas: 'Fonte 12 V', custo: '350,50' })`);
+    assert.equal(c.custo, 350.5);
     assert.deepEqual([c.status, c.solucao, c.pecas, c.historico.map(h => h.status)], ['CONCLUIDA', 'Trocada a fonte do monitor', 'Fonte 12 V', ['ABERTA', 'EM_ATENDIMENTO', 'AGUARDANDO_PECA', 'EM_ATENDIMENTO', 'CONCLUIDA']]);
     assert.match(await erroDe(`concluirOs('${os1.id}', { solucao: 'Trocada a fonte do monitor' })`), /já foi registrado/);
     assert.match(await erroDe(`cancelarOs('${os1.id}', 'Não é mais necessário')`), /de "Concluída" para "Cancelada"/);   // concluída não se cancela
     assert.match(await erroDe("assumirOs('nao_existe')"), /OS não encontrada/);
+});
+
+test('patrimônio (#69): movimentação e teste elétrico são livros só de criação; custo soma só o informado', async () => {
+    entrar('FUNC_ENFERMAGEM', 'enf1');
+    assert.match(await erroDe("registrarMovimentacaoEquipamento('eq1', { para: 'UTI 3', motivo: 'Remanejamento' })"), /Acesso negado/);
+    entrar('FUNC_MANUTENCAO', 'man1', 'Téc. Manutenção');
+    assert.match(await erroDe("registrarMovimentacaoEquipamento('eq1', { para: 'UTI 3', motivo: 'ab' })"), /Motivo da movimentação/);
+    assert.match(await erroDe("registrarMovimentacaoEquipamento('nada', { para: 'UTI 3', motivo: 'Remanejamento' })"), /Equipamento não encontrado/);
+    const m = await aj("registrarMovimentacaoEquipamento('eq1', { para: 'UTI 3', motivo: 'Remanejamento de leitos' })");
+    assert.deepEqual([m.equipamento_id, m.para, m.por], ['eq1', 'UTI 3', 'man1']);
+    assert.match(await erroDe("registrarTesteEletrico('eq1', { resultado: 'TALVEZ', responsavel: 'Empresa X' })"), /Resultado do teste/);
+    const t = await aj("registrarTesteEletrico('eq1', { resultado: 'APROVADO', responsavel: 'Empresa X', laudo: 'L-9', proximo_em: '2099-01-01' })");
+    assert.equal(t.resultado, 'APROVADO');
+    const anul = await aj(`anularTesteEletrico('${t.id}', 'Lançado no equipamento errado')`);
+    assert.equal(anul.anula_id, t.id);
+    assert.match(await erroDe(`anularTesteEletrico('${t.id}', 'Lançado no equipamento errado')`), /já foi anulado/);
+    assert.equal(doc('equipamento_testes_eletricos', t.id).resultado, 'APROVADO');   // o original não muda
+    dados('__os', [{ status: 'CONCLUIDA', custo: 100.1 }, { status: 'CONCLUIDA', custo: 50.2 }, { status: 'CONCLUIDA' }, { status: 'ABERTA', custo: 999 }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(call('custoManutencaoEquipamento(__os)'))), { total: 150.3, osComCusto: 2, semCusto: 1 });
 });
 
 test('cancelar OS: quem abriu cancela só a própria e só enquanto aberta; a manutenção cancela qualquer aberta; motivo obrigatório', async () => {

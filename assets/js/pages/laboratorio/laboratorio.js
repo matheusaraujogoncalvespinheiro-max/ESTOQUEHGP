@@ -115,6 +115,24 @@ function labResultado(id) {
     };
 }
 
+function labRetificar(id) {
+    const p = labConhecidos().find(x => x.id === id); if (!p) return;
+    const campos = [['analito', 'Exame/analito'], ['valor', 'Valor'], ['unidade', 'Unidade'], ['referencia', 'Referência']];
+    const linha = (i) => `<div class="lb-linha">${campos.map(([c, r]) => `<input class="at-input" data-c="${c}" placeholder="${r}" maxlength="60" aria-label="${r} ${i + 1}">`).join('')}</div>`;
+    const d = hModal('Retificar resultado', `<p class="at-hint"><strong>${escapeHtml(p.paciente_nome)}</strong> · ${escapeHtml(p.exame_nome)}. O resultado original é mantido; a retificação passa a valer e fica com o motivo.</p>
+        <div id="lt_linhas">${linha(0)}</div>
+        <button type="button" class="at-btn at-btn--ghost at-btn--sm" id="lt_mais" style="margin-top:8px">+ Linha</button>
+        <label class="at-field" style="margin-top:12px"><span class="at-label">Motivo da retificação *</span><input class="at-input" id="lt_motivo" maxlength="200" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Observação</span><input class="at-input" id="lt_obs" maxlength="300" autocomplete="off"></label>
+        <p class="at-error" id="lt_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="lt_ok">Registrar retificação</button></div>`, 'lg');
+    d.querySelector('#lt_mais').onclick = () => { const n = d.querySelectorAll('.lb-linha').length; if (n < LAB_MAX_LINHAS) d.querySelector('#lt_linhas').insertAdjacentHTML('beforeend', linha(n)); };
+    d.querySelector('#lt_ok').onclick = async () => {
+        const linhas = [...d.querySelectorAll('.lb-linha')].map(l => Object.fromEntries([...l.querySelectorAll('input')].map(i => [i.dataset.c, i.value])));
+        try { await retificarResultadoLab(id, { linhas, motivo: d.querySelector('#lt_motivo').value, observacao: d.querySelector('#lt_obs').value }); showMsg('Retificação registrada.'); fecharModais(); render(); } catch (err) { e9Erro(d, 'lt_erro', err); }
+    };
+}
+
 function labCancelar(id) {
     const d = hModal('Cancelar pedido', `<label class="at-field"><span class="at-label">Motivo *</span><input class="at-input" id="lx_motivo" maxlength="200" autocomplete="off"></label>
         <p class="at-error" id="lx_erro" role="alert"></p>
@@ -124,13 +142,16 @@ function labCancelar(id) {
     };
 }
 
-function labDetalhe(id) {
+async function labDetalhe(id) {
     const p = labConhecidos().find(x => x.id === id); if (!p) return;
+    let rets = [];
+    if (p.status === 'LIBERADO') { try { rets = await db_getRetificacoesLab(id); } catch (err) { rets = []; } }
     const r = p.resultado;
     hModal(`Pedido ${p.protocolo}`, `${e9Dl([['Paciente', p.paciente_nome], ['Prontuário', p.prontuario], ['Exame', p.exame_nome], ['Material', p.coleta ? p.coleta.material : p.material], ['Prioridade', PRIORIDADES_LAB[p.prioridade]],
         ['Situação', SITUACOES_LAB[p.status]], ['Pedido por', p.solicitante_nome], ['Coletado por', p.coleta ? `${p.coleta.por_nome} em ${formatDateTimeBR(p.coleta.em)}` : ''], ['Observação', p.observacao], ['Motivo do cancelamento', p.cancelado_motivo]])}
         ${r ? `<h4 style="margin-top:12px">Resultado</h4><div class="tri-tablewrap"><table class="tri-table cd-table e9-tab"><thead><tr><th>Exame/analito</th><th>Valor</th><th>Unidade</th><th>Referência</th></tr></thead><tbody>${r.linhas.map(l => `<tr><td data-label="Exame/analito">${escapeHtml(l.analito)}</td><td data-label="Valor"><strong>${escapeHtml(l.valor)}</strong></td><td data-label="Unidade">${escapeHtml(l.unidade || '—')}</td><td data-label="Referência">${escapeHtml(l.referencia || '—')}</td></tr>`).join('')}</tbody></table></div>
             <p class="at-hint">Liberado por ${escapeHtml(r.liberado_por_nome)} em ${escapeHtml(formatDateTimeBR(r.liberado_em))}.${r.observacao ? ' ' + escapeHtml(r.observacao) : ''}</p>` : ''}
+        ${rets.length ? `<h4 style="margin-top:12px">Retificações (a primeira vale)</h4>${rets.map(t => `<div class="tri-tablewrap"><p class="at-hint">${escapeHtml(formatDateTimeBR(t.em))} · ${escapeHtml(t.por_nome)} · motivo: ${escapeHtml(t.motivo)}</p><table class="tri-table cd-table e9-tab"><tbody>${t.linhas.map(l => `<tr><td>${escapeHtml(l.analito)}</td><td>${escapeHtml(l.valor)} ${escapeHtml(l.unidade)}</td><td>${escapeHtml(l.referencia)}</td></tr>`).join('')}</tbody></table></div>`).join('')}` : ''}
         <h4 style="margin-top:12px">Histórico</h4>${e9Historico(p.historico, SITUACOES_LAB)}
-        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button></div>`, 'lg');
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button>${p.status === 'LIBERADO' && hasPermission('laboratorio_executar') ? e9Botao('Retificar resultado', `labRetificar('${p.id}')`) : ''}</div>`, 'lg');
 }

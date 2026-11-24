@@ -38,7 +38,7 @@ const ARQUIVOS = [
     'assets/js/services/fluxo-atendimento.js', 'assets/js/services/triagem-clinica.js', 'assets/js/services/consulta-medica.js',
     'assets/js/services/ambulatorio.js', 'assets/js/services/atendimento-procedimentos.js', 'assets/js/services/centro-cirurgico.js',
     'assets/js/services/uti.js', 'assets/js/services/nutricao.js', 'assets/js/services/hemoterapia.js',
-    'assets/js/services/apoio-comum.js', 'assets/js/services/manutencao.js', 'assets/js/services/transporte.js', 'assets/js/services/rouparia.js',
+    'assets/js/services/apoio-comum.js', 'assets/js/services/manutencao.js', 'assets/js/services/processo-enfermagem.js', 'assets/js/services/transporte.js', 'assets/js/services/rouparia.js',
     'assets/js/services/residuos.js', 'assets/js/services/voluntariado.js', 'assets/js/services/obitos.js',
     'assets/js/services/gestao-comum.js', 'assets/js/services/ouvidoria.js', 'assets/js/services/qualidade.js', 'assets/js/services/ensino-pesquisa.js', 'assets/js/services/direcao.js', 'assets/js/services/relatorios.js'
 ];

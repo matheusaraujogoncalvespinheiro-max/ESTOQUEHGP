@@ -116,13 +116,14 @@ function mnConcluir(id) {
         <div class="at-form tc-form">
             <label class="at-field at-span-2"><span class="at-label">Solução aplicada *</span><textarea class="at-input" id="mc_solucao" rows="3" maxlength="500"></textarea></label>
             <label class="at-field at-span-2"><span class="at-label">Peças ou serviços de terceiros</span><input class="at-input" id="mc_pecas" maxlength="200" autocomplete="off"></label>
+            <label class="at-field"><span class="at-label">Custo do serviço (R$, opcional)</span><input class="at-input" id="mc_custo" inputmode="decimal" maxlength="12" autocomplete="off"></label>
             <label class="at-field"><span class="at-label">Concluída em (vazio = agora)</span><input class="at-input" type="datetime-local" id="mc_concluido_em"></label>
         </div>
         <p class="at-error" id="mc_erro" role="alert"></p>
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="mc_ok">Concluir OS</button></div>`, 'md');
     d.querySelector('#mc_ok').onclick = async () => {
         d.querySelector('#mc_erro').textContent = '';
-        try { await concluirOs(id, e9Ler(d, 'mc', ['solucao', 'pecas', 'concluido_em'])); d.close(); showMsg('OS concluída.'); render(); } catch (err) { e9Erro(d, 'mc_erro', err); }
+        try { await concluirOs(id, e9Ler(d, 'mc', ['solucao', 'pecas', 'custo', 'concluido_em'])); d.close(); showMsg('OS concluída.'); render(); } catch (err) { e9Erro(d, 'mc_erro', err); }
     };
 }
 
@@ -135,7 +136,7 @@ function mnDetalhe(id) {
             ['Aberto em', formatDateTimeBR(o.criado_em)], ['Aberto por', o.solicitante_nome], ['Atendente', o.atendente_nome], ['Concluída em', o.concluido_em ? formatDateTimeBR(o.concluido_em) : ''],
             ['Origem', o.plano_id ? 'Plano de manutenção' : 'Chamado']])}
         <h3 class="at-label" style="margin:14px 0 6px">Descrição</h3><p>${escapeHtml(o.descricao)}</p>
-        ${o.solucao ? `<h3 class="at-label" style="margin:14px 0 6px">Solução</h3><p>${escapeHtml(o.solucao)}${o.pecas ? `<br><small>Peças ou serviços: ${escapeHtml(o.pecas)}</small>` : ''}</p>` : ''}
+        ${o.solucao ? `<h3 class="at-label" style="margin:14px 0 6px">Solução</h3><p>${escapeHtml(o.solucao)}${o.pecas ? `<br><small>Peças ou serviços: ${escapeHtml(o.pecas)}</small>` : ''}${typeof o.custo === 'number' ? `<br><small>Custo: R$ ${o.custo.toFixed(2).replace('.', ',')}</small>` : ''}</p>` : ''}
         <h3 class="at-label" style="margin:14px 0 6px">Histórico</h3>${e9Historico(o.historico, SITUACOES_OS)}
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button></div>`, 'lg');
 }

@@ -144,6 +144,17 @@ service cloud.firestore {
       allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
       allow update, delete: if false;
     }
+    // #46: processo de enfermagem e curativos. Só criação; erro = anulação por novo documento.
+    match /processo_enfermagem/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow update, delete: if false;
+    }
+    match /curativos_enfermagem/{id} {
+      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
+      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow update, delete: if false;
+    }
     match /checagens/{id} {
       allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
       allow create, update: if temPerfil(['FUNC_ENFERMAGEM']);
@@ -316,6 +327,17 @@ service cloud.firestore {
       allow update: if temPerfil(['FUNC_MANUTENCAO']) || (logado() && resource.data.solicitante == usuario());
       allow delete: if false;
     }
+    // #69: movimentações e testes elétricos do equipamento. Livros só de criação (erro = anulação por novo documento).
+    match /equipamento_movimentacoes/{id} {
+      allow read: if logado();
+      allow create: if temPerfil(['FUNC_MANUTENCAO']);
+      allow update, delete: if false;
+    }
+    match /equipamento_testes_eletricos/{id} {
+      allow read: if logado();
+      allow create: if temPerfil(['FUNC_MANUTENCAO']);
+      allow update, delete: if false;
+    }
     match /manut_planos/{id} {
       allow read: if temPerfil(['FUNC_MANUTENCAO', 'CHEFE_HEMODINAMICA']);
       allow create, update: if temPerfil(['FUNC_MANUTENCAO']);
@@ -329,6 +351,12 @@ service cloud.firestore {
       allow update: if resource.data.status != 'LIBERADO' && resource.data.status != 'CANCELADO'
         && (temPerfil(['FUNC_LABORATORIO']) || (temPerfil(['MEDICO']) && resource.data.solicitante == usuario() && request.resource.data.status == 'CANCELADO'));
       allow delete: if false;
+    }
+    // Retificação de resultado de laboratório: só criação (o resultado original fica intacto).
+    match /lab_retificacoes/{id} {
+      allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_LABORATORIO'], 'laboratorio_ver');
+      allow create: if temPerfil(['FUNC_LABORATORIO']) && request.resource.data.por == usuario();
+      allow update, delete: if false;
     }
     match /transportes/{id} {
       allow read: if temPerfil(['FUNC_TRANSPORTE']) || (logado() && resource.data.solicitante == usuario());

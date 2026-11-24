@@ -142,22 +142,53 @@ function ptInativar(id) { pedirMotivo('Inativar plano', 'Motivo', true, async (m
 
 // ============ Histórico do equipamento ============
 
+function ptRegistroModal(titulo, campos, ids, botao, gravar) {
+    const d = hModal(titulo, `<div class="at-form tc-form">${campos}</div><p class="at-error" id="pr_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="pr_ok">${botao}</button></div>`, 'md');
+    d.querySelector('#pr_ok').onclick = async () => {
+        d.querySelector('#pr_erro').textContent = '';
+        try { const f = e9Ler(d, 'pr', ids); if (f.em) f.em = new Date(f.em).toISOString(); await gravar(f); d.close(); showMsg('Registrado.'); } catch (err) { e9Erro(d, 'pr_erro', err); }
+    };
+}
+function ptMovimentar(id) {
+    ptRegistroModal('Registrar movimentação', `<label class="at-field at-span-2"><span class="at-label">Novo local ou setor *</span><input class="at-input" id="pr_para" maxlength="80" autocomplete="off"></label>
+        <label class="at-field at-span-2"><span class="at-label">Motivo *</span><input class="at-input" id="pr_motivo" maxlength="200" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Quando (vazio = agora)</span><input class="at-input" type="datetime-local" id="pr_em"></label>`,
+        ['para', 'motivo', 'em'], 'Registrar', (f) => registrarMovimentacaoEquipamento(id, f));
+}
+function ptTesteEletrico(id) {
+    ptRegistroModal('Registrar teste de segurança elétrica', `<label class="at-field"><span class="at-label">Resultado *</span><select class="at-input" id="pr_resultado"><option value="">-- Selecione --</option>${e9Opcoes(RESULTADOS_TESTE_ELETRICO)}</select></label>
+        <label class="at-field"><span class="at-label">Quem executou *</span><input class="at-input" id="pr_responsavel" maxlength="100" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Nº do laudo ou observação</span><input class="at-input" id="pr_laudo" maxlength="200" autocomplete="off"></label>
+        <label class="at-field"><span class="at-label">Próximo teste em</span><input class="at-input" type="date" id="pr_proximo_em"></label>
+        <label class="at-field"><span class="at-label">Quando (vazio = agora)</span><input class="at-input" type="datetime-local" id="pr_em"></label>`,
+        ['resultado', 'responsavel', 'laudo', 'proximo_em', 'em'], 'Registrar', (f) => registrarTesteEletrico(id, f));
+}
+
 async function ptHistorico(equipamentoId) {
     try {
         const e = cadRowsOf('equipamento').find(x => x.id === equipamentoId);
         if (!e) throw new Error('Equipamento não encontrado.');
         const lista = await db_getOsDoEquipamento(equipamentoId);
+        const [movs, testes] = await Promise.all([db_getRegistrosDoEquipamento(COL_MOVIMENTACOES, equipamentoId), db_getRegistrosDoEquipamento(COL_TESTES_ELETRICOS, equipamentoId)]);
+        const cm = custoManutencaoEquipamento(lista);
         const planos = (MOCK_DATA.PLANOS_MANUT || []).filter(p => p.equipamento_id === equipamentoId);
         hModal(`Histórico · ${e.nome}`, `
             ${e9Dl([['Código', e.codigo], ['Patrimônio', e.patrimonio], ['Nº de série', e.numero_serie], ['Modelo', e.modelo], ['Setor', e.setor ? cadRotuloRef('setor', e.setor) : ''], ['Situação no cadastro', e.situacao_op], ['Responsável', e.responsavel], ['Custo de aquisição', e.valor_aquisicao ? formatMoney(e.valor_aquisicao) : ''], ['Garantia até', e.garantia_ate ? formatDateBR(e.garantia_ate) : ''], ['Contrato', e.contrato], ['Baixa', e.situacao_op === 'Baixado' ? `${formatDateBR(e.baixa_data)} · ${e.baixa_motivo}` : '']])}
             <h3 class="at-label" style="margin:14px 0 6px">Planos</h3>
             ${planos.length ? `<ul class="e8-resumo">${planos.map(p => `<li>${escapeHtml(TIPOS_PLANO[p.tipo])} a cada ${p.periodicidade_dias} dia(s): próxima em <strong>${escapeHtml(formatDateBR(p.proxima_em))}</strong>${p.ultima_em ? ` · última em ${escapeHtml(formatDateBR(p.ultima_em))}` : ''}${p.ativo === false ? ' (inativo)' : ''}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum plano para este equipamento.</p>'}
+            <h3 class="at-label" style="margin:14px 0 6px">Custo de manutenção</h3>
+            <p>${cm.osComCusto ? `<strong>R$ ${cm.total.toFixed(2).replace('.', ',')}</strong> em ${cm.osComCusto} OS concluída(s) com custo informado.` : 'Nenhum custo informado nas OS concluídas.'}${cm.semCusto ? ` <small>${cm.semCusto} OS concluída(s) sem custo informado não entram na soma.</small>` : ''}</p>
+            <h3 class="at-label" style="margin:14px 0 6px">Testes de segurança elétrica</h3>
+            ${testes.length ? `<ul class="e8-resumo">${testes.map(t => `<li>${escapeHtml(formatDateTimeBR(t.em))} · <strong>${escapeHtml(RESULTADOS_TESTE_ELETRICO[t.resultado])}</strong> · ${escapeHtml(t.responsavel)}${t.laudo ? ` · ${escapeHtml(t.laudo)}` : ''}${t.proximo_em ? ` · próximo em ${escapeHtml(formatDateBR(t.proximo_em))}` : ''}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum teste registrado.</p>'}
+            <h3 class="at-label" style="margin:14px 0 6px">Movimentações</h3>
+            ${movs.length ? `<ul class="e8-resumo">${movs.map(m => `<li>${escapeHtml(formatDateTimeBR(m.em))} · ${escapeHtml(m.de || 'origem não informada')} → <strong>${escapeHtml(m.para)}</strong> · ${escapeHtml(m.motivo)} (${escapeHtml(m.por_nome || m.por || '')})</li>`).join('')}</ul>` : '<p class="at-hint">Nenhuma movimentação registrada.</p>'}
             <h3 class="at-label" style="margin:14px 0 6px">Ordens de serviço</h3>
             ${lista.length ? `<div class="tri-tablewrap"><table class="tri-table cd-table rf-lista"><thead><tr><th>OS</th><th>Tipo</th><th>Situação</th><th>Descrição e solução</th></tr></thead><tbody>${lista.map(o => `<tr>
                 <td data-label="OS"><strong>${escapeHtml(o.protocolo)}</strong><br><small>${escapeHtml(formatDateTimeBR(o.criado_em))}</small></td>
                 <td data-label="Tipo">${escapeHtml(TIPOS_OS[o.tipo])}${o.parado ? '<br><small>Equipamento parado</small>' : ''}</td>
                 <td data-label="Situação"><span class="${e9BadgeOs[o.status] || 'at-badge'}">${escapeHtml(SITUACOES_OS[o.status])}</span></td>
                 <td data-label="Descrição e solução">${escapeHtml(o.descricao)}${o.solucao ? `<br><small>Solução: ${escapeHtml(o.solucao)}</small>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="at-hint">Nenhuma OS para este equipamento.</p>'}
-            <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button></div>`, 'xl');
+            <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button>${hasPermission('manutencao_executar') ? e9Botao('Registrar teste elétrico', `ptTesteEletrico('${equipamentoId}')`) : ''}${hasPermission('manutencao_gerenciar') ? e9Botao('Registrar movimentação', `ptMovimentar('${equipamentoId}')`) : ''}</div>`, 'xl');
     } catch (err) { showMsg(err.message || 'Não foi possível abrir o histórico.', 'error'); }
 }

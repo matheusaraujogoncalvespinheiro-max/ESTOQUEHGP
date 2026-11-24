@@ -6,10 +6,13 @@
 // família e a liberação do corpo (cada uma uma vez). Nada é apagado: o nº da DO só muda com motivo (fica nas retificações).
 // Cada abertura do registro grava o acesso (registrarAcesso) e as telas não mostram o nome do paciente a quem não tem permissão de ver.
 //
-// O QUE NÃO É: não substitui a Declaração de Óbito (o documento oficial é emitido fora do sistema), não define quando o caso vai ao IML ou SVO,
-// não exige a DO para liberar o corpo e não faz notificação compulsória. Também NÃO bloqueia, nesta etapa, agendamento nem atendimento de
-// paciente com óbito (só a internação é bloqueada). O leito vai para higienização no registro; aguardar a retirada do corpo antes disso é rotina
-// do hospital (ver docs/pendencias.md).
+// Também registra (só o médico) o ENCAMINHAMENTO ao IML ou SVO e a situação da HEMOVIGILÂNCIA (comunicada ou não aplicável, com motivo), e
+// emite os documentos internos de apoio (guia de encaminhamento e ficha do óbito). Paciente com óbito não é agendado nem atendido (consulta,
+// cirurgia, check-in, exame, laboratório, transfusão e transporte são recusados).
+// O QUE NÃO É: não substitui a Declaração de Óbito (o documento oficial é emitido fora do sistema; a guia e a ficha são INTERNAS e dizem isso),
+// não define QUANDO o caso vai ao IML ou SVO nem QUAL óbito exige comunicar a hemovigilância (decisão do médico e da rotina do hospital), não exige
+// a DO para liberar o corpo e não faz notificação compulsória. O leito vai para higienização no registro; aguardar a retirada do corpo antes
+// disso é rotina do hospital (ver docs/pendencias.md).
 
 const COL_OBITOS = 'obitos';
 const COL_OBITO_PACIENTE = 'obito_paciente';   // id = paciente: garante um óbito por paciente
@@ -50,11 +53,34 @@ function validarComunicacaoObito(form, obito, agora = new Date()) {
     return { em, comunicado_a: apoioTexto(form.comunicado_a, 'Comunicado a (nome)', { min: 3, max: 100 }), parentesco: apoioTexto(form.parentesco, 'Parentesco ou vínculo', { max: 40 }), observacao: apoioTexto(form.observacao, 'Observação', { max: 200 }) };
 }
 
-/** Valida a liberação do corpo (não pode ser anterior ao óbito nem futura). */
+const DESTINOS_ENCAMINHAMENTO = { IML: DESTINOS_CORPO.IML, SVO: DESTINOS_CORPO.SVO };
+
+/** Encaminhamento do corpo ao IML ou SVO (decisão do médico: o sistema só registra). Data e hora, destino, motivo e registro no conselho. */
+function validarEncaminhamentoObito(form, obito, agora = new Date()) {
+    const em = apoioDataHora(form.em, 'Data e hora do encaminhamento', { agora, maxAntesHoras: 24 * 30 });
+    if (new Date(em).getTime() < new Date(obito.data_hora_obito).getTime()) throw new Error('O encaminhamento não pode ser anterior ao óbito.');
+    return { em, destino: apoioEscolha(form.destino, DESTINOS_ENCAMINHAMENTO, 'Encaminhar para'), motivo: apoioTexto(form.motivo, 'Motivo do encaminhamento', { min: 5, max: 200 }),
+        registro_conselho: apoioTexto(form.registro_conselho, 'Seu registro no conselho (ex.: CRM)', { min: 3, max: 30 }), observacao: apoioTexto(form.observacao, 'Observação', { max: 200 }) };
+}
+
+const SITUACOES_HEMOVIGILANCIA = { COMUNICADA: 'Comunicada à hemovigilância', NAO_APLICAVEL: 'Não se aplica' };
+
+/** Hemovigilância: comunicada (data e hora e a quem) ou "não se aplica" com o motivo. O sistema não decide qual óbito precisa ser comunicado. */
+function validarHemovigilanciaObito(form, obito, agora = new Date()) {
+    const situacao = apoioEscolha(form.situacao, SITUACOES_HEMOVIGILANCIA, 'Situação da hemovigilância');
+    if (situacao === 'NAO_APLICAVEL') return { situacao, motivo: apoioTexto(form.motivo, 'Motivo (por que não se aplica)', { min: 5, max: 200 }) };
+    const em = apoioDataHora(form.em, 'Data e hora da comunicação', { agora, maxAntesHoras: 24 * 30 });
+    if (new Date(em).getTime() < new Date(obito.data_hora_obito).getTime()) throw new Error('A comunicação não pode ser anterior ao óbito.');
+    return { situacao, em, comunicado_a: apoioTexto(form.comunicado_a, 'Comunicado a (setor ou nome)', { min: 3, max: 100 }), observacao: apoioTexto(form.observacao, 'Observação', { max: 200 }) };
+}
+
+/** Valida a liberação do corpo (não pode ser anterior ao óbito nem futura). Para IML ou SVO, o encaminhamento precisa estar registrado para o mesmo destino. */
 function validarLiberacaoCorpo(form, obito, agora = new Date()) {
     const em = apoioDataHora(form.em, 'Data e hora da liberação', { agora, maxAntesHoras: 24 * 30 });
     if (new Date(em).getTime() < new Date(obito.data_hora_obito).getTime()) throw new Error('A liberação não pode ser anterior ao óbito.');
-    return { em, destino: apoioEscolha(form.destino, DESTINOS_CORPO, 'Destino do corpo'), recebedor: apoioTexto(form.recebedor, 'Quem recebeu o corpo (nome)', { min: 3, max: 100 }), observacao: apoioTexto(form.observacao, 'Observação', { max: 200 }) };
+    const destinoLib = apoioEscolha(form.destino, DESTINOS_CORPO, 'Destino do corpo');
+    if (DESTINOS_ENCAMINHAMENTO[destinoLib] && (!obito.encaminhamento || obito.encaminhamento.destino !== destinoLib)) throw new Error(`Para liberar ao ${destinoLib}, o médico precisa registrar antes o encaminhamento ao ${destinoLib}.`);
+    return { em, destino: destinoLib, recebedor: apoioTexto(form.recebedor, 'Quem recebeu o corpo (nome)', { min: 3, max: 100 }), observacao: apoioTexto(form.observacao, 'Observação', { max: 200 }) };
 }
 
 /** Situação derivada: liberação vale mais que comunicação. */
@@ -121,8 +147,8 @@ async function registrarObito(form) {
 }
 
 /** Passo do rito (comunicação ou liberação): grava uma vez, conferindo na transação que ainda não foi registrado. */
-async function registrarPassoObito(id, { campo, validar, form, texto, acao }) {
-    requirePermission('obito_acompanhar');
+async function registrarPassoObito(id, { campo, validar, form, texto, acao, permissao = 'obito_acompanhar' }) {
+    requirePermission(permissao);
     const database = requireDb(); const user = state.currentUser; const agora = nowISO();
     let nova;
     await database.runTransaction(async (tx) => {
@@ -143,6 +169,9 @@ async function registrarPassoObito(id, { campo, validar, form, texto, acao }) {
 }
 
 const registrarComunicacaoObito = (id, form) => registrarPassoObito(id, { campo: 'comunicacao', validar: validarComunicacaoObito, form, texto: 'Família comunicada', acao: 'COMUNICAR_FAMILIA' });
+/** Só o médico encaminha ao IML ou SVO e informa a hemovigilância (cada passo é gravado uma vez; o histórico do óbito guarda quem e quando). */
+const registrarEncaminhamentoObito = (id, form) => registrarPassoObito(id, { campo: 'encaminhamento', validar: validarEncaminhamentoObito, form, texto: 'Corpo encaminhado ao IML/SVO', acao: 'ENCAMINHAR_IML_SVO', permissao: 'obito_registrar' });
+const registrarHemovigilanciaObito = (id, form) => registrarPassoObito(id, { campo: 'hemovigilancia', validar: validarHemovigilanciaObito, form, texto: 'Hemovigilância informada', acao: 'HEMOVIGILANCIA', permissao: 'obito_registrar' });
 const liberarCorpoObito = (id, form) => registrarPassoObito(id, { campo: 'liberacao', validar: validarLiberacaoCorpo, form, texto: 'Corpo liberado', acao: 'LIBERAR_CORPO' });
 
 /** Informa ou retifica o nº da Declaração de Óbito (só o médico). Trocar um número já informado exige motivo e fica nas retificações. */
@@ -178,6 +207,32 @@ async function exigirPacienteVivo(pacienteId) {
     try { marca = await requireDb().collection(COL_OBITO_PACIENTE).doc(String(pacienteId)).get(); }
     catch (err) { console.warn('Óbito: marca não consultada', err && err.code); return; }
     if (marca && marca.exists) throw new Error('Este paciente tem óbito registrado: novo atendimento, exame, internação e transporte estão bloqueados.');
+}
+
+/** O paciente já recebeu transfusão registrada no sistema? null = não foi possível consultar (o aviso não aparece, o passo continua disponível). */
+async function pacienteTeveTransfusao(pacienteId) {
+    try {
+        const s = await requireDb().collection('solicitacoes_transfusao').where('paciente_id', '==', String(pacienteId)).limit(1).get();
+        return !s.empty;
+    } catch (err) { return null; }
+}
+
+/** Texto dos documentos internos: a ficha do óbito e a guia de encaminhamento. Sempre dizem que NÃO substituem a Declaração de Óbito oficial. */
+function documentoInternoObito(obito, tipo, { hospital = '', emitidoPor = '', emitidoEm = '' } = {}) {
+    if (tipo === 'GUIA_ENCAMINHAMENTO' && !obito.encaminhamento) throw new Error('Registre o encaminhamento ao IML/SVO antes de emitir a guia.');
+    const e = obito.encaminhamento || null;
+    const linhas = [['Protocolo', obito.protocolo], ['Paciente', obito.paciente_nome], ['Prontuário', obito.prontuario || '—'], ['Data e hora do óbito', obito.data_hora_obito],
+        ['Local', LOCAIS_OBITO[obito.local] || obito.local], ['CID da causa (informado pelo médico)', obito.cid_causa || '—'], ['Nº da Declaração de Óbito', obito.numero_do || 'ainda não informado']];
+    if (tipo === 'GUIA_ENCAMINHAMENTO') linhas.push(['Encaminhado para', DESTINOS_CORPO[e.destino] || e.destino], ['Data e hora', e.em], ['Motivo', e.motivo], ['Médico responsável', `${e.por_nome} · ${e.registro_conselho}`]);
+    else {
+        if (obito.comunicacao) linhas.push(['Família comunicada em', obito.comunicacao.em], ['Comunicado a', `${obito.comunicacao.comunicado_a}${obito.comunicacao.parentesco ? ' (' + obito.comunicacao.parentesco + ')' : ''}`]);
+        if (obito.encaminhamento) linhas.push(['Encaminhamento', `${DESTINOS_CORPO[e.destino] || e.destino} em ${e.em}`]);
+        if (obito.hemovigilancia) linhas.push(['Hemovigilância', SITUACOES_HEMOVIGILANCIA[obito.hemovigilancia.situacao] || obito.hemovigilancia.situacao]);
+        if (obito.liberacao) linhas.push(['Corpo liberado em', obito.liberacao.em], ['Destino', DESTINOS_CORPO[obito.liberacao.destino] || obito.liberacao.destino], ['Recebido por', obito.liberacao.recebedor]);
+        linhas.push(['Registrado por', `${obito.registrado_por_nome} · ${obito.registro_conselho}`]);
+    }
+    return { titulo: tipo === 'GUIA_ENCAMINHAMENTO' ? 'Guia interna de encaminhamento do corpo' : 'Ficha interna de registro de óbito', hospital, emitido_por: emitidoPor, emitido_em: emitidoEm, linhas,
+        aviso: 'Documento INTERNO de apoio. Não substitui a Declaração de Óbito oficial, que é emitida pelo médico fora do sistema.' };
 }
 
 /**

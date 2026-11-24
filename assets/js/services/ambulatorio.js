@@ -179,6 +179,7 @@ async function agendarConsulta(form) {
     requirePermission('agenda_ambulatorial_gerenciar');
     const database = requireDb();
     const paciente = await db_getPaciente(form.paciente_id);
+    if (typeof exigirPacienteVivo === 'function') await exigirPacienteVivo(form.paciente_id);   // #68: paciente com óbito não é agendado
     const especialidade = typeof cadRowsOf === 'function' ? cadRowsOf('especialidade').find(e => e.id === form.especialidade_id) : null;
     const c = validarAgendamento(form, { paciente, especialidade });
     const user = state.currentUser;
