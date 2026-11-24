@@ -78,7 +78,7 @@ function renderSidebar(menu, ativa, open) {
             <div class="wm-marca__texto">${brandNameHtml()}<small>${escapeHtml(APP_INFO.hospital)}</small></div>
             <button type="button" class="wm-fechar" onclick="setMenuOpen(false)" aria-label="Fechar menu" title="Fechar menu">${icon('x', { size: 20 })}</button>
         </div>
-        <nav class="wm-nav" aria-label="Menu principal"><ul>${menu.map((s, i) => renderSection(s, i, ativa)).join('')}</ul></nav>
+        <nav class="wm-nav" aria-label="Menu principal"><ul>${menu.map((s, i) => renderSection(s, i, null)).join('')}</ul></nav>
         <div class="wm-rodape">${escapeHtml(getRoleLabel(state.currentUser.role))}</div>
     </aside>`;
 }
