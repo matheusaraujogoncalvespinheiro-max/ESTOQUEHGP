@@ -38,7 +38,7 @@ async function enviarAnexo(pacienteId, arquivo, descricao) {
     try {
         await firebase.storage().ref(caminho).put(arquivo, { contentType: v.tipo, customMetadata: { paciente_id: pacienteId, enviado_por: user.username } });
     } catch (err) {
-        throw new Error(err && err.code === 'storage/unauthorized' ? 'O Storage recusou o envio. Confira se o Storage foi ativado e as regras publicadas no Console do Firebase.' : `Não foi possível enviar o arquivo: ${(err && err.message) || err}`);
+        throw new Error(err && err.code === 'storage/unauthorized' ? 'O Storage recusou o envio. O Firebase Storage exige plano pago: no plano gratuito os anexos não funcionam. Se o plano já permite, confira se o Storage foi ativado e as regras publicadas.' : `Não foi possível enviar o arquivo: ${(err && err.message) || err}`);
     }
     const reg = { id, paciente_id: pacienteId, nome: v.nome, tipo: v.tipo, tipo_rotulo: ANEXO_TIPOS[v.tipo], tamanho: v.tamanho, descricao: v.descricao, caminho, enviado_em: agora, enviado_por: user.username, enviado_por_nome: user.name, autor: user.username };
     try { await requireDb().collection(COL_ANEXOS).doc(id).set(reg); }
