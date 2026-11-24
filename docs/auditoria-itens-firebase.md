@@ -49,5 +49,5 @@ Itens alterados: #13 (parcial), #14, #49, #50, #63/#71, #66 (parcial), e "Esquec
 #5, #23, #29, #30, #31, #39, #67 e #70 concluídos no código; parciais melhorados: #46/#47/#48 (lote administrado), #61 (dieta × alergia), #68 (bloqueio após óbito), #69 (baixa, garantia, custo). Ações no Console: publicar `firestore.rules` e `storage.rules`, ativar o Storage e acionar "Gravar leitos no banco".
 
 
-**Laboratório:** retificação de resultado liberado (documento novo em `lab_retificacoes`, o original não muda). Pendentes: integração com analisadores (equipamento e protocolo do hospital) e levar o resultado ao prontuário.
+**Laboratório:** retificação de resultado liberado (documento novo em `lab_retificacoes`, o original não muda). O resultado liberado (ou a retificação que vale) aparece em leitura na aba Exames do prontuário, para quem tem `laboratorio_ver`. Pendente: integração com analisadores (equipamento e protocolo do hospital).
 **Permissões:** só `registros_clinicos` e `leitos_estado` leem `config_permissoes` nas regras; criar perfis novos e as edições nas regras do Storage continuam pendentes.

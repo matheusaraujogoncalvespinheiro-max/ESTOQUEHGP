@@ -61,6 +61,10 @@ test('laboratório (#29): fluxo pedido → coleta → liberação, com históric
     assert.equal(store.lab_retificacoes[rt.id].motivo, 'Digitação incorreta do valor');
     entrar(ctx, 'MEDICO', 'med');
     await assert.rejects(() => run(ctx, `retificarResultadoLab('${p.id}', { linhas: [{ analito: 'Hb', valor: '1' }], motivo: 'Motivo qualquer' })`), /Acesso negado/);
+    // resultado no prontuário: mostra o que vale (a retificação); quem não pode ver laboratório não recebe nada
+    const vig = await run(ctx, `resultadoVigenteLab(${JSON.stringify(store.lab_pedidos[p.id])}, [${JSON.stringify(rt)}])`);
+    assert.deepEqual([vig.retificado, vig.linhas[0].valor], [true, '13,9']);
+    assert.equal((await run(ctx, `resultadoVigenteLab(${JSON.stringify(store.lab_pedidos[p.id])}, [])`)).linhas[0].valor, '13,2');
 });
 
 test('laboratório (#29): cancelar exige motivo; o médico só cancela o próprio pedido ainda não coletado', async () => {

@@ -395,6 +395,8 @@ async function prontuarioAbrir(pacienteId, abaInicial = 'timeline') {
         const st = prontuarioState();
         Object.assign(st, { pacienteId, paciente, tab: abaInicial || 'timeline', timelineFiltro: '' });
         db_watchRegistros(pacienteId);
+        st.labResultados = [];
+        if (typeof db_getResultadosLabDoPaciente === 'function') { try { st.labResultados = await db_getResultadosLabDoPaciente(pacienteId); } catch (e) { st.labResultados = []; } }   // só leitura; falha não impede abrir o prontuário
         state.activeModule = 'PRONTUARIO';
         navigateTo('PRONTUARIO');
     } catch (err) { showMsg(err.message, 'error'); }
@@ -1351,7 +1353,13 @@ function renderProntuarioExames(st, p, ativa) {
     const sols = MOCK_DATA.SOLICITACOES_EXAME.filter(s => s.paciente_id === p.id).sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
     const resultados = registrosDoPaciente('RESULTADO');
     const podeChecar = hasPermission('preparo_exame_checar') || hasPermission('prontuario_evoluir');
+    const labs = st.labResultados || [];
+    const labHtml = labs.length ? `<h3 class="at-label" style="margin:0 0 6px">Resultados de laboratório</h3><div class="tri-tablewrap" style="margin-bottom:16px"><table class="tri-table cd-table"><thead><tr><th>Exame</th><th>Resultado</th><th>Liberado</th></tr></thead><tbody>${labs.map(x => `<tr>
+        <td data-label="Exame"><strong>${escapeHtml(x.exame_nome)}</strong><br><small>${escapeHtml(x.protocolo)}</small></td>
+        <td data-label="Resultado">${(x.vigente.linhas || []).map(l => `${escapeHtml(l.analito)}: <strong>${escapeHtml(l.valor)}</strong> ${escapeHtml(l.unidade || '')}${l.referencia ? ` <small>(ref. ${escapeHtml(l.referencia)})</small>` : ''}`).join('<br>')}${x.vigente.retificado ? '<br><small>Resultado retificado: o original está no laboratório.</small>' : ''}</td>
+        <td data-label="Liberado">${escapeHtml(formatDateTimeBR(x.resultado.liberado_em))}<br><small>${escapeHtml(x.resultado.liberado_por_nome)}</small></td></tr>`).join('')}</tbody></table></div>` : '';
     return `
+        ${labHtml}
         <div class="at-actions" style="margin-bottom:14px">
             ${hasPermission('exame_solicitar') ? `
                 <button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="exameAbrirModalRapido()">${lucideIcon('scan-line', 'w-4 h-4')} Solicitar Exame de Imagem / Laboratorial (SIGTAP · TUSS · DICOM)</button>

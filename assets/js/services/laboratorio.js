@@ -135,6 +135,19 @@ async function db_getRetificacoesLab(pedidoId) {
 /** Resultado que vale: a retificação mais recente, se houver; senão o liberado. `retificacoes` já vem do mais novo para o mais antigo. */
 const resultadoVigenteLab = (pedido, retificacoes = []) => (retificacoes[0] ? { linhas: retificacoes[0].linhas, observacao: retificacoes[0].observacao, retificado: true } : { ...(pedido.resultado || {}), retificado: false });
 
+/** Resultados liberados de um paciente (com a retificação que vale) para o prontuário. Só leitura; quem não tem `laboratorio_ver` não recebe nada. */
+async function db_getResultadosLabDoPaciente(pacienteId) {
+    if (!hasPermission('laboratorio_ver')) return [];
+    const database = requireDb();
+    const [ps, rs] = await Promise.all([
+        database.collection(COL_LAB).where('paciente_id', '==', String(pacienteId)).get(),
+        database.collection(COL_LAB_RETIFICACOES).where('paciente_id', '==', String(pacienteId)).get()]);
+    const rets = rs.docs.map(docToObj).sort((a, b) => String(b.em).localeCompare(String(a.em)));
+    return ps.docs.map(docToObj).filter(p => p.status === 'LIBERADO' && p.resultado)
+        .map(p => ({ ...p, vigente: resultadoVigenteLab(p, rets.filter(t => t.pedido_id === p.id)) }))
+        .sort((a, b) => String(b.resultado.liberado_em).localeCompare(String(a.resultado.liberado_em)));
+}
+
 /** Cancela (motivo obrigatório). Quem pediu cancela só o próprio pedido ainda não coletado; o laboratório cancela qualquer aberto. */
 async function cancelarPedidoLab(id, motivo) {
     if (!(hasPermission('laboratorio_solicitar') || hasPermission('laboratorio_executar'))) throw new Error('Acesso negado: seu perfil não tem permissão para esta operação.');
