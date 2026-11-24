@@ -845,6 +845,8 @@
 /* Painel do submenu, ao lado da coluna de ícones */
 /* Só opacidade e `left` (nada de transform): transform nos ancestrais faria o painel `fixed` interno deixar de ficar preso à janela */
 @keyframes wm-painel-entra { from { opacity: 0; left: calc(var(--sh-rail-w) - 18px); } to { opacity: 1; left: var(--sh-rail-w); } }
+/* Entrar num grupo: o conteúdo desliza da direita para o painel ("avança"); a seta "<" faz o caminho de volta */
+@keyframes wm-avanca { from { opacity: 0; left: calc(var(--sh-rail-w) + 36px); } to { opacity: 1; left: var(--sh-rail-w); } }
 @keyframes wm-item-entra { from { opacity: 0; } to { opacity: 1; } }
 .shell-root .wm-secao.is-open > .wm-sub {
     position: fixed; top: 0; bottom: 0; left: var(--sh-rail-w); z-index: 71;
@@ -880,7 +882,7 @@
     position: fixed; top: 0; bottom: 0; left: var(--sh-rail-w); z-index: 72;
     display: block; width: var(--sh-painel-w); overflow: hidden auto; scrollbar-width: thin;
     background: var(--sh-bg); border-radius: 0 22px 22px 0;
-    animation: wm-painel-entra 0.26s var(--sh-ease) backwards;
+    animation: wm-avanca 0.3s var(--sh-ease) backwards;
 }
 .shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > .wm-sub__cab { display: flex; align-items: center; justify-content: space-between; padding: 24px 18px 14px 22px; }
 .shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > ul { margin: 0 0 18px; padding: 10px 14px; border-radius: 20px; background: var(--sh-surface); border: 1px solid var(--sh-line); box-shadow: 0 10px 28px -18px rgba(5, 7, 12, 0.5); visibility: visible; overflow: visible; }
@@ -890,3 +892,6 @@
     .shell-root .wm-sidebar, .shell-root .wm-secao.is-open > .wm-sub, .shell-root .wm-secao.is-open > .wm-sub * { animation: none !important; transition: none !important; }
 }
 .shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open { position: relative; z-index: 5; }
+/* A linha inteira do grupo (nome até a setinha) é o alvo do clique */
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo > .wm-grupo__btn { width: 100%; cursor: pointer; }
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo > .wm-grupo__btn:active { transform: scale(0.985); }
