@@ -180,6 +180,25 @@ async function exigirPacienteVivo(pacienteId) {
     if (marca && marca.exists) throw new Error('Este paciente tem óbito registrado: novo atendimento, exame, internação e transporte estão bloqueados.');
 }
 
+/**
+ * Relatório de óbitos do período (#68). ANÔNIMO: sem nome, prontuário nem leito do paciente (só protocolo, data, local e situação).
+ * Conta por local, destino do corpo e pendências; não calcula taxa nem compara com meta (o hospital define o que acompanhar).
+ */
+function relatorioObitos(lista, de = '', ate = '') {
+    const noPeriodo = (lista || []).filter(o => (!de || o.dia >= de) && (!ate || o.dia <= ate)).sort((a, b) => String(a.data_hora_obito).localeCompare(String(b.data_hora_obito)));
+    const conta = (fn) => noPeriodo.reduce((m, o) => { const k = fn(o); if (k) m[k] = (m[k] || 0) + 1; return m; }, {});
+    return {
+        total: noPeriodo.length,
+        por_local: conta(o => LOCAIS_OBITO[o.local] || o.local),
+        por_destino: conta(o => (o.liberacao ? (DESTINOS_CORPO[o.liberacao.destino] || o.liberacao.destino) : '')),
+        sem_numero_do: noPeriodo.filter(o => !o.numero_do).length,
+        sem_comunicacao: noPeriodo.filter(o => !o.comunicacao).length,
+        sem_liberacao: noPeriodo.filter(o => !o.liberacao).length,
+        linhas: noPeriodo.map(o => ({ protocolo: o.protocolo, data_hora: o.data_hora_obito, local: LOCAIS_OBITO[o.local] || o.local, numero_do: o.numero_do || '', situacao: SITUACOES_OBITO[o.status] || o.status,
+            destino: o.liberacao ? (DESTINOS_CORPO[o.liberacao.destino] || o.liberacao.destino) : '' }))
+    };
+}
+
 /** Busca os óbitos por período (leitura sob demanda: não há ouvinte em tempo real para dado sigiloso). */
 async function db_getObitos(de = '', ate = '') {
     registrarAcesso('obito', 'lista', 'Óbitos: consulta da lista');

@@ -54,7 +54,7 @@ function renderObitos() {
     <div class="at-stack tone-teal">
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon('lock', 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>Óbitos</h2><p>Registro do óbito, comunicação à família e liberação do corpo. Informação sigilosa: cada consulta fica gravada (quem e quando).</p></div>
-            <div class="cd-head__btns">${registra ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="obNovo()">${lucideIcon('plus', 'w-5 h-5')} Registrar óbito</button>` : ''}</div></header>
+            <div class="cd-head__btns">${e9Botao('Relatório do período', 'obRelatorio()')}${registra ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="obNovo()">${lucideIcon('plus', 'w-5 h-5')} Registrar óbito</button>` : ''}</div></header>
         <section class="rf-kpis" aria-label="Resumo do período">
             ${e9Kpi(ind.total, 'Óbitos no período')}${e9Kpi(ind.sem_numero_do, 'Sem nº da Declaração de Óbito')}${e9Kpi(ind.sem_comunicacao, 'Família não comunicada')}${e9Kpi(ind.sem_liberacao, 'Corpo não liberado')}
         </section>
@@ -163,6 +163,27 @@ function obNumeroDo(id) {
         <label class="at-field"><span class="at-label">Nº da Declaração de Óbito *</span><input class="at-input" id="od_numero" maxlength="20" autocomplete="off" value="${escapeHtml(o.numero_do || '')}"></label>
         ${o.numero_do ? '<label class="at-field at-span-2"><span class="at-label">Motivo da retificação *</span><input class="at-input" id="od_motivo" maxlength="200" autocomplete="off"></label>' : ''}`,
         'od', ['numero', 'motivo'], 'Salvar', async (f) => { await registrarNumeroDoObito(id, f.numero, f.motivo); showMsg('Nº da Declaração de Óbito salvo.'); });
+}
+
+/** Relatório anônimo do período escolhido (sem nome nem prontuário). A consulta fica registrada como acesso a dado sigiloso. */
+function obRelatorio() {
+    const st = obitosState();
+    if (!st.lista) { showMsg('Aguarde a lista carregar.', 'error'); return; }
+    registrarAcesso('obito', 'relatorio', 'Óbitos: relatório do período');
+    const r = relatorioObitos(st.lista, st.de, st.ate);
+    const mapa = (m) => Object.entries(m).map(([k, v]) => `<li>${escapeHtml(k)}: <strong>${v}</strong></li>`).join('') || '<li>—</li>';
+    const csv = () => {
+        const cab = ['Protocolo', 'Data e hora', 'Local', 'Nº da DO', 'Situação', 'Destino do corpo'];
+        const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+        const texto = [cab, ...r.linhas.map(l => [l.protocolo, l.data_hora, l.local, l.numero_do, l.situacao, l.destino])].map(l => l.map(q).join(';')).join('\r\n');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + texto], { type: 'text/csv;charset=utf-8' })); a.download = 'obitos-periodo.csv'; a.click(); URL.revokeObjectURL(a.href);
+    };
+    const d = hModal('Relatório de óbitos', `<p class="at-hint">Período: ${escapeHtml(st.de ? formatDateBR(st.de) : 'início')} a ${escapeHtml(st.ate ? formatDateBR(st.ate) : 'hoje')}. Sem nome nem prontuário do paciente.</p>
+        <section class="rf-kpis">${e9Kpi(r.total, 'Óbitos')}${e9Kpi(r.sem_numero_do, 'Sem nº da DO')}${e9Kpi(r.sem_comunicacao, 'Família não comunicada')}${e9Kpi(r.sem_liberacao, 'Corpo não liberado')}</section>
+        <div class="at-form"><div class="at-field"><span class="at-label">Por local</span><ul class="e8-resumo">${mapa(r.por_local)}</ul></div><div class="at-field"><span class="at-label">Destino do corpo</span><ul class="e8-resumo">${mapa(r.por_destino)}</ul></div></div>
+        <div class="tri-tablewrap"><table class="tri-table cd-table e9-tab"><thead><tr><th>Protocolo</th><th>Data e hora</th><th>Local</th><th>Nº da DO</th><th>Situação</th><th>Destino</th></tr></thead><tbody>${r.linhas.map(l => `<tr><td data-label="Protocolo">${escapeHtml(l.protocolo)}</td><td data-label="Data e hora">${escapeHtml(formatDateTimeBR(l.data_hora))}</td><td data-label="Local">${escapeHtml(l.local)}</td><td data-label="Nº da DO">${escapeHtml(l.numero_do || '—')}</td><td data-label="Situação">${escapeHtml(l.situacao)}</td><td data-label="Destino">${escapeHtml(l.destino || '—')}</td></tr>`).join('') || '<tr><td colspan="6" class="at-empty">Nenhum óbito no período.</td></tr>'}</tbody></table></div>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button><button type="button" class="at-btn at-btn--primary" id="ob_csv">Baixar CSV</button></div>`, 'lg');
+    d.querySelector('#ob_csv').onclick = csv;
 }
 
 function obDetalhe(id) {
