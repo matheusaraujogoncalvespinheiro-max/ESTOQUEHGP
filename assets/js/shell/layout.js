@@ -25,7 +25,7 @@ function renderNode(node, chave, ativa, pai = '') {
     const aberto = abertoNo(chave);
     return `<li class="wm-grupo${aberto ? ' is-open' : ''}${contemAtiva(node, ativa) ? ' is-current' : ''}" data-chave="${chave}">
         <button type="button" class="wm-grupo__btn" onclick="toggleMenuGroup('${chave}')" aria-expanded="${aberto}"><span>${escapeHtml(node.label)}</span>${icon('chevron-down', { size: 14, cls: 'wm-seta' })}</button>
-        <div class="wm-sub wm-sub--grupo">${nivelDe(chave) === 1 ? `<div class="wm-sub__cab"><div><small>${escapeHtml(pai)}</small><strong>${escapeHtml(node.label)}</strong></div><button type="button" class="wm-sub__voltar" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar para ${escapeHtml(pai)}">${icon('chevron-left', { size: 16 })}</button></div>` : ''}<ul>${node.children.map((c, i) => renderNode(c, `${chave}.${i}`, ativa, node.label)).join('')}</ul></div>
+        <div class="wm-sub wm-sub--grupo">${nivelDe(chave) === 1 ? `<button type="button" class="wm-sub__cab" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar para ${escapeHtml(pai)}"><span><small>${escapeHtml(pai)}</small><strong>${escapeHtml(node.label)}</strong></span><span class="wm-sub__voltar">${icon('chevron-left', { size: 16 })}</span></button>` : ''}<ul>${node.children.map((c, i) => renderNode(c, `${chave}.${i}`, ativa, node.label)).join('')}</ul></div>
     </li>`;
 }
 
@@ -42,7 +42,7 @@ function renderSection(s, i, ativa) {
         <button type="button" class="wm-item${atual ? ' is-active' : ''}" onclick="toggleMenuGroup('${chave}')" aria-expanded="${aberto}" title="${escapeHtml(s.label)}">
             ${lucideIcon(s.icon)}<span class="wm-item__rotulo">${escapeHtml(s.label)}</span>${unread ? '<span class="wm-dot"></span>' : ''}${icon('chevron-down', { size: 16, cls: 'wm-seta' })}
         </button>
-        <div class="wm-sub"><div class="wm-sub__cab"><div><strong>${escapeHtml(s.label)}</strong></div><button type="button" class="wm-sub__voltar" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar ao menu completo">${icon('chevron-left', { size: 16 })}</button></div><ul>${s.children.map((c, j) => renderNode(c, `${chave}.${j}`, ativa, s.label)).join('')}</ul></div>
+        <div class="wm-sub"><button type="button" class="wm-sub__cab" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar ao menu completo"><span><strong>${escapeHtml(s.label)}</strong></span><span class="wm-sub__voltar">${icon('chevron-left', { size: 16 })}</span></button><ul>${s.children.map((c, j) => renderNode(c, `${chave}.${j}`, ativa, s.label)).join('')}</ul></div>
     </li>`;
 }
 
