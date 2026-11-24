@@ -6,7 +6,8 @@
 // ONDE VALE: (1) nas telas e menus (hasPermission); (2) nas regras do banco, SÓ para as coleções que já leem `config_permissoes`
 // (hoje: registros_clinicos e leitos_estado). As demais coleções ainda usam as listas fixas de perfis das regras: conceder uma ação que
 // depende delas libera a tela, mas o banco continua recusando a gravação (veja docs/pendencias.md #5).
-// O QUE NÃO É: não cria perfis novos (as regras do banco precisam conhecer cada perfil) e não mexe em ações presas a um setor.
+// PERFIS NOVOS: o Administrador pode criar (id X_...). Nas regras do banco, valem só nas coleções que usam temAcao() (concedida() não depende da lista de perfis).
+// O QUE NÃO É: não mexe em ações presas a um setor.
 
 const PERMISSOES_BANCO = {};
 let _semPermissoesBanco = false;
@@ -35,10 +36,47 @@ function permissaoBancoDe(role, action) {
     return null;
 }
 
-/** Carrega os documentos lidos do banco. */
+// Perfis personalizados: o Administrador cria um perfil novo (id começa com X_). Ele nasce SEM permissão nenhuma; tudo o que tem vem do que for concedido.
+// Moram no mesmo documento de `config_permissoes` (campos `personalizado` e `nome`). Valem nas telas e nas coleções das regras que usam temAcao().
+const PERFIS_PERSONALIZADOS = {};
+const PERFIL_PERSONALIZADO_ID = /^X_[A-Z0-9_]{2,30}$/;
+
+/** Gera o id do perfil a partir do nome (puro). */
+function idPerfilPersonalizado(nome) {
+    const base = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 28);
+    return 'X_' + base;
+}
+
+/** Valida o nome e devolve `{ id, nome }`; recusa nome repetido ou que colida com um perfil existente (puro). */
+function validarPerfilPersonalizado(nome, existentes = []) {
+    const n = String(nome || '').trim();
+    if (n.length < 3 || n.length > 40) throw new Error('Nome do perfil: de 3 a 40 caracteres.');
+    const id = idPerfilPersonalizado(n);
+    if (!PERFIL_PERSONALIZADO_ID.test(id)) throw new Error('Nome do perfil: use letras ou números.');
+    if (existentes.includes(id)) throw new Error('Já existe um perfil com este nome.');
+    return { id, nome: n };
+}
+
+/** Carrega os documentos lidos do banco (e registra os perfis personalizados como atribuíveis). */
 function permissoesBancoAplicar(docs) {
     Object.keys(PERMISSOES_BANCO).forEach(k => delete PERMISSOES_BANCO[k]);
-    (docs || []).forEach(d => { PERMISSOES_BANCO[d.id] = { concede: d.concede || [], revoga: d.revoga || [] }; });
+    Object.keys(PERFIS_PERSONALIZADOS).forEach(k => { delete PERFIS_PERSONALIZADOS[k]; if (typeof ASSIGNABLE_ROLES !== 'undefined') { const i = ASSIGNABLE_ROLES.indexOf(k); if (i >= 0) ASSIGNABLE_ROLES.splice(i, 1); } });
+    (docs || []).forEach(d => {
+        PERMISSOES_BANCO[d.id] = { concede: d.concede || [], revoga: d.revoga || [] };
+        if (d.personalizado === true && PERFIL_PERSONALIZADO_ID.test(String(d.id))) {
+            PERFIS_PERSONALIZADOS[d.id] = String(d.nome || d.id);
+            if (typeof ASSIGNABLE_ROLES !== 'undefined' && !ASSIGNABLE_ROLES.includes(d.id)) ASSIGNABLE_ROLES.push(d.id);
+        }
+    });
+}
+
+/** Cria um perfil personalizado (só Administrador). Nasce sem permissões; use a tela para conceder. */
+async function criarPerfilPersonalizado(nome) {
+    if (!state.currentUser || state.currentUser.role !== 'ADMIN') throw new Error('Acesso negado: só o Administrador cria perfis.');
+    const v = validarPerfilPersonalizado(nome, typeof ASSIGNABLE_ROLES !== 'undefined' ? ASSIGNABLE_ROLES : []);
+    await requireDb().collection('config_permissoes').doc(v.id).set({ role: v.id, nome: v.nome, personalizado: true, concede: [], revoga: [], atualizado_em: new Date().toISOString(), atualizado_por: state.currentUser.username });
+    await auditar({ entidade: 'permissoes', entidade_id: v.id, acao: 'PERFIL_CRIADO', depois: { nome: v.nome }, motivo: 'Novo perfil na tela Perfis e Permissões' });
+    return v;
 }
 
 /** O que o CÓDIGO libera para o perfil, ignorando o que o banco mudou. */
@@ -73,7 +111,8 @@ async function salvarPermissoesPerfil(role, marcadas) {
     if (!state.currentUser || state.currentUser.role !== 'ADMIN') throw new Error('Acesso negado: só o Administrador altera permissões.');
     const v = validarPermissoesPerfil(role, ...Object.values(diferencaPermissoes(marcadas, (a) => permissaoPadraoDe(role, a))));
     const antes = PERMISSOES_BANCO[role] || { concede: [], revoga: [] };
-    await requireDb().collection('config_permissoes').doc(role).set({ role, ...v, atualizado_em: new Date().toISOString(), atualizado_por: state.currentUser.username });
+    const pers = PERFIS_PERSONALIZADOS[role] ? { personalizado: true, nome: PERFIS_PERSONALIZADOS[role] } : {};
+    await requireDb().collection('config_permissoes').doc(role).set({ role, ...pers, ...v, atualizado_em: new Date().toISOString(), atualizado_por: state.currentUser.username });
     await auditar({ entidade: 'permissoes', entidade_id: role, acao: 'PERMISSOES_ALTERADAS', antes, depois: v, motivo: 'Edição de perfil na tela Perfis e Permissões' });
     return v;
 }
@@ -82,4 +121,4 @@ if (typeof WATCHER_FACTORIES !== 'undefined') {
     WATCHER_FACTORIES.permissoes = () => onSnapshotData(db.collection('config_permissoes'), (items) => { permissoesBancoAplicar(items); });
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { validarPermissoesPerfil, diferencaPermissoes, ACOES_EDITAVEIS };
+if (typeof module !== 'undefined' && module.exports) module.exports = { idPerfilPersonalizado, validarPermissoesPerfil, diferencaPermissoes, ACOES_EDITAVEIS, validarPerfilPersonalizado };

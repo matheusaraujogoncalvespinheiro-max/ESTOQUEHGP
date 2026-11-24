@@ -260,6 +260,7 @@ function hasPermission(action, setor = null) {
 }
 
 function getRoleLabel(role) {
+    if (typeof PERFIS_PERSONALIZADOS !== 'undefined' && PERFIS_PERSONALIZADOS[role]) return PERFIS_PERSONALIZADOS[role];
     const labels = {
         "ADMIN": "Administrador Geral",
         "CHEFE_OPME": "Chefe OPME",

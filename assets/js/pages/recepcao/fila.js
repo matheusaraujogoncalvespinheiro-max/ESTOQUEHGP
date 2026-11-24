@@ -5,7 +5,7 @@ const rfBadgeStatus = { AGUARDANDO: 'at-badge', CHAMADO: 'at-badge at-badge--out
 
 function recepcaoFiltros() {
     const st = recepcaoState();
-    if (!st.fila) st.fila = { fila: '', situacao: 'AGUARDANDO', dia: 'hoje', q: '' };
+    if (!st.fila) st.fila = { fila: '', situacao: 'AGUARDANDO', dia: 'hoje', q: '', page: 1, size: 25 };
     return st.fila;
 }
 
@@ -16,12 +16,13 @@ function recepcaoAba(aba) {
 
 function recepcaoFiltro(campo, valor) {
     recepcaoFiltros()[campo] = valor;
+    if (campo !== 'page') recepcaoFiltros().page = 1;
     render();
 }
 
 let rfBuscaTimer = null;
 function recepcaoFiltroTexto(valor) {
-    recepcaoFiltros().q = valor;
+    recepcaoFiltros().q = valor; recepcaoFiltros().page = 1;
     clearTimeout(rfBuscaTimer);
     rfBuscaTimer = setTimeout(render, 250);
 }
@@ -49,7 +50,11 @@ function renderRecepcaoFila() {
     const kpi = (valor, rotulo, dica = '') => `<div class="rf-kpi"><strong>${escapeHtml(String(valor))}</strong><span>${escapeHtml(rotulo)}</span>${dica ? `<small>${escapeHtml(dica)}</small>` : ''}</div>`;
     const sel = (campo, valor, opts) => `<select class="at-input" onchange="recepcaoFiltro('${campo}', this.value)" data-keep="rf_${campo}">${opts.map(([v, r]) => `<option value="${v}" ${v === valor ? 'selected' : ''}>${escapeHtml(r)}</option>`).join('')}</select>`;
 
-    const linhas = lista.map(a => {
+    const paginas = Math.max(1, Math.ceil(lista.length / (f.size || 25)));
+    if (!f.page || f.page > paginas) f.page = paginas;
+    const pagina = lista.slice((f.page - 1) * (f.size || 25), f.page * (f.size || 25));
+    const limiteAtingido = (MOCK_DATA.ATENDIMENTOS || []).length >= 1000;
+    const linhas = pagina.map(a => {
         const espera = a.status === 'AGUARDANDO' ? `${esperaMinutos(a.chegada_em, agora)} min` : '—';
         return `<tr>
             <td data-label="Senha"><strong class="rf-senha-t">${escapeHtml(a.senha)}</strong>${a.preferencial ? ` <span class="at-badge" title="${escapeHtml(a.motivo_preferencial)}">Preferencial</span>` : ''}${a.retorno ? ' <span class="at-badge">Retorno</span>' : ''}</td>
@@ -82,6 +87,12 @@ function renderRecepcaoFila() {
         </div>
         <div class="tri-tablewrap"><table class="tri-table cd-table rf-tabela"><thead><tr><th>Senha</th><th>Paciente</th><th>Tipo</th><th>Queixa</th><th>Chegada</th><th>Espera</th><th>Fila</th><th>Situação</th><th>Ações</th></tr></thead>
             <tbody>${linhas || '<tr><td colspan="9" class="at-empty">Nenhum atendimento com estes filtros.</td></tr>'}</tbody></table></div>
+        <footer class="cd-pager"><span>${lista.length} atendimento(s)</span>
+            <label>Por página <select class="at-select" style="width:auto;min-height:38px" onchange="recepcaoFiltro('size', Number(this.value))" data-keep="rf_size">${[10, 25, 50, 100].map(n => `<option ${(f.size || 25) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+            <div class="cd-pager__nav"><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="recepcaoFiltro('page', ${f.page - 1})" ${f.page <= 1 ? 'disabled' : ''} aria-label="Página anterior">${lucideIcon('chevron-left', 'w-4 h-4')}</button>
+                <span>Página ${f.page} de ${paginas}</span>
+                <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="recepcaoFiltro('page', ${f.page + 1})" ${f.page >= paginas ? 'disabled' : ''} aria-label="Próxima página">${lucideIcon('chevron-right', 'w-4 h-4')}</button></div></footer>
+        ${limiteAtingido ? '<p class="tri-banner tri-banner--warn" style="margin-top:12px">A fila carregou o máximo de 1000 atendimentos (ontem e hoje). Atendimentos mais antigos dentro desse período podem não aparecer: use a busca por nome ou prontuário.</p>' : ''}
         <p class="at-hint" style="margin-top:12px">${lucideIcon('info', 'w-4 h-4')} Preferenciais (previstos em lei) vêm primeiro; depois, pela ordem de chegada. A chamada ao painel e a classificação de risco ficam na etapa de triagem.</p>
     </section>`;
 }

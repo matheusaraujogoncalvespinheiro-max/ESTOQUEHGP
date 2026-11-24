@@ -49,3 +49,19 @@ test('permissões editáveis (#5): validação e diferença sobre o padrão', ()
     assert.deepEqual(r.concede, ['prontuario_ver']);
     assert.deepEqual(r.revoga, ['recepcao_acessar']);
 });
+
+test('perfis personalizados: id derivado do nome, nome repetido recusado, nasce sem permissão e a concessão vale', () => {
+    const c = carregar();
+    assert.equal(run(c, "idPerfilPersonalizado('Auditoria Interna')"), 'X_AUDITORIA_INTERNA');
+    assert.throws(() => run(c, "validarPerfilPersonalizado('ab')"), /de 3 a 40/);
+    assert.throws(() => run(c, "validarPerfilPersonalizado('Auditoria', ['X_AUDITORIA'])"), /Já existe/);
+    run(c, "permissoesBancoAplicar([{ id: 'X_AUDITORIA', nome: 'Auditoria', personalizado: true, concede: ['obito_ver'], revoga: [] }, { id: 'X_FALSO', personalizado: false, concede: [], revoga: [] }])");
+    assert.equal(run(c, "ASSIGNABLE_ROLES.includes('X_AUDITORIA')"), true);
+    assert.equal(run(c, "ASSIGNABLE_ROLES.includes('X_FALSO')"), false);
+    assert.equal(run(c, "getRoleLabel('X_AUDITORIA')"), 'Auditoria');
+    run(c, "state.currentUser = { role: 'X_AUDITORIA', username: 'a' }");
+    assert.equal(run(c, "hasPermission('obito_ver')"), true);
+    assert.equal(run(c, "hasPermission('prontuario_ver')"), false);
+    run(c, "permissoesBancoAplicar([])");
+    assert.equal(run(c, "ASSIGNABLE_ROLES.includes('X_AUDITORIA')"), false);   // sumiu do banco, sai da lista
+});

@@ -5,7 +5,7 @@
 // - Criar: os mesmos perfis, só PDF/JPEG/PNG e até 10 MB. Não existe substituir nem apagar (update/delete negados).
 // - Qualquer outro caminho continua fechado.
 // O perfil vem do cadastro `app_users` (mesmas regras do Firestore); a conta precisa estar ativa e ser a do cadastro.
-// Limite desta versão: as permissões editadas na tela Perfis e Permissões NÃO valem aqui (só o Firestore as lê).
+// As permissões editadas na tela Perfis e Permissões valem aqui (lidas de config_permissoes). Cada leitura cobra uma consulta ao Firestore.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
@@ -15,11 +15,18 @@ service firebase.storage {
     function logado() { return request.auth != null && (adminRaiz() || (firestore.exists(/databases/(default)/documents/app_users/$(usuario()))
       && cadastro().get('ativo', true) != false && cadastro().auth_email == request.auth.token.email)); }
     function perfil() { return adminRaiz() ? 'ADMIN' : cadastro().role; }
-    function clinico() { return logado() && perfil() in ['ADMIN', 'MEDICO', 'FUNC_ENFERMAGEM']; }
+    // Permissões editadas na tela Perfis e Permissões (config_permissoes) valem também aqui: prontuario_ver lê, prontuario_evoluir anexa.
+    function permDoc() { return firestore.get(/databases/(default)/documents/config_permissoes/$(perfil())).data; }
+    function permExiste() { return firestore.exists(/databases/(default)/documents/config_permissoes/$(perfil())); }
+    function concedida(acao) { return permExiste() && acao in permDoc().get('concede', []); }
+    function revogada(acao) { return permExiste() && acao in permDoc().get('revoga', []); }
+    function temAcao(lista, acao) { return logado() && (perfil() == 'ADMIN' || concedida(acao) || (perfil() in lista && !revogada(acao))); }
+    function clinicoLer() { return temAcao(['MEDICO', 'FUNC_ENFERMAGEM'], 'prontuario_ver'); }
+    function clinicoAnexar() { return temAcao(['MEDICO', 'FUNC_ENFERMAGEM'], 'prontuario_evoluir'); }
 
     match /anexos/{pacienteId}/{arquivo} {
-      allow read: if clinico();
-      allow create: if clinico() && resource == null
+      allow read: if clinicoLer();
+      allow create: if clinicoAnexar() && resource == null
         && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
         && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
       allow update, delete: if false;

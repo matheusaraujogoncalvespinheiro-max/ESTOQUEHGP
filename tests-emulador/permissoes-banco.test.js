@@ -7,7 +7,9 @@ const usuarios = {
     recep: { role: 'FUNC_RECEPCAO', ativo: true, auth_email: 'recep@hgp.app' },
     enf: { role: 'FUNC_ENFERMAGEM', ativo: true, auth_email: 'enf@hgp.app' },
     medico: { role: 'MEDICO', ativo: true, auth_email: 'medico@hgp.app' },
-    lab: { role: 'FUNC_LABORATORIO', ativo: true, auth_email: 'lab@hgp.app' }
+    lab: { role: 'FUNC_LABORATORIO', ativo: true, auth_email: 'lab@hgp.app' },
+    novo: { role: 'X_AUDITOR', ativo: true, auth_email: 'novo@hgp.app' },
+    manut: { role: 'FUNC_MANUTENCAO', ativo: true, auth_email: 'manut@hgp.app' }
 };
 const reg = { tipo: 'EVOLUCAO', texto: 'x', autor: 'enf', assinado: true, paciente_id: 'p1' };
 let ok = 0, falhas = [];
@@ -90,6 +92,29 @@ async function t(nome, fn) { try { await fn(); ok++; console.log('  ok  ', nome)
         await assertSucceeds(como('medico@hgp.app').collection('obito_paciente').get());
         await assertFails(como('anon@x.com').doc('obito_paciente/p9').get());
         await assertFails(como('medico@hgp.app').doc('obito_paciente/p9').update({ obito_id: 'x' }));
+    });
+    await t('perfil personalizado (X_): nasce sem acesso; o que for concedido vale nas coleções que leem config_permissoes', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => { await ctx.firestore().doc('obitos/o1').set({ protocolo: 'OB1' }); await ctx.firestore().doc('processo_enfermagem/pe1').set({ paciente_id: 'p1' }); });
+        const novo = como('novo@hgp.app');
+        await assertFails(novo.doc('obitos/o1').get());
+        await assertSucceeds(admin.doc('config_permissoes/X_AUDITOR').set({ role: 'X_AUDITOR', nome: 'Auditor', personalizado: true, concede: ['obito_ver'], revoga: [] }));
+        await assertSucceeds(novo.doc('obitos/o1').get());
+        await assertFails(novo.doc('obitos/o2').set({ protocolo: 'OB2' }));          // só leitura: não concedeu obito_registrar
+        await assertFails(novo.doc('processo_enfermagem/pe1').get());              // outra área continua fechada
+    });
+    await t('enfermagem e manutenção: processo e curativos só criam; retirar enfermagem_registrar bloqueia; movimentação só da manutenção', async () => {
+        await assertSucceeds(admin.doc('config_permissoes/FUNC_ENFERMAGEM').set({ role: 'FUNC_ENFERMAGEM', concede: [], revoga: [] }));
+        await assertSucceeds(enf.doc('processo_enfermagem/pe2').set({ paciente_id: 'p1', por: 'enf' }));
+        await assertFails(enf.doc('processo_enfermagem/pe2').update({ texto: 'x' }));
+        await assertFails(enf.doc('processo_enfermagem/pe3').set({ paciente_id: 'p1', por: 'outro' }));
+        await assertSucceeds(enf.doc('curativos_enfermagem/c1').set({ paciente_id: 'p1', por: 'enf' }));
+        await assertSucceeds(admin.doc('config_permissoes/FUNC_ENFERMAGEM').set({ role: 'FUNC_ENFERMAGEM', concede: [], revoga: ['enfermagem_registrar'] }));
+        await assertFails(enf.doc('curativos_enfermagem/c2').set({ paciente_id: 'p1', por: 'enf' }));
+        const man = como('manut@hgp.app');
+        await assertSucceeds(man.doc('equipamento_movimentacoes/m1').set({ equipamento_id: 'e1' }));
+        await assertFails(man.doc('equipamento_movimentacoes/m1').update({ para: 'x' }));
+        await assertFails(recep.doc('equipamento_movimentacoes/m2').set({ equipamento_id: 'e1' }));
+        await assertFails(man.doc('equipamento_testes_eletricos/t1').delete());
     });
     await env.cleanup();
     console.log(`\n${ok} ok, ${falhas.length} falhas`); falhas.forEach(f => console.log(' -', f));

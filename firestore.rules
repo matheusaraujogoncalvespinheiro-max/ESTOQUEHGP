@@ -27,7 +27,7 @@ service cloud.firestore {
     function temPerfil(lista) { return logado() && (perfil() == 'ADMIN' || perfil() in lista); }
 
     // Perfis e Permissões editáveis (#5): config_permissoes/<PERFIL> guarda só a diferença sobre as listas fixas abaixo ({ concede: [...], revoga: [...] }).
-    // Só as coleções que chamam temAcao() leem isso; as demais continuam presas às listas fixas de perfis.
+    // Só as coleções que chamam temAcao() leem isso (prontuário, leitos, laboratório, documentos, cirurgia, dieta, transfusão, óbito, manutenção, enfermagem e os anexos no Storage); as demais continuam presas às listas fixas de perfis.
     function permExiste() { return exists(/databases/$(database)/documents/config_permissoes/$(perfil())); }
     function permDoc() { return get(/databases/$(database)/documents/config_permissoes/$(perfil())).data; }
     function concedida(acao) { return permExiste() && acao in permDoc().concede; }
@@ -140,19 +140,19 @@ service cloud.firestore {
     // RASCUNHO: não testado no emulador. Sinais vitais e checagens nunca são apagados; uma medição errada é corrigida com uma nova medição (o serviço exige a observação).
     // A decisão de uma checagem (administrar, não administrar, suspender) é uma transação que relê o documento: aqui só se confere o perfil.
     match /sinais_vitais/{id} {
-      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
-      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow read: if temAcao(['FUNC_ENFERMAGEM', 'MEDICO'], 'enfermagem_ver');
+      allow create: if temAcao(['FUNC_ENFERMAGEM'], 'enfermagem_registrar') && request.resource.data.por == usuario();
       allow update, delete: if false;
     }
     // #46: processo de enfermagem e curativos. Só criação; erro = anulação por novo documento.
     match /processo_enfermagem/{id} {
-      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
-      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow read: if temAcao(['FUNC_ENFERMAGEM', 'MEDICO'], 'enfermagem_ver');
+      allow create: if temAcao(['FUNC_ENFERMAGEM'], 'enfermagem_registrar') && request.resource.data.por == usuario();
       allow update, delete: if false;
     }
     match /curativos_enfermagem/{id} {
-      allow read: if temPerfil(['FUNC_ENFERMAGEM', 'MEDICO']);
-      allow create: if temPerfil(['FUNC_ENFERMAGEM']) && request.resource.data.por == usuario();
+      allow read: if temAcao(['FUNC_ENFERMAGEM', 'MEDICO'], 'enfermagem_ver');
+      allow create: if temAcao(['FUNC_ENFERMAGEM'], 'enfermagem_registrar') && request.resource.data.por == usuario();
       allow update, delete: if false;
     }
     match /checagens/{id} {
@@ -255,9 +255,9 @@ service cloud.firestore {
     // Cirurgia: o centro cirúrgico marca e cancela; a enfermagem assina o checklist, inicia, avalia a RPA e dá a alta (o serviço confere a situação em transação).
     // O checklist e as avaliações só acrescentam dentro do documento; as regras não conferem isso (validado no serviço).
     match /cirurgias/{id} {
-      allow read: if temPerfil(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM', 'MEDICO']);
-      allow create: if temPerfil(['FUNC_CENTRO_CIRURGICO']);
-      allow update: if temPerfil(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM']);
+      allow read: if temAcao(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM', 'MEDICO'], 'cirurgia_ver');
+      allow create: if temAcao(['FUNC_CENTRO_CIRURGICO'], 'cirurgia_gerenciar');
+      allow update: if temAcao(['FUNC_CENTRO_CIRURGICO', 'FUNC_ENFERMAGEM'], 'cirurgia_registrar');
       allow delete: if false;
     }
 
@@ -275,8 +275,8 @@ service cloud.firestore {
     }
     // Dieta: o médico e a Nutrição prescrevem; `dieta_ativa/{internacao}` é o ponteiro da dieta vigente (uma por internação).
     match /dietas/{id} {
-      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_NUTRICAO']);
-      allow create, update: if temPerfil(['MEDICO', 'FUNC_NUTRICAO']);
+      allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_NUTRICAO'], 'dieta_ver');
+      allow create, update: if temAcao(['MEDICO', 'FUNC_NUTRICAO'], 'dieta_prescrever');
       allow delete: if false;
     }
     match /dieta_ativa/{id} {
@@ -287,9 +287,9 @@ service cloud.firestore {
     // Transfusão: o médico solicita; a agência reserva e entrega a bolsa (id = número da bolsa: o mesmo número não entra duas vezes); a enfermagem transfunde.
     // A conferência por um segundo profissional e a ordem dos passos são validadas no serviço (as regras só conferem o perfil).
     match /solicitacoes_transfusao/{id} {
-      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_HEMOTERAPIA']);
-      allow create: if temPerfil(['MEDICO']);
-      allow update: if temPerfil(['MEDICO', 'FUNC_HEMOTERAPIA', 'FUNC_ENFERMAGEM']);
+      allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_HEMOTERAPIA'], 'hemoterapia_ver');
+      allow create: if temAcao(['MEDICO'], 'hemoterapia_solicitar');
+      allow update: if temAcao(['MEDICO', 'FUNC_HEMOTERAPIA', 'FUNC_ENFERMAGEM'], 'hemoterapia_transfundir');
       allow delete: if false;
     }
     match /bolsas_sangue/{id} {
@@ -330,17 +330,17 @@ service cloud.firestore {
     // #69: movimentações e testes elétricos do equipamento. Livros só de criação (erro = anulação por novo documento).
     match /equipamento_movimentacoes/{id} {
       allow read: if logado();
-      allow create: if temPerfil(['FUNC_MANUTENCAO']);
+      allow create: if temAcao(['FUNC_MANUTENCAO'], 'manutencao_gerenciar');
       allow update, delete: if false;
     }
     match /equipamento_testes_eletricos/{id} {
       allow read: if logado();
-      allow create: if temPerfil(['FUNC_MANUTENCAO']);
+      allow create: if temAcao(['FUNC_MANUTENCAO'], 'manutencao_executar');
       allow update, delete: if false;
     }
     match /manut_planos/{id} {
       allow read: if temPerfil(['FUNC_MANUTENCAO', 'CHEFE_HEMODINAMICA']);
-      allow create, update: if temPerfil(['FUNC_MANUTENCAO']);
+      allow create, update: if temAcao(['FUNC_MANUTENCAO'], 'manutencao_gerenciar');
       allow delete: if false;
     }
     // Transporte: quem solicita lê o que abriu; a equipe de transporte lê e atende tudo. O serviço restringe o transporte de paciente a certos perfis.
@@ -355,7 +355,7 @@ service cloud.firestore {
     // Retificação de resultado de laboratório: só criação (o resultado original fica intacto).
     match /lab_retificacoes/{id} {
       allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_LABORATORIO'], 'laboratorio_ver');
-      allow create: if temPerfil(['FUNC_LABORATORIO']) && request.resource.data.por == usuario();
+      allow create: if temAcao(['FUNC_LABORATORIO'], 'laboratorio_executar') && request.resource.data.por == usuario();
       allow update, delete: if false;
     }
     match /transportes/{id} {
@@ -390,9 +390,9 @@ service cloud.firestore {
     // ÓBITOS: dado sigiloso. Só médico e enfermagem leem; o médico registra; a enfermagem acompanha (comunicação à família e liberação do corpo).
     // Quem pode fazer cada passo e a retificação do nº da DO (com motivo) são validados no serviço. Os acessos ficam em auditoria.
     match /obitos/{id} {
-      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
-      allow create: if temPerfil(['MEDICO']);
-      allow update: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
+      allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM'], 'obito_ver');
+      allow create: if temAcao(['MEDICO'], 'obito_registrar');
+      allow update: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM'], 'obito_acompanhar');
       allow delete: if false;
     }
     match /obito_paciente/{id} {

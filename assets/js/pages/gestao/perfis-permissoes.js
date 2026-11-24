@@ -27,9 +27,18 @@ function renderPerfisPermissoes() {
     return `<div class="at-stack tone-teal">
         <section class="at-card"><h3 class="at-card__title">${lucideIcon('shield-check', 'w-5 h-5')} Perfis e Permissões</h3>
             <label class="at-field"><span class="at-label">Perfil</span><select class="at-input" onchange="permPerfilEscolher(this.value)"><option value="">-- Escolha --</option>${perfis.map(r => `<option value="${r}" ${r === st.role ? 'selected' : ''}>${escapeHtml(getRoleLabel(r))}</option>`).join('')}</select></label>
-        </section>${corpo}</div>`;
+        </section>
+        <section class="at-card"><h3 class="at-card__title">Novo perfil</h3><div class="at-form"><label class="at-field"><span class="at-label">Nome do perfil</span><input class="at-input" id="pp_novo_nome" maxlength="40" autocomplete="off"></label></div>
+            <p class="at-hint">O perfil novo nasce sem permissão nenhuma. Nas regras do banco ele só vale nas áreas que já leem estas permissões; nas demais, a tela libera mas o banco recusa.</p>
+            <div class="at-actions"><button type="button" class="at-btn at-btn--primary" onclick="permPerfilNovo()">Criar perfil</button></div></section>${corpo}</div>`;
 }
 
+async function permPerfilNovo() {
+    const el = document.getElementById('pp_novo_nome');
+    try { const v = await criarPerfilPersonalizado(el ? el.value : ''); permPerfilState.role = v.id; permPerfilState.marcadas = null; showMsg(`Perfil "${v.nome}" criado, sem nenhuma permissão. Marque o que ele pode fazer e salve.`); }
+    catch (err) { showMsg(err.message || 'Não foi possível criar o perfil.', 'error'); }
+    render();
+}
 function permPerfilEscolher(role) { permPerfilState.role = role; permPerfilState.marcadas = null; render(); }
 function permPerfilMarcar(acao, ligado) {
     const m = permPerfilState.marcadas || [];

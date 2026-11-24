@@ -28,6 +28,18 @@ async function t(nome, fn) { try { await fn(); ok++; console.log('  ok  ', nome)
     await t('arquivo acima de 10 MB é recusado', () => assertFails(med.ref('anexos/p1/a7.pdf').put(dado(10 * 1024 * 1024 + 1), meta('application/pdf'))));
     await t('substituir e apagar são negados (até para o administrador)', async () => { await assertFails(med.ref('anexos/p1/a1_laudo.pdf').put(dado(20), meta('application/pdf'))); await assertFails(raiz.ref('anexos/p1/a1_laudo.pdf').delete()); });
     await t('outros caminhos continuam fechados', () => assertFails(raiz.ref('outros/x.pdf').put(dado(10), meta('application/pdf'))));
+    await t('permissões editadas valem no Storage: conceder prontuario_ver abre a leitura; retirar fecha para o médico', async () => {
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await ctx.firestore().doc('config_permissoes/FUNC_RECEPCAO').set({ role: 'FUNC_RECEPCAO', concede: ['prontuario_ver', 'prontuario_evoluir'], revoga: [] });
+        });
+        await assertSucceeds(rec.ref('anexos/p1/a1_laudo.pdf').getDownloadURL());
+        await assertSucceeds(rec.ref('anexos/p1/a8.pdf').put(dado(10), meta('application/pdf')));
+        await env.withSecurityRulesDisabled(async (ctx) => {
+            await ctx.firestore().doc('config_permissoes/MEDICO').set({ role: 'MEDICO', concede: [], revoga: ['prontuario_evoluir'] });
+        });
+        await assertSucceeds(med.ref('anexos/p1/a1_laudo.pdf').getDownloadURL());
+        await assertFails(med.ref('anexos/p1/a9.pdf').put(dado(10), meta('application/pdf')));
+    });
     await env.cleanup();
     console.log(`\n${ok} ok, ${falhas.length} falhas`); falhas.forEach(f => console.log(' -', f));
     process.exit(falhas.length ? 1 : 0);
