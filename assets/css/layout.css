@@ -895,3 +895,5 @@
 /* A linha inteira do grupo (nome até a setinha) é o alvo do clique */
 .shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo > .wm-grupo__btn { width: 100%; cursor: pointer; }
 .shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo > .wm-grupo__btn:active { transform: scale(0.985); }
+/* Sem cabeçalho nem rodapé no menu: a lista começa no alto, alinhada ao painel */
+.shell-root .wm-nav { padding-top: 22px; }
