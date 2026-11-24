@@ -79,7 +79,7 @@ function renderPatrimonio() {
     <div class="at-stack tone-teal">
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon('monitor-cog', 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>Patrimônio e Planos de Manutenção</h2><p>Equipamentos do cadastro com a situação derivada das OS abertas, e os planos de manutenção preventiva e calibração.</p></div>
-            <div class="cd-head__btns">${gerencia ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="ptNovoPlano()">${lucideIcon('plus', 'w-5 h-5')} Novo plano</button>` : ''}</div></header>
+            <div class="cd-head__btns">${gerencia ? `<button type="button" class="at-btn at-btn--primary cd-new" onclick="ptNovoPlano()">${lucideIcon('plus', 'w-5 h-5')} Novo plano</button><button type="button" class="at-btn at-btn--ghost cd-new" onclick="ptLote()">${lucideIcon('layers', 'w-5 h-5')} Cadastrar em lote</button>` : ''}<button type="button" class="at-btn at-btn--ghost cd-new" onclick="ptTestesVencidos()">${lucideIcon('zap', 'w-5 h-5')} Testes elétricos vencidos</button></div></header>
         <section class="rf-kpis" aria-label="Resumo">
             ${e9Kpi(equips.length, 'Equipamentos ativos')}${e9Kpi(comSituacao.filter(x => x.s.codigo === 'PARADO' || x.s.codigo === 'COM_OS').length, 'Com OS aberta')}
             ${e9Kpi(vencidos, 'Planos vencidos')}${e9Kpi(aVencer, `Planos a vencer (${janela} dias)`)}
@@ -141,6 +141,35 @@ const ptReativar = executarAcao(async (id) => { await reativarPlanoManut(id); re
 function ptInativar(id) { pedirMotivo('Inativar plano', 'Motivo', true, async (m) => { await inativarPlanoManut(id, m); showMsg('Plano inativado.'); render(); }); }
 
 // ============ Histórico do equipamento ============
+
+function ptLote() {
+    const equips = cadRowsOf('equipamento').filter(e => e.ativo !== false && e.situacao_op !== 'Baixado');
+    if (!equips.length) return showMsg('Cadastre antes um equipamento de referência.', 'error');
+    const d = hModal('Cadastrar equipamentos em lote', `<p class="at-hint">Cria uma unidade por nº de série, copiando nome, modelo, setor e demais dados do equipamento de referência. Cada unidade ganha seu código.</p>
+        <div class="at-form tc-form"><label class="at-field at-span-2"><span class="at-label">Equipamento de referência *</span><select class="at-input" id="lt_base"><option value="">-- Selecione --</option>${equips.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.codigo + ' · ' + e.nome)}</option>`).join('')}</select></label>
+        <label class="at-field"><span class="at-label">Nºs de série (um por linha) *</span><textarea class="at-input" id="lt_series" rows="6"></textarea></label>
+        <label class="at-field"><span class="at-label">Patrimônios (um por linha, opcional)</span><textarea class="at-input" id="lt_pat" rows="6"></textarea></label></div>
+        <p class="at-error" id="lt_erro" role="alert"></p>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="lt_ok">Cadastrar</button></div>`, 'lg');
+    d.querySelector('#lt_ok').onclick = async () => {
+        d.querySelector('#lt_erro').textContent = '';
+        try { const r = await cadastrarEquipamentosEmLote(d.querySelector('#lt_base').value, d.querySelector('#lt_series').value, d.querySelector('#lt_pat').value); d.close(); showMsg(`${r.length} equipamento(s) cadastrado(s).`); render(); }
+        catch (err) { e9Erro(d, 'lt_erro', err); }
+    };
+}
+
+/** Equipamentos com teste elétrico vencido: o "próximo teste" é o que quem testou informou; sem data informada, não há alerta. */
+async function ptTestesVencidos() {
+    try {
+        const hoje = todayISO();
+        const snap = await requireDb().collection(COL_TESTES_ELETRICOS).get();
+        const validos = apoioRegistrosValidos(snap.docs.map(docToObj));
+        const ultimo = {};
+        validos.sort((a, b) => String(a.em).localeCompare(String(b.em))).forEach(t => { ultimo[t.equipamento_id] = t; });
+        const vencidos = Object.values(ultimo).filter(t => t.proximo_em && t.proximo_em < hoje);
+        showMsg(vencidos.length ? `Testes elétricos vencidos: ${vencidos.map(t => `${t.equipamento_nome} (${t.patrimonio || 's/ patrimônio'}, venceu em ${formatDateBR(t.proximo_em)})`).join('; ')}.` : 'Nenhum teste elétrico vencido entre os que informaram a data do próximo.');
+    } catch (err) { showMsg(err.message || 'Não foi possível consultar os testes.', 'error'); }
+}
 
 function ptRegistroModal(titulo, campos, ids, botao, gravar) {
     const d = hModal(titulo, `<div class="at-form tc-form">${campos}</div><p class="at-error" id="pr_erro" role="alert"></p>

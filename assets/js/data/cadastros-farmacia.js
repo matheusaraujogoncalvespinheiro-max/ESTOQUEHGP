@@ -4,6 +4,27 @@
 const R_FARM = ['ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA'];
 
 Object.assign(CAD_DEFS, {
+    interacao: {
+        key: 'interacao', label: 'Interações Medicamentosas', singular: 'Interação', icon: 'triangle-alert', prefix: 'INT',
+        roles: { ver: [...R_FARM, 'MEDICO', 'FUNC_ENFERMAGEM'], criar: ['ADMIN', 'CHEFE_FARMACIA'], editar: ['ADMIN', 'CHEFE_FARMACIA'], inativar: ['ADMIN', 'CHEFE_FARMACIA'] },
+        desc: 'Pares de substâncias que o hospital quer ver avisados na prescrição. O sistema não traz tabela própria nem decide a gravidade: o que está aqui foi cadastrado pela Farmácia, com a fonte. O aviso não bloqueia a prescrição.',
+        rotulo: (r) => `${r.substancia_a} × ${r.substancia_b}`, search: ['codigo', 'substancia_a', 'substancia_b', 'fonte'],
+        filters: [{ k: 'gravidade', label: 'Gravidade', opts: () => GRAVIDADES_INTERACAO }],
+        columns: [{ k: 'substancia_a', label: 'Substância A', sort: true }, { k: 'substancia_b', label: 'Substância B', sort: true }, { k: 'gravidade', label: 'Gravidade', sort: true }, { k: 'fonte', label: 'Fonte' }],
+        validar: (form) => {
+            const a = String(form.substancia_a || '').trim(), b = String(form.substancia_b || '').trim();
+            if (a.length < 4 || b.length < 4) throw new Error('Informe as duas substâncias (mínimo de 4 letras cada).');
+            if (a.toLowerCase() === b.toLowerCase()) throw new Error('As duas substâncias precisam ser diferentes.');
+            if (!GRAVIDADES_INTERACAO.includes(form.gravidade)) throw new Error('Escolha a gravidade.');
+            if (String(form.fonte || '').trim().length < 3) throw new Error('Informe a fonte da informação (protocolo, bula ou referência).');
+            return {};
+        },
+        tabs: [{ id: 'dados', label: 'Interação', fields: [
+            { k: 'substancia_a', label: 'Substância A', type: 'text', req: true, maxlen: 60 }, { k: 'substancia_b', label: 'Substância B', type: 'text', req: true, maxlen: 60 },
+            { k: 'gravidade', label: 'Gravidade (definida pela Farmácia)', type: 'select', req: true, opts: () => GRAVIDADES_INTERACAO },
+            { k: 'fonte', label: 'Fonte da informação', type: 'text', req: true, maxlen: 120 },
+            { k: 'orientacao', label: 'Orientação ao prescritor', type: 'textarea', span2: true, maxlen: 300 }] }]
+    },
     dispensacao: {
         key: 'dispensacao', label: 'Dispensações', singular: 'Dispensação', icon: 'pill', prefix: 'DSP', imutavel: true, semInativar: true, rotuloInativo: 'Cancelada',
         roles: { ver: R_FARM, criar: R_FARM, editar: [], inativar: [] },

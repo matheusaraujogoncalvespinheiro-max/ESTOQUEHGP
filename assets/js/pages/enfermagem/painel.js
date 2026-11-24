@@ -68,7 +68,9 @@ function renderEnfPainel() {
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon('activity', 'w-7 h-7')}</div>
             <div class="cd-head__txt"><h2>Painel de Enfermagem</h2><p>Pacientes internados por unidade, sinais vitais mais recentes e medicações e cuidados pendentes. O painel mostra o que foi registrado e não substitui o julgamento clínico.</p></div>
             <div class="cd-head__btns"><button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('ENF_CHECAGEM')">${lucideIcon('pill', 'w-5 h-5')} Checagem de medicação</button>
-                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('ENF_PLANTAO')">${lucideIcon('repeat-2', 'w-5 h-5')} Passagem de plantão</button></div></header>
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="navigateTo('ENF_PLANTAO')">${lucideIcon('repeat-2', 'w-5 h-5')} Passagem de plantão</button>
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="enfRelatorio()">${lucideIcon('bar-chart-3', 'w-5 h-5')} Relatório</button>
+                <button type="button" class="at-btn at-btn--ghost cd-new" onclick="enfDimensionamento()">${lucideIcon('users', 'w-5 h-5')} Dimensionamento</button></div></header>
         ${enfKpis('Resumo da enfermagem', [[internados.length, 'Internados'], [resumo.atrasadas, 'Horários em atraso'], [resumo.proximas, 'Próximas 2 h'], [resumo.pendentes, 'Pendentes'], [feitasHoje, 'Feitas hoje'], [semSinais, 'Sem sinais hoje']])}
         <section class="at-card">
             <div class="tc-barra">
@@ -99,6 +101,47 @@ function enfIrChecagem(pacienteId) {
     enfChecagemState().q = i ? i.paciente_nome : '';
     enfChecagemState().aba = 'checagem';
     navigateTo('ENF_CHECAGEM');
+}
+
+// ============ Relatório e dimensionamento de enfermagem (#46) ============
+
+function enfRelatorio() {
+    const d = hModal('Relatório de enfermagem por período', `<div class="at-form tc-form"><label class="at-field"><span class="at-label">De</span><input class="at-input" type="date" id="er_de"></label>
+        <label class="at-field"><span class="at-label">Até</span><input class="at-input" type="date" id="er_ate"></label></div>
+        <p class="at-error" id="er_erro" role="alert"></p><div id="er_res"></div>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button><button type="button" class="at-btn at-btn--primary" id="er_ok">Gerar</button></div>`, 'lg');
+    d.querySelector('#er_ok').onclick = async () => {
+        d.querySelector('#er_erro').textContent = '';
+        try {
+            const de = d.querySelector('#er_de').value, ate = d.querySelector('#er_ate').value;
+            if (de && ate && de > ate) throw new Error('A data inicial é depois da final.');
+            const r = await relatorioEnfermagemPeriodo(de, ate);
+            const mapa = (m) => Object.entries(m).map(([k, v]) => `<li>${escapeHtml(ETAPAS_PROCESSO_ENF[k] || k)}: <strong>${v}</strong></li>`).join('') || '<li>—</li>';
+            d.querySelector('#er_res').innerHTML = `${r.truncado ? '<p class="tri-banner tri-banner--warn">O período tem mais de 5000 registros em alguma coleção: reduza o período.</p>' : ''}
+                <section class="rf-kpis">${e9Kpi(r.sinais, 'Sinais vitais')}${e9Kpi(r.processo, 'Registros do processo')}${e9Kpi(r.curativos, 'Curativos')}${e9Kpi(r.checagens.feitas, 'Checagens feitas')}${e9Kpi(r.checagens.nao_feitas, 'Não feitas')}${e9Kpi(r.checagens.pendentes, 'Pendentes')}</section>
+                <div class="at-form"><div class="at-field"><span class="at-label">Processo por etapa</span><ul class="e8-resumo">${mapa(r.por_etapa)}</ul></div></div>
+                <div class="tri-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Profissional</th><th>Sinais</th><th>Processo</th><th>Curativos</th></tr></thead><tbody>${Object.entries(r.por_autor).map(([n, v]) => `<tr><td>${escapeHtml(n)}</td><td>${v.sinais}</td><td>${v.processo}</td><td>${v.curativos}</td></tr>`).join('') || '<tr><td colspan="4" class="at-empty">Nada registrado no período.</td></tr>'}</tbody></table></div>`;
+        } catch (err) { e9Erro(d, 'er_erro', err); }
+    };
+}
+
+function enfDimensionamento() {
+    const linha = (i) => `<div class="lb-linha"><input class="at-input" data-c="nome" placeholder="Categoria de cuidado" maxlength="40" aria-label="Categoria ${i + 1}"><input class="at-input" data-c="pacientes" placeholder="Pacientes" inputmode="numeric" aria-label="Pacientes ${i + 1}"><input class="at-input" data-c="horas" placeholder="Horas de enfermagem por paciente em 24 h" inputmode="decimal" aria-label="Horas ${i + 1}"></div>`;
+    const d = hModal('Dimensionamento de pessoal de enfermagem', `<p class="at-hint">Calcula QP = (horas por dia × dias da semana ÷ jornada semanal) × (1 + índice técnico). Todos os valores são informados por você: o sistema não traz horas nem categorias padrão e não classifica pacientes.</p>
+        <div id="dm_linhas">${linha(0)}</div><button type="button" class="at-btn at-btn--ghost at-btn--sm" id="dm_mais" style="margin-top:8px">+ Categoria</button>
+        <div class="at-form tc-form" style="margin-top:10px"><label class="at-field"><span class="at-label">Jornada semanal (horas) *</span><input class="at-input" id="dm_jornada" inputmode="decimal"></label>
+        <label class="at-field"><span class="at-label">Índice de segurança técnica (%) *</span><input class="at-input" id="dm_it" inputmode="decimal"></label></div>
+        <p class="at-error" id="dm_erro" role="alert"></p><div id="dm_res"></div>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Fechar</button><button type="button" class="at-btn at-btn--primary" id="dm_ok">Calcular</button></div>`, 'lg');
+    d.querySelector('#dm_mais').onclick = () => d.querySelector('#dm_linhas').insertAdjacentHTML('beforeend', linha(d.querySelectorAll('.lb-linha').length));
+    d.querySelector('#dm_ok').onclick = () => {
+        d.querySelector('#dm_erro').textContent = '';
+        try {
+            const categorias = [...d.querySelectorAll('.lb-linha')].map(l => Object.fromEntries([...l.querySelectorAll('input')].map(i => [i.dataset.c, i.value])));
+            const r = dimensionarEnfermagem({ categorias, jornada_semanal: d.querySelector('#dm_jornada').value, indice_tecnico: d.querySelector('#dm_it').value });
+            d.querySelector('#dm_res').innerHTML = `<section class="rf-kpis">${e9Kpi(r.horas_dia, 'Horas de assistência por dia')}${e9Kpi(String(r.quadro_calculado).replace('.', ','), 'Quadro calculado')}${e9Kpi(r.quadro_arredondado, 'Profissionais (arredondado para cima)')}</section>`;
+        } catch (err) { e9Erro(d, 'dm_erro', err); }
+    };
 }
 
 // ============ Processo de enfermagem e curativos (#46) ============

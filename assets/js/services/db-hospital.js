@@ -12,7 +12,7 @@
 const COLH = {
     LEITOS: 'leitos_estado', INTERNACOES: 'internacoes', LOCK_INTERNACAO: 'internacao_ativa', REGISTROS: 'registros_clinicos',
     SOLICITACOES: 'solicitacoes_exame', PRONTUARIOS: 'prontuarios_abertos', AUTORIZACOES: 'autorizacoes', VAGAS: 'agenda_vagas', CONFIG: 'config_hospital', ESTRUTURA: 'leitos_estrutura',
-    TRANSPORTES: 'demandas_transporte', FARMACIA: 'farmacia_dispensacoes'
+    TRANSPORTES: 'demandas_transporte', FARMACIA: 'farmacia_dispensacoes', CHECAGENS_PRESC: 'checagens_prescricao'
 };
 
 MOCK_DATA.LEITOS_ESTADO = {};        // id do leito -> estado
@@ -27,6 +27,26 @@ MOCK_DATA.REGISTROS_CLINICOS = { paciente_id: null, items: [] };
 MOCK_DATA.FILA_LEITO = [];           // atendimentos aguardando leito (escuta dedicada, ver fila_leito abaixo)
 
 MOCK_DATA.REGISTROS_CLINICOS_CACHE = {}; // paciente_id -> array de registros clínicos em memória
+// Checagem beira-leito de item de prescrição: a prescrição é imutável, então a checagem é um documento À PARTE (id = <prescrição>_<item>, só criação)
+// e a tela a enxerga por cima do item. paciente_id -> { id da checagem -> documento }.
+MOCK_DATA.CHECAGENS_PRESC = {};
+
+/** Põe a checagem (se houver) sobre os itens das prescrições, sem alterar os objetos recebidos. */
+function sobreporChecagensPrescricao(pacienteId, registros) {
+    const mapa = MOCK_DATA.CHECAGENS_PRESC[pacienteId];
+    if (!mapa || !Object.keys(mapa).length) return registros;
+    return (registros || []).map(r => {
+        if (r.tipo !== 'PRESCRICAO' || !Array.isArray(r.itens)) return r;
+        let mudou = false;
+        const itens = r.itens.map((it, i) => {
+            const c = mapa[`${r.id}_${i}`];
+            if (!c || (it.checagem_enfermagem && it.checagem_enfermagem.checado)) return it;
+            mudou = true;
+            return { ...it, checagem_enfermagem: { checado: true, por: c.por, coren: c.coren, em: c.em, observacao: c.observacao } };
+        });
+        return mudou ? { ...r, itens } : r;
+    });
+}
 MOCK_DATA.TRANSPORTES_NIR = [];
 MOCK_DATA.FARMACIA_DISPENSACOES = [];
 MOCK_DATA.PACIENTES_SEED_MAP = {};
@@ -66,6 +86,11 @@ function _syncLocalCollection(col, obj) {
             if (rIdx >= 0) MOCK_DATA.REGISTROS_CLINICOS.items[rIdx] = obj;
             else MOCK_DATA.REGISTROS_CLINICOS.items.unshift(obj);
         }
+    } else if (col === COLH.CHECAGENS_PRESC) {
+        (MOCK_DATA.CHECAGENS_PRESC[obj.paciente_id] = MOCK_DATA.CHECAGENS_PRESC[obj.paciente_id] || {})[obj.id] = obj;
+        const cache = MOCK_DATA.REGISTROS_CLINICOS_CACHE[obj.paciente_id];
+        if (cache) MOCK_DATA.REGISTROS_CLINICOS_CACHE[obj.paciente_id] = sobreporChecagensPrescricao(obj.paciente_id, cache);
+        if (MOCK_DATA.REGISTROS_CLINICOS.paciente_id === obj.paciente_id) MOCK_DATA.REGISTROS_CLINICOS.items = sobreporChecagensPrescricao(obj.paciente_id, MOCK_DATA.REGISTROS_CLINICOS.items);
     } else if (col === COLH.CONFIG) {
         if (obj.id === 'active') MOCK_DATA.CONFIG_HOSPITAL = obj;
     }
@@ -81,6 +106,7 @@ function _getLocalDoc(col, id) {
     if (col === COLH.VAGAS) return MOCK_DATA.VAGAS_EXAME.find(x => x.id === sid) || null;
     if (col === COLH.TRANSPORTES) return MOCK_DATA.TRANSPORTES_NIR.find(x => x.id === sid) || null;
     if (col === COLH.FARMACIA) return MOCK_DATA.FARMACIA_DISPENSACOES.find(x => x.id === sid) || null;
+    if (col === COLH.CHECAGENS_PRESC) return Object.values(MOCK_DATA.CHECAGENS_PRESC).map(m => m[sid]).find(Boolean) || null;
     return null;
 }
 
@@ -164,17 +190,26 @@ function db_watchRegistros(pacienteId) {
     }
     watchersWanted.add('registros');
     if (watchers.registros || !_temBanco() || !pacienteId) return;
-    watchers.registros = onSnapshotData(
+    const a = onSnapshotData(
         db.collection(COLH.REGISTROS).where('paciente_id', '==', pacienteId),
         (items) => {
             const cached = MOCK_DATA.REGISTROS_CLINICOS_CACHE[pacienteId] || [];
             const map = new Map(cached.map(i => [i.id, i]));
             items.forEach(i => map.set(i.id, i));
-            const merged = [...map.values()];
+            const merged = sobreporChecagensPrescricao(pacienteId, [...map.values()]);
             MOCK_DATA.REGISTROS_CLINICOS_CACHE[pacienteId] = merged;
             MOCK_DATA.REGISTROS_CLINICOS = { paciente_id: pacienteId, items: merged };
         }
     );
+    // Checagens beira-leito do paciente: sem permissão de leitura, as prescrições continuam aparecendo sem a marca de checagem.
+    const b = onSnapshotData(db.collection(COLH.CHECAGENS_PRESC).where('paciente_id', '==', pacienteId), (items) => {
+        MOCK_DATA.CHECAGENS_PRESC[pacienteId] = Object.fromEntries(items.map(i => [i.id, i]));
+        const cache = MOCK_DATA.REGISTROS_CLINICOS_CACHE[pacienteId] || [];
+        const novo = sobreporChecagensPrescricao(pacienteId, cache);
+        MOCK_DATA.REGISTROS_CLINICOS_CACHE[pacienteId] = novo;
+        if (MOCK_DATA.REGISTROS_CLINICOS.paciente_id === pacienteId) MOCK_DATA.REGISTROS_CLINICOS = { paciente_id: pacienteId, items: novo };
+    });
+    watchers.registros = () => { a(); b(); };
 }
 
 /** Documentos clínicos emitidos para UM paciente (aba Documentos do prontuário). */

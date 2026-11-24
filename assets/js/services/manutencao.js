@@ -90,6 +90,58 @@ function validarBaixaPatrimonial(f, hoje = todayISO()) {
     return erros;
 }
 
+const normChave = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** #69: nº de patrimônio é único no hospital; nº de série é único dentro do mesmo modelo. Devolve a lista de erros do cadastro ([] = ok). */
+function validarUnicidadeEquipamento(f, id, existentes = []) {
+    const erros = [];
+    const outros = (existentes || []).filter(e => e.id !== id);
+    const pat = normChave(f.patrimonio);
+    if (pat && outros.some(e => normChave(e.patrimonio) === pat)) erros.push({ campo: 'patrimonio', mensagem: 'Já existe equipamento com este nº de patrimônio.' });
+    const serie = normChave(f.numero_serie);
+    if (serie && outros.some(e => normChave(e.numero_serie) === serie && normChave(e.modelo) === normChave(f.modelo))) erros.push({ campo: 'numero_serie', mensagem: 'Já existe equipamento deste modelo com este nº de série.' });
+    return erros;
+}
+
+const LOTE_EQUIPAMENTOS_MAX = 50;
+
+/** Planeja o cadastro em lote: uma linha de série (e de patrimônio, se vierem) por unidade. Confere repetidos entre si e com o que já existe (puro). */
+function planejarLoteEquipamentos(base, series, patrimonios = [], existentes = []) {
+    const lista = (t) => (Array.isArray(t) ? t : String(t || '').split(/\r?\n/)).map(x => String(x).trim()).filter(Boolean);
+    const s = lista(series), p = lista(patrimonios);
+    if (!s.length) throw new Error('Informe ao menos um nº de série (um por linha).');
+    if (s.length > LOTE_EQUIPAMENTOS_MAX) throw new Error(`No máximo ${LOTE_EQUIPAMENTOS_MAX} unidades por lote.`);
+    if (p.length && p.length !== s.length) throw new Error(`Informe um patrimônio por unidade (${s.length}) ou deixe em branco.`);
+    const unidades = s.map((numero_serie, i) => ({ numero_serie, patrimonio: p[i] || '' }));
+    const vistos = [];
+    unidades.forEach((u, i) => {
+        const e = validarUnicidadeEquipamento({ ...u, modelo: base.modelo }, null, [...existentes, ...vistos]);
+        if (e.length) throw new Error(`Unidade ${i + 1}: ${e[0].mensagem}`);
+        vistos.push({ ...u, modelo: base.modelo, id: 'lote' + i });
+    });
+    return unidades;
+}
+
+/** Cria uma unidade por série a partir de um equipamento já cadastrado (modelo, setor etc.), cada uma com seu código, série e patrimônio. */
+async function cadastrarEquipamentosEmLote(baseId, series, patrimonios = []) {
+    requirePermission('manutencao_gerenciar');
+    const existentes = cadRowsOf('equipamento');
+    const base = existentes.find(e => e.id === baseId);
+    if (!base) throw new Error('Equipamento de referência não encontrado.');
+    const unidades = planejarLoteEquipamentos(base, series, patrimonios, existentes);
+    const user = state.currentUser; const agora = nowISO(); const criados = [];
+    for (const u of unidades) {
+        const { id: _i, codigo: _c, baixa_data: _bd, baixa_motivo: _bm, busca: _b, criado_em: _ce, criado_por: _cp, atualizado_em: _ae, atualizado_por: _ap, ...resto } = base;
+        const reg = { ...resto, id: newId('equ'), codigo: await db_cadProximoCodigo('equipamento', 'EQP'), numero_serie: u.numero_serie, patrimonio: u.patrimonio, situacao_op: 'Operacional', ativo: true,
+            criado_em: agora, criado_por: user.username, atualizado_em: agora, atualizado_por: user.username };
+        reg.busca = searchKey([reg.nome, reg.codigo, reg.patrimonio, reg.numero_serie, reg.modelo].filter(Boolean).join(' '));
+        await db_cadSalvar('equipamento', reg);
+        await auditar({ entidade: 'cad_equipamento', entidade_id: reg.id, acao: 'CRIAR', depois: { codigo: reg.codigo, origem: 'Cadastro em lote', serie: reg.numero_serie } });
+        criados.push(reg);
+    }
+    return criados;
+}
+
 /** Situação do equipamento no painel: deriva das OS abertas; sem OS aberta vale o que está no cadastro. */
 function situacaoDoEquipamento(equipamento, osLista) {
     if (equipamento.situacao_op === 'Baixado') return { codigo: 'BAIXADO', rotulo: 'Baixado (patrimônio)', os: null, abertas: [] };   // baixa patrimonial (#69): vale sobre as OS

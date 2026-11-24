@@ -31,16 +31,57 @@ function registrarHistoricoEstoque(acao, it, qtd, loteCodigo, extra = '') {
     if (typeof logEntryHistory === 'function') logEntryHistory(acao, it.setor, it.produto.barcode, it.produto.material, qtd, loteCodigo, extra);
 }
 
+// ---- Vínculo com a requisição à Farmácia (#47/#48): a saída atende um item da requisição; a devolução de sobra só devolve o que foi entregue ----
+const REQUISICAO_FECHADA = ['Atendida', 'Cancelada'];
+
+/** Pedido, entregue, devolvido e pendente de um item (1, 2, ...) da requisição. Só conta saídas e devoluções não canceladas. */
+function saldoDoItemRequisicao(req, item, saidas = CAD_DATA.saida || [], devolucoes = CAD_DATA.devolucao || []) {
+    const it = (req.itens || [])[Number(item) - 1];
+    if (!it) return null;
+    const soma = (lista) => lista.filter(r => r.requisicao === req.id && Number(r.requisicao_item) === Number(item) && r.ativo !== false).reduce((s, r) => s + Number(r.quantidade || 0), 0);
+    const pedido = Number(it.quantidade), entregue = soma(saidas), devolvido = soma(devolucoes);
+    return { pedido, entregue, devolvido, pendente: Math.max(0, pedido - entregue), devolvivel: Math.max(0, entregue - devolvido) };
+}
+
+/** Confere o vínculo informado no formulário. Devolve { requisicao, requisicao_item } para gravar junto, ou {} se não há vínculo. */
+function conferirVinculoRequisicao(form, tipo) {
+    if (!form.requisicao) return {};
+    const req = (CAD_DATA.requisicao || []).find(r => r.id === form.requisicao);
+    if (!req) throw new Error('Requisição não encontrada.');
+    const item = Number(form.requisicao_item);
+    if (!Number.isInteger(item) || item < 1) throw new Error('Informe o número do item da requisição (1, 2, ...).');
+    const s = saldoDoItemRequisicao(req, item);
+    if (!s) throw new Error(`A requisição ${req.codigo} não tem o item ${item}.`);
+    const qtd = Number(form.quantidade);
+    if (tipo === 'saida') {
+        if (REQUISICAO_FECHADA.includes(req.situacao)) throw new Error(`A requisição ${req.codigo} está ${req.situacao.toLowerCase()}: não recebe nova saída.`);
+        if (qtd > s.pendente) throw new Error(`O item ${item} da requisição ${req.codigo} pede ${s.pedido} e já teve ${s.entregue} entregue(s): só faltam ${s.pendente}.`);
+    } else if (qtd > s.devolvivel) throw new Error(`Só ${s.devolvivel} un. do item ${item} da requisição ${req.codigo} podem voltar (entregues ${s.entregue}, já devolvidas ${s.devolvido}).`);
+    return { requisicao: req.id, requisicao_item: item };
+}
+
+/** Situação da requisição pelas saídas já feitas (puro). */
+function situacaoPelasSaidas(req, saidas = CAD_DATA.saida || []) {
+    const itens = (req.itens || []).map((_, i) => saldoDoItemRequisicao(req, i + 1, saidas, []));
+    if (!itens.length || itens.every(s => s.entregue === 0)) return req.situacao;
+    return itens.every(s => s.pendente === 0) ? 'Atendida' : 'Atendida em parte';
+}
+
 // ---- Saída (para setor, paciente ou procedimento) ----
 function validarSaida(form) {
     if (!form.destino_detalhe || String(form.destino_detalhe).trim().length < 3) throw new Error('Informe o destino da saída (setor, paciente ou procedimento).');
-    return dadosDoItem(operacaoItem(form));
+    return { ...dadosDoItem(operacaoItem(form)), ...conferirVinculoRequisicao(form, 'saida') };
 }
-function aplicarSaida(reg) {
+async function aplicarSaida(reg) {
     const pr = cadProdutoDe(reg.produto);
     const r = darBaixaNoEstoque(pr.setor, pr.produto.barcode, reg.quantidade, Number(reg.lote) || reg.lote);
     if (!r.success) throw new Error(r.message);
     registrarHistoricoEstoque('SAIDA', pr, reg.quantidade, reg.lote_codigo);
+    if (reg.requisicao) {
+        const req = (CAD_DATA.requisicao || []).find(r => r.id === reg.requisicao);
+        const nova = req && situacaoPelasSaidas(req, [...(CAD_DATA.saida || []).filter(r => r.id !== reg.id), reg]);
+        if (req && nova !== req.situacao) await db_cadSalvar('requisicao', { id: req.id, situacao: nova, atendido_por_nome: state.currentUser.name, atendido_em: nowISO() });
+    }
 }
 
 // ---- Perda e baixa (aceitam lote vencido; baixa exige autorização/documento) ----
@@ -71,7 +112,7 @@ function validarDevolucao(form) {
     if (!Number.isInteger(qtd) || qtd < 1) throw new Error('Informe a quantidade (número inteiro, mínimo 1).');
     if (String(form.lote_codigo || '').trim().length < 1) throw new Error('Informe o lote do item devolvido.');
     if (!form.validade || form.validade < todayISO()) throw new Error('Informe a validade do lote. Itens vencidos não voltam ao estoque: use Perdas.');
-    return { setor: pr.setor, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}` };
+    return { setor: pr.setor, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}`, ...conferirVinculoRequisicao(form, 'devolucao') };
 }
 function aplicarDevolucao(reg) {
     const pr = cadProdutoDe(reg.produto);

@@ -11,6 +11,8 @@ const SETORES_OPS_OPTS = [{ id: 'OPME', rotulo: 'OPME' }, { id: 'HEMODINAMICA', 
 const dataHoraCol = { k: 'criado_em', label: 'Registrado em', sort: true, get: (r) => (r.criado_em ? formatDateTimeBR(r.criado_em) : '—') };
 const fProduto = { k: 'produto', label: 'Produto', type: 'produto', req: true, span2: true };
 const fLote = { k: 'lote', label: 'Lote (com saldo)', type: 'lote', dep: 'produto', req: true };
+const fRequisicao = { k: 'requisicao', label: 'Requisição atendida (opcional)', type: 'select', opts: () => (CAD_DATA.requisicao || []).filter(r => !['Atendida', 'Cancelada'].includes(r.situacao)).map(r => ({ id: r.id, rotulo: `${r.codigo} - ${r.unidade}` })), help: 'Vincule a saída (ou a sobra devolvida) a uma requisição da Farmácia: a situação dela acompanha as saídas.' };
+const fRequisicaoItem = { k: 'requisicao_item', label: 'Nº do item da requisição', type: 'number', min: 1 };
 const fQtd = { k: 'quantidade', label: 'Quantidade', type: 'number', req: true, min: 1 };
 const colsProduto = [{ k: 'codigo', label: 'Código', sort: true }, { k: 'produto_desc', label: 'Produto', sort: true }, { k: 'lote_codigo', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.', sort: true, num: true }];
 const filtroSetorOps = { k: 'setor', label: 'Setor', opts: SETORES_OPS_OPTS };
@@ -26,6 +28,7 @@ Object.assign(CAD_DEFS, {
         tabs: [{ id: 'dados', label: 'Dados da saída', fields: [fProduto, fLote, fQtd,
             { k: 'destino', label: 'Tipo de destino', type: 'select', req: true, opts: ['Setor', 'Paciente', 'Procedimento', 'Outro'] },
             { k: 'destino_detalhe', label: 'Destino (setor, paciente ou procedimento)', type: 'text', req: true, span2: true },
+            fRequisicao, fRequisicaoItem,
             { ...OBS }] }]
     },
     devolucao: {
@@ -37,7 +40,7 @@ Object.assign(CAD_DEFS, {
         tabs: [{ id: 'dados', label: 'Dados da devolução', fields: [fProduto,
             { k: 'lote_codigo', label: 'Lote do item devolvido', type: 'text', req: true, maxlen: 40 }, { k: 'validade', label: 'Validade do lote', type: 'date', req: true }, fQtd,
             { k: 'origem', label: 'Origem (setor, paciente ou sala)', type: 'text', req: true },
-            { k: 'motivo', label: 'Motivo', type: 'select', req: true, opts: MOTIVOS_DEVOLUCAO }, { ...OBS }] }]
+            { k: 'motivo', label: 'Motivo', type: 'select', req: true, opts: MOTIVOS_DEVOLUCAO }, fRequisicao, fRequisicaoItem, { ...OBS }] }]
     },
     perda: {
         key: 'perda', label: 'Perdas', singular: 'Perda', icon: 'trash-2', prefix: 'PER', imutavel: true, semInativar: true, roles: ROLES_MOV,

@@ -48,7 +48,7 @@ Object.assign(CAD_DEFS, {
     equipamento: {
         key: 'equipamento', label: 'Equipamentos', singular: 'Equipamento', icon: 'monitor-cog', prefix: 'EQP', roles: roles(['ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_MANUTENCAO'], [...R_CENTRAL_VER, 'FUNC_MANUTENCAO']),
         desc: 'Equipamentos e bens do hospital, com patrimônio, localização e situação operacional. As ordens de serviço e os planos de preventiva e calibração ficam em Apoio e Infraestrutura.',
-        validate: (f) => validarBaixaPatrimonial(f),
+        validate: (f, id) => [...validarBaixaPatrimonial(f), ...validarUnicidadeEquipamento(f, id, cadRowsOf('equipamento'))],
         rotulo: (r) => r.nome, search: ['codigo', 'nome', 'patrimonio', 'numero_serie', 'modelo'], filters: [{ k: 'situacao_op', label: 'Situação', opts: ['Operacional', 'Em manutenção', 'Fora de uso', 'Baixado'] }],
         columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'nome', label: 'Equipamento', sort: true }, { k: 'patrimonio', label: 'Patrimônio', get: (r) => r.patrimonio || '—' }, { k: 'setor', label: 'Setor', get: (r) => (r.setor ? cadRotuloRef('setor', r.setor) : '—') }, { k: 'situacao_op', label: 'Situação', sort: true }],
         tabs: [{ id: 'dados', label: 'Dados', fields: [

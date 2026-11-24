@@ -205,6 +205,7 @@ const MENU_TREE = [
             item(10, 'Prescrições para a Farmácia', 'FARM_PRESCRICOES', { icon: 'pill', access: byPermission('farmacia_ver') }),
             cadItem(20, 'Dispensações', 'dispensacao'),
             cadItem(30, 'Requisições', 'requisicao'),
+            cadItem(35, 'Interações medicamentosas', 'interacao'),
             item(40, 'Estoque da Farmácia', 'FARMACIA', { icon: 'package', access: byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA') }),
             relItem(50, 'Rastreabilidade', 'RASTREIO', byRole(...ROLES_RASTREIO)),
             relItem(60, 'Relatório de Dispensações', 'FARMACIA_DISP', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA')),

@@ -116,6 +116,17 @@ async function t(nome, fn) { try { await fn(); ok++; console.log('  ok  ', nome)
         await assertFails(recep.doc('equipamento_movimentacoes/m2').set({ equipamento_id: 'e1' }));
         await assertFails(man.doc('equipamento_testes_eletricos/t1').delete());
     });
+    await t('checagem beira-leito (prescrição imutável): enfermagem cria uma vez, ninguém altera, recepção não cria nem lê', async () => {
+        await assertSucceeds(admin.doc('config_permissoes/FUNC_ENFERMAGEM').set({ role: 'FUNC_ENFERMAGEM', concede: [], revoga: [] }));
+        const c = { prescricao_id: 'r1', item_index: 0, paciente_id: 'p1', checado: true, registrado_por: 'enf' };
+        await assertSucceeds(enf.doc('checagens_prescricao/r1_0').set(c));
+        await assertFails(enf.doc('checagens_prescricao/r1_0').update({ checado: false }));
+        await assertFails(enf.doc('checagens_prescricao/r1_1').set({ ...c, item_index: 1, registrado_por: 'outro' }));
+        await assertFails(recep.doc('checagens_prescricao/r1_2').set({ ...c, item_index: 2, registrado_por: 'recep' }));
+        await assertSucceeds(enf.doc('checagens_prescricao/r1_0').get());
+        await assertFails(como('lab@hgp.app').doc('checagens_prescricao/r1_0').get());
+        await assertFails(enf.doc('registros_clinicos/r1').update({ texto: 'alterado' }));
+    });
     await env.cleanup();
     console.log(`\n${ok} ok, ${falhas.length} falhas`); falhas.forEach(f => console.log(' -', f));
     process.exit(falhas.length ? 1 : 0);

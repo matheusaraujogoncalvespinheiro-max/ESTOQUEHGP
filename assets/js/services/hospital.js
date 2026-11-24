@@ -609,9 +609,11 @@ async function checarItemPrescricaoEnfermagem(prescricaoId, indiceItem, { checad
         observacao: String(observacao || 'Administrado e checado à beira-leito').trim()
     };
 
-    const novosItens = reg.itens.map((it, i) => (i === idx ? { ...it, checagem_enfermagem: checagem } : it));
-    const atualizado = { ...reg, itens: novosItens };
-    await setDocH(COLH.REGISTROS, atualizado);
+    // A prescrição é imutável (as regras do banco recusam alterá-la): a checagem vira um documento à parte, criado uma única vez por item.
+    if (reg.itens[idx].checagem_enfermagem && reg.itens[idx].checagem_enfermagem.checado) throw new Error('Este item já foi checado.');
+    const docChecagem = { id: `${prescricaoId}_${idx}`, prescricao_id: prescricaoId, item_index: idx, paciente_id: reg.paciente_id, medicamento: reg.itens[idx].medicamento || '', ...checagem, dia: String(agora).slice(0, 10), registrado_por: u.por };
+    await setDocH(COLH.CHECAGENS_PRESC, docChecagem);
+    const atualizado = sobreporChecagensPrescricao(reg.paciente_id, [reg])[0];
 
     // Sincroniza também na aba Farmácia se houver item vinculado
     const itemAlvo = reg.itens[idx];

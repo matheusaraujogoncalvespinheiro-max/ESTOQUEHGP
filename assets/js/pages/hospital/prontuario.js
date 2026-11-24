@@ -395,6 +395,7 @@ async function prontuarioAbrir(pacienteId, abaInicial = 'timeline') {
         const st = prontuarioState();
         Object.assign(st, { pacienteId, paciente, tab: abaInicial || 'timeline', timelineFiltro: '' });
         db_watchRegistros(pacienteId);
+        if (typeof db_cadWatch === 'function') db_cadWatch('interacao');
         st.labResultados = [];
         if (typeof db_getResultadosLabDoPaciente === 'function') { try { st.labResultados = await db_getResultadosLabDoPaciente(pacienteId); } catch (e) { st.labResultados = []; } }   // só leitura; falha não impede abrir o prontuário
         state.activeModule = 'PRONTUARIO';
@@ -1162,15 +1163,21 @@ const prontuarioRegistrar = aviso(async (tipo, complementaId = '') => {
 });
 
 /** Linhas de itens da prescrição (tipo_item: MEDICAMENTO/DIETA/CUIDADO, medicamento/dieta, dose, via, frequência, duração, observação). */
+/** Catálogo de medicamentos = produtos de medicamento do estoque da Farmácia (cadastro de Produtos). Só sugere: o prescritor pode digitar outro nome. */
+function prescricaoCatalogoMedicamentos() {
+    try { return [...new Set(((typeof MOCK_DATA !== 'undefined' && MOCK_DATA.FARMACIA) || []).filter(p => !p.cadastro || p.cadastro.ativo !== false).map(p => String(p.material || '').trim()).filter(Boolean))].sort(); } catch (e) { return []; }
+}
+
 function prescricaoAddItem() {
     const box = document.getElementById('pr_itens');
     if (!box) return;
+    if (!document.getElementById('pr_catalogo')) box.insertAdjacentHTML('beforebegin', `<datalist id="pr_catalogo">${prescricaoCatalogoMedicamentos().map(n => `<option value="${escapeHtml(n)}"></option>`).join('')}</datalist>`);
     const div = document.createElement('div');
     div.className = 'pr-item at-form';
     div.style.margin = '8px 0';
     div.innerHTML = `
         <div class="at-field"><label class="at-label">Tipo *</label><select class="at-select i-tipo_item"><option value="MEDICAMENTO">Medicamento</option><option value="DIETA">Dieta / Nutrição</option><option value="CUIDADO">Cuidado / Conduta</option></select></div>
-        <div class="at-field"><label class="at-label">Medicamento / Dieta / Conduta *</label><input class="at-input i-medicamento" placeholder="Ex.: Ceftriaxona 1g ou Dieta Hipossódica" maxlength="120" autocomplete="off"></div>
+        <div class="at-field"><label class="at-label">Medicamento / Dieta / Conduta *</label><input class="at-input i-medicamento" list="pr_catalogo" placeholder="Ex.: Ceftriaxona 1g ou Dieta Hipossódica" maxlength="120" autocomplete="off"></div>
         <div class="at-field"><label class="at-label">Dose / Padrão *</label><input class="at-input i-dose" placeholder="Ex.: 1g ou 1800 kcal" maxlength="120" autocomplete="off"></div>
         <div class="at-field"><label class="at-label">Via</label><input class="at-input i-via" placeholder="Ex.: EV, VO, Enteral" maxlength="60" autocomplete="off"></div>
         <div class="at-field"><label class="at-label">Frequência / Aprazamento *</label><input class="at-input i-frequencia" placeholder="Ex.: 8/8h, 12/12h, 6x/dia" maxlength="120" autocomplete="off"></div>
@@ -1186,6 +1193,10 @@ const prontuarioRegistrarPrescricao = aviso(async () => {
     const ativas = separarAlergias(registrosDoPaciente('ALERGIA')).ativas;
     const avisos = itens.map(i => [i.medicamento, cruzarAlergiaMedicamento(ativas, i.medicamento)]).filter(([, c]) => c.length).map(([m, c]) => avisoConflitoAlergia(m, c));
     { const al = (typeof verificarAlertaAlergiaPrescricao === 'function' && st.paciente) ? verificarAlertaAlergiaPrescricao(st.paciente, itens) : null; if (al && al.conflito) avisos.push(al.mensagem); }
+    if (typeof cruzarInteracoes === 'function') {   // pares cadastrados pela Farmácia; sem cadastro, sem aviso
+        const nomes = itens.map(i => i.medicamento);
+        cruzarInteracoes(nomes, (typeof CAD_DATA !== 'undefined' && CAD_DATA.interacao) || []).forEach(i => avisos.push(avisoInteracao(i)));
+    }
     if (avisos.length && !confirm(avisos.join('\n') + '\n\nRegistrar a prescrição mesmo assim?')) return;
     await registrarClinico({ internacao: internacaoAtivaDoPaciente(st.pacienteId), paciente_id: st.pacienteId, tipo: 'PRESCRICAO', itens });
     showMsg('Prescrição assinada e salva.');

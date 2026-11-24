@@ -427,3 +427,19 @@ test('processo de enfermagem e curativos (#46): só a enfermagem, só internaç�
     assert.match(await erroDe(`anularProcessoEnfermagem('${p.id}', 'Registrado no paciente errado')`), /já foi anulado/);
     assert.equal(doc('processo_enfermagem', p.id).etapa, 'AVALIACAO');   // o original não muda
 });
+
+test('enfermagem: resumo do período conta só o que está no período e sem anuladas; dimensionamento usa só o que foi informado', () => {
+    dados('__r', { sinais: [{ dia: '2026-06-10', por_nome: 'Ana' }, { dia: '2026-07-01', por_nome: 'Ana' }],
+        processo: [{ id: 'a', dia: '2026-06-10', etapa: 'COLETA', por_nome: 'Ana' }, { id: 'b', dia: '2026-06-11', etapa: 'COLETA', por_nome: 'Bia' }, { id: 'anul_b', tipo: 'ANULACAO', anula_id: 'b', dia: '2026-06-11' }],
+        curativos: [{ id: 'c', dia: '2026-06-12', por_nome: 'Bia' }], checagens: [{ dia: '2026-06-10', status: 'FEITO' }, { dia: '2026-06-10', status: 'NAO_FEITO' }, { dia: '2026-08-01', status: 'FEITO' }] });
+    const r = JSON.parse(JSON.stringify(call("resumoEnfermagemPeriodo(__r, '2026-06-01', '2026-06-30')")));
+    assert.deepEqual([r.sinais, r.processo, r.curativos, r.checagens.feitas, r.checagens.nao_feitas], [1, 1, 1, 1, 1]);
+    assert.deepEqual(r.por_etapa, { COLETA: 1 });
+    assert.deepEqual(r.por_autor.Bia, { sinais: 0, processo: 0, curativos: 1 });
+    const d = (extra) => JSON.stringify({ categorias: [{ nome: 'Cuidado A', pacientes: '10', horas: '6' }, { nome: 'Cuidado B', pacientes: '2', horas: '10' }], jornada_semanal: '36', indice_tecnico: '15', ...extra });
+    const q = JSON.parse(JSON.stringify(call(`dimensionarEnfermagem(${d()})`)));
+    assert.deepEqual([q.horas_dia, q.quadro_calculado, q.quadro_arredondado], [80, 17.89, 18]);   // 80 × 7 ÷ 36 × 1,15
+    assert.throws(() => call(`dimensionarEnfermagem(${d({ jornada_semanal: '' })})`), /Jornada semanal/);
+    assert.throws(() => call(`dimensionarEnfermagem(${d({ categorias: [] })})`), /ao menos uma categoria/);
+    assert.throws(() => call(`dimensionarEnfermagem(${d({ indice_tecnico: '120' })})`), /Índice/);
+});

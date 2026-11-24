@@ -47,3 +47,49 @@ async function db_getRegistrosEnfermagemDoPaciente(col, pacienteId) {
     const snap = await requireDb().collection(col).where('paciente_id', '==', String(pacienteId)).get();
     return apoioRegistrosValidos(snap.docs.map(docToObj)).sort((a, b) => String(b.em).localeCompare(String(a.em)));
 }
+
+// ---------- Relatório de enfermagem por período e dimensionamento de pessoal ----------
+
+/** Contagens do período a partir das listas já lidas (puro). Sem nome de paciente: só totais e por profissional. */
+function resumoEnfermagemPeriodo({ sinais = [], processo = [], curativos = [], checagens = [] }, de = '', ate = '') {
+    const noPeriodo = (x) => (!de || x.dia >= de) && (!ate || x.dia <= ate);
+    const porAutor = {};
+    const soma = (lista, k) => lista.filter(noPeriodo).forEach(x => { const n = x.por_nome || x.por || '—'; (porAutor[n] = porAutor[n] || { sinais: 0, processo: 0, curativos: 0 })[k]++; });
+    const s = sinais.filter(noPeriodo), p = apoioRegistrosValidos(processo).filter(noPeriodo), c = apoioRegistrosValidos(curativos).filter(noPeriodo), ch = checagens.filter(noPeriodo);
+    soma(s, 'sinais'); soma(p, 'processo'); soma(c, 'curativos');
+    const status = (st) => ch.filter(x => x.status === st).length;
+    return { sinais: s.length, processo: p.length, curativos: c.length, checagens: { total: ch.length, feitas: status('FEITO'), nao_feitas: status('NAO_FEITO'), suspensas: status('SUSPENSO'), pendentes: status('PENDENTE') },
+        por_etapa: p.reduce((m, x) => { m[x.etapa] = (m[x.etapa] || 0) + 1; return m; }, {}), por_autor: porAutor };
+}
+
+/** Lê o período no banco (até 5000 por coleção) e devolve o resumo. */
+async function relatorioEnfermagemPeriodo(de, ate) {
+    requirePermission('enfermagem_ver');
+    const database = requireDb();
+    const ler = async (col, campo) => {
+        let q = database.collection(col);
+        if (de) q = q.where(campo, '>=', de);
+        if (ate) q = q.where(campo, '<=', ate);
+        const snap = await q.limit(5000).get();
+        return { itens: snap.docs.map(docToObj), cheio: snap.size >= 5000 };
+    };
+    const [a, b, c, d] = await Promise.all([ler('sinais_vitais', 'dia'), ler(COL_PROCESSO_ENF, 'dia'), ler(COL_CURATIVOS, 'dia'), ler('checagens', 'dia')]);
+    return { ...resumoEnfermagemPeriodo({ sinais: a.itens, processo: b.itens, curativos: c.itens, checagens: d.itens }, de, ate), truncado: [a, b, c, d].some(x => x.cheio) };
+}
+
+/**
+ * Dimensionamento de pessoal de enfermagem: QP = (horas de assistência por dia × dias da semana ÷ jornada semanal) × (1 + índice técnico).
+ * TODOS os valores vêm de quem informa (horas por categoria de cuidado, jornada, índice técnico): o sistema não traz horas nem proporções padrão e
+ * não classifica o paciente. Resultado = apoio ao cálculo; a decisão é da chefia de enfermagem.
+ */
+function dimensionarEnfermagem({ categorias, jornada_semanal, indice_tecnico, dias_semana = 7 }) {
+    const cats = (categorias || []).filter(c => c && (String(c.nome || '').trim() || String(c.pacientes ?? '').trim() || String(c.horas ?? '').trim()));
+    if (!cats.length) throw new Error('Informe ao menos uma categoria de cuidado.');
+    const limpas = cats.map((c, i) => ({ nome: apoioTexto(c.nome, `Categoria ${i + 1}: nome`, { min: 2, max: 40 }), pacientes: apoioInteiro(c.pacientes, `Categoria ${i + 1}: pacientes`, 0, 500),
+        horas: apoioDecimal(c.horas, `Categoria ${i + 1}: horas de enfermagem por paciente em 24 h`, 0.1, 24, { casas: 2 }) }));
+    const jornada = apoioDecimal(jornada_semanal, 'Jornada semanal (horas)', 1, 60, { casas: 1 });
+    const it = apoioDecimal(indice_tecnico, 'Índice de segurança técnica (%)', 0, 100, { casas: 1 });
+    const horasDia = limpas.reduce((s, c) => s + c.pacientes * c.horas, 0);
+    const qp = horasDia * dias_semana / jornada * (1 + it / 100);
+    return { categorias: limpas, horas_dia: Math.round(horasDia * 100) / 100, quadro_calculado: Math.round(qp * 100) / 100, quadro_arredondado: Math.ceil(qp - 1e-9) };
+}

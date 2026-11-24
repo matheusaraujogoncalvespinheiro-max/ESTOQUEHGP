@@ -71,6 +71,12 @@ service cloud.firestore {
     // ---------- Prontuário: registros assinados só são CRIADOS (sem alterar nem apagar) ----------
     // Etapa 4: o setor de imagem registra o LAUDO (tipo RESULTADO) e só lê registros desse tipo (consulta com where tipo == 'RESULTADO'). RASCUNHO: não testado no emulador.
     // Etapa 7: a Farmácia lê só registros do tipo PRESCRICAO (consulta com where tipo == 'PRESCRICAO'), para dispensar o que foi prescrito.
+    // Checagem beira-leito de item de prescrição: documento à parte (a prescrição não muda). Só criação, uma por item (id = <prescrição>_<item>).
+    match /checagens_prescricao/{id} {
+      allow read: if temAcao(clinico(), 'prontuario_ver') || temPerfil(farmacia());
+      allow create: if temAcao(['FUNC_ENFERMAGEM', 'MEDICO'], 'prontuario_evoluir') && request.resource.data.registrado_por == usuario();
+      allow update, delete: if false;
+    }
     match /registros_clinicos/{id} {
       allow read: if temAcao(clinico(), 'prontuario_ver') || (temPerfil(imagem()) && resource.data.tipo == 'RESULTADO') || (temPerfil(farmacia()) && resource.data.tipo == 'PRESCRICAO');
       // Etapa 8: quem atende Procedimentos grava só o registro do tipo PROCEDIMENTO
@@ -313,6 +319,12 @@ service cloud.firestore {
       allow read: if temPerfil(farmacia()) || temPerfil(['FUNC_ENFERMAGEM']);
       allow create: if temPerfil(farmacia()) || temPerfil(['FUNC_ENFERMAGEM']);
       allow update: if temPerfil(farmacia());
+      allow delete: if false;
+    }
+    // Interações medicamentosas: a Farmácia cadastra; quem prescreve e checa lê. Nunca é apagada (inativar = update).
+    match /cad_interacao/{id} {
+      allow read: if logado();
+      allow create, update: if temPerfil(['CHEFE_FARMACIA']);
       allow delete: if false;
     }
     match /cad_cancelamento/{id} {

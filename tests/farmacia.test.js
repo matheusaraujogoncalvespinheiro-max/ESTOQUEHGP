@@ -16,7 +16,7 @@ const ctx = vm.createContext({
     db_cadSalvar: async (tipo, reg) => { const lista = (ctx.CAD_DATA[tipo] = ctx.CAD_DATA[tipo] || []); const i = lista.findIndex(x => x.id === reg.id); if (i >= 0) Object.assign(lista[i], reg); else lista.push(reg); }
 });
 ['core/utils.js', 'core/validators.js', 'core/regras.js', 'core/permissions.js', 'data/cadastros.js', 'services/estrutura-hospitalar.js', 'services/estoque.js', 'pages/cadastros/engine.js',
-    'pages/cadastros/produto.js', 'services/operacoes.js', 'services/farmacia.js', 'services/fiscal.js', 'services/relatorios.js', 'data/cadastros-operacoes.js', 'data/cadastros-farmacia.js', 'data/cadastros-fiscal.js'].forEach(f =>
+    'pages/cadastros/produto.js', 'services/operacoes.js', 'services/farmacia.js', 'services/interacoes.js', 'services/fiscal.js', 'services/relatorios.js', 'data/cadastros-operacoes.js', 'data/cadastros-farmacia.js', 'data/cadastros-fiscal.js'].forEach(f =>
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js', f), 'utf8'), ctx, { filename: f }));
 const call = (code) => vm.runInContext(code, ctx);
 const j = (code) => JSON.parse(call(`JSON.stringify(${code})`));
@@ -334,4 +334,58 @@ test('rastreabilidade: junta dispensações, saídas para paciente e laudos; res
     const pacPesq = j('relatorioRastreabilidade(__ent, "", "", "maria")');
     assert.equal(pacPesq.linhas.length, 2);   // dispensação + laudo da mesma paciente
     assert.ok(todos.colunas.some(c => c.k === 'lote') && todos.colunas.some(c => c.k === 'paciente'));
+});
+
+// ============ Requisição gerando saída e devolução de sobra (#47/#48) ============
+
+test('requisição: a saída vinculada atende o item, atualiza a situação e a sobra só devolve o que foi entregue', async () => {
+    semente();
+    entrar('FUNC_FARMACIA');
+    dados('__req', { id: 'q1', codigo: 'REQ-0001', unidade: 'Ala E/F', situacao: 'Solicitada', itens: [{ descricao: 'Dipirona', quantidade: 10 }, { descricao: 'Soro', quantidade: 4 }] });
+    call('CAD_DATA.requisicao = [__req]; CAD_DATA.saida = []; CAD_DATA.devolucao = []');
+    const prod = j("cadProdutosOpcoes().find(o => o.rotulo.includes('DIPIRONA')).id");
+    const lote = j("cadProdutoDe(cadProdutosOpcoes().find(o => o.rotulo.includes('DIPIRONA')).id).produto.lotes[0].id");
+    const f = (extra) => JSON.stringify({ produto: prod, lote, quantidade: 6, destino: 'Setor', destino_detalhe: 'Ala E/F', requisicao: 'q1', requisicao_item: 1, ...extra });
+    assert.match(erroDe(`validarSaida(${f({ requisicao_item: 3 })})`), /não tem o item 3/);
+    assert.match(erroDe(`validarSaida(${f({ quantidade: 11 })})`), /só faltam 10/);
+    const v = j(`validarSaida(${f()})`);
+    assert.deepEqual([v.requisicao, v.requisicao_item], ['q1', 1]);
+    // 1ª saída (6 de 10) deixa a requisição "Atendida em parte"
+    dados('__s1', { id: 's1', requisicao: 'q1', requisicao_item: 1, quantidade: 6 });
+    assert.equal(call("situacaoPelasSaidas(__req, [__s1])"), 'Atendida em parte');
+    call('CAD_DATA.saida = [__s1]');
+    assert.match(erroDe(`validarSaida(${f({ quantidade: 5 })})`), /só faltam 4/);
+    // completa os dois itens: Atendida
+    dados('__s2', [{ id: 's1', requisicao: 'q1', requisicao_item: 1, quantidade: 10 }, { id: 's2', requisicao: 'q1', requisicao_item: 2, quantidade: 4 }]);
+    assert.equal(call("situacaoPelasSaidas(__req, __s2)"), 'Atendida');
+    // saída cancelada (ativo false) não conta
+    dados('__s3', [{ id: 's1', requisicao: 'q1', requisicao_item: 1, quantidade: 10, ativo: false }]);
+    assert.equal(call("saldoDoItemRequisicao(__req, 1, __s3, []).entregue"), 0);
+    // sobra: só devolve o que foi entregue (6) e descontando devoluções anteriores
+    const dv = (q) => JSON.stringify({ requisicao: 'q1', requisicao_item: 1, quantidade: q });
+    assert.match(erroDe(`conferirVinculoRequisicao(${dv(7)}, 'devolucao')`), /Só 6 un\./);
+    assert.deepEqual(j(`conferirVinculoRequisicao(${dv(2)}, 'devolucao')`), { requisicao: 'q1', requisicao_item: 1 });
+    call("CAD_DATA.devolucao = [{ id: 'd1', requisicao: 'q1', requisicao_item: 1, quantidade: 5 }]");
+    assert.match(erroDe(`conferirVinculoRequisicao(${dv(2)}, 'devolucao')`), /Só 1 un\./);
+    // requisição cancelada não recebe saída
+    call("CAD_DATA.requisicao = [{ ...__req, situacao: 'Cancelada' }]");
+    assert.match(erroDe(`validarSaida(${f({ quantidade: 1 })})`), /cancelada: não recebe nova saída/);
+    // sem vínculo, nada muda
+    assert.deepEqual(j("conferirVinculoRequisicao({ quantidade: 3 }, 'saida')"), {});
+});
+
+test('interações medicamentosas: só avisa pares cadastrados, sem acento, ignora inativos e não repete', () => {
+    dados('__tab', [
+        { id: 'i1', substancia_a: 'Varfarina', substancia_b: 'Ácido acetilsalicílico', gravidade: 'Grave', fonte: 'Protocolo interno', orientacao: 'Avaliar com a Farmácia', ativo: true },
+        { id: 'i2', substancia_a: 'Dipirona', substancia_b: 'Morfina', gravidade: 'Leve', fonte: 'x', ativo: false }]);
+    const r = (meds) => j(`cruzarInteracoes(${JSON.stringify(meds)}, __tab).map(i => i.id)`);
+    assert.deepEqual(r(['Varfarina 5 mg', 'ACIDO ACETILSALICILICO 100 mg']), ['i1']);
+    assert.deepEqual(r(['Ácido acetilsalicílico 100 mg', 'Varfarina 5 mg', 'Varfarina 2,5 mg']), ['i1']);
+    assert.deepEqual(r(['Varfarina 5 mg']), []);                      // um só do par
+    assert.deepEqual(r(['Dipirona 500 mg', 'Morfina 10 mg']), []);    // par inativo
+    assert.deepEqual(r([]), []);
+    assert.deepEqual(j("cruzarInteracoes(['Varfarina', 'Ácido acetilsalicílico'], [])"), []);   // sem cadastro, sem aviso
+    assert.match(call("avisoInteracao(__tab[0])"), /Grave.*Varfarina × Ácido acetilsalicílico.*Avaliar com a Farmácia/);
+    assert.match(erroDe("CAD_DEFS.interacao.validar({ substancia_a: 'Varfarina', substancia_b: 'varfarina', gravidade: 'Grave', fonte: 'abc' })"), /diferentes/);
+    assert.match(erroDe("CAD_DEFS.interacao.validar({ substancia_a: 'Varfarina', substancia_b: 'Heparina', gravidade: 'Grave', fonte: '' })"), /fonte/);
 });

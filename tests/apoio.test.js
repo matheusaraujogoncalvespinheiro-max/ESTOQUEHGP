@@ -366,3 +366,20 @@ test('baixa patrimonial (#69): exige data (não futura) e motivo; outras situaç
     assert.match(b({ situacao_op: 'Baixado', baixa_data: '2026-07-01', baixa_motivo: 'Sem conserto' })[0].mensagem, /futura/);
     assert.deepEqual(b({ situacao_op: 'Baixado', baixa_data: '2026-06-01', baixa_motivo: 'Sem conserto viável' }), []);
 });
+
+test('patrimônio (#69): patrimônio único, série única por modelo e cadastro em lote sem repetir', async () => {
+    const e = (f, id = null) => JSON.parse(JSON.stringify(call(`validarUnicidadeEquipamento(${JSON.stringify(f)}, ${JSON.stringify(id)}, __eq2)`)));
+    dados('__eq2', [{ id: 'a', patrimonio: 'P-1', numero_serie: 'S-1', modelo: 'M1' }, { id: 'b', patrimonio: 'P-2', numero_serie: 'S-1', modelo: 'M2' }]);
+    assert.equal(e({ patrimonio: ' p-1 ' })[0].campo, 'patrimonio');
+    assert.deepEqual(e({ patrimonio: 'P-1' }, 'a'), []);                       // o próprio registro não conta
+    assert.equal(e({ numero_serie: 's-1', modelo: 'M1' })[0].campo, 'numero_serie');
+    assert.deepEqual(e({ numero_serie: 'S-1', modelo: 'M3' }), []);            // mesma série em outro modelo
+    assert.deepEqual(e({ patrimonio: '', numero_serie: '' }), []);
+    const plano = (s, p = '') => JSON.parse(JSON.stringify(call(`planejarLoteEquipamentos({ modelo: 'M1' }, ${JSON.stringify(s)}, ${JSON.stringify(p)}, __eq2)`)));
+    assert.deepEqual(plano('S-10\nS-11', 'P-10\nP-11').map(u => u.patrimonio), ['P-10', 'P-11']);
+    assert.throws(() => plano('S-10\nS-10'), /Unidade 2/);                    // repetida no próprio lote
+    assert.throws(() => plano('S-1'), /Unidade 1/);                           // já existe no modelo
+    assert.throws(() => plano('S-10\nS-11', 'P-10'), /um patrimônio por unidade/);
+    assert.throws(() => plano(''), /ao menos um/);
+    assert.throws(() => plano(Array.from({ length: 51 }, (_, i) => 'X' + i).join('\n')), /No máximo 50/);
+});
