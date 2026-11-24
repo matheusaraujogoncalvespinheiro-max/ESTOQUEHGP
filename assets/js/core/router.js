@@ -78,6 +78,10 @@ function renderContent() {
             return renderEnfPlantao();
         case 'LABORATORIO':
             return renderLaboratorio();
+        case 'NIR_REGULACAO':
+            return renderPainelNIR();
+        case 'TRANSPORTE_NIR':
+            return renderTransporteNIR();
         case 'IMAGEM':
             return renderCentralExames('IMAGENOLOGIA');
         case 'ULTRASSOM':

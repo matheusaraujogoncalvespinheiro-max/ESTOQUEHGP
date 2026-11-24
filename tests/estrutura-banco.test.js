@@ -12,7 +12,7 @@ function carregar(extra = {}) {
     };
     const ctx = vm.createContext({ console, MOCK_DATA: { LEITOS_ESTRUTURA: [] }, requireDb: () => database, state: { currentUser: { username: 'adm' } }, getLeitoSpecialty: (a) => 'Ala ' + a, cadRowsOf: () => [], ...extra });
     vm.runInContext(fs.readFileSync('assets/js/services/estrutura-hospitalar.js', 'utf8').replace(/\bconst (ANDARES_HOSPITAL|LETRAS_LEITO|QUARTOS_POR_ANDAR|nomeAndar)\b/g, 'var $1').replace(/^let (_\w+)/gm, 'var $1'), ctx);
-    vm.runInContext(fs.readFileSync('assets/js/services/db-hospital.js', 'utf8').split('Object.assign(WATCHER_FACTORIES')[0].replace(/^const COLH/m, 'var COLH').replace(/MOCK_DATA\.\w+ = .*$/gm, ''), ctx);
+    vm.runInContext(fs.readFileSync('assets/js/services/db-hospital.js', 'utf8').match(/^const COLH = \{[\s\S]*?\n};/m)[0].replace(/^const COLH/, 'var COLH'), ctx);
     vm.runInContext(fs.readFileSync('assets/js/services/db-hospital.js', 'utf8').match(/async function db_migrarLeitos[\s\S]*?\r?\n}\r?\n/)[0], ctx);
     return { ctx, store };
 }

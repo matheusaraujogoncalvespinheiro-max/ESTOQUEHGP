@@ -30,6 +30,7 @@ function homeModule(role) {
     if (role === 'DIRETORIA') return 'DIRECAO';
     if (role === 'CHEFE_FARMACIA' || role === 'FUNC_FARMACIA') return 'FARM_PRESCRICOES';
     if (role === 'FUNC_LABORATORIO') return 'LABORATORIO';
+    if (role === 'FUNC_NIR') return 'NIR_REGULACAO';
     return 'DASHBOARD';
 }
 

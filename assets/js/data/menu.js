@@ -60,7 +60,7 @@ const historyTab = (tab) => ({
 
 const MENU_TREE = [
     // 1. INÍCIO (opção única)
-    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_LABORATORIO', 'FUNC_OPME', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA', 'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'DIRETORIA') },
+    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_LABORATORIO', 'FUNC_OPME', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA', 'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_NIR', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'DIRETORIA') },
 
     // 2. CADASTRO: cada opção tem tela de CONSULTA e tela de CADASTRO (pages/cadastros/engine.js; campos em data/cadastros.js)
     {
@@ -154,7 +154,7 @@ const MENU_TREE = [
         ]
     },
 
-    // 7B. ASSISTÊNCIA: leitos, internações e prontuário
+    // 7B. ASSISTÊNCIA: leitos, internações, prontuário, Farmácia por pisos, NIR e Setor de Transporte
     {
         id: 'assistencia', ordem: 75, label: 'Assistência', icon: 'bed-double',
         children: [
@@ -172,7 +172,20 @@ const MENU_TREE = [
             item(28, 'Mapa de Dietas', 'NUTRICAO_DIETAS', { icon: 'utensils', access: byPermission('dieta_ver') }),
             item(29, 'Hemoterapia', 'HEMOTERAPIA', { icon: 'droplets', access: byPermission('hemoterapia_ver') }),
             item(29.5, 'Óbitos', 'OBITOS', { icon: 'lock', access: byPermission('obito_ver') }),
-            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', { icon: 'clipboard-list', access: byPermission('prontuario_ver') })
+            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', {
+                icon: 'clipboard-list',
+                access: byPermission('prontuario_ver'),
+                before: () => { if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'prontuarios'; },
+                active: () => state.activeModule === 'PRONTUARIO' && (Boolean(state.prontuario && state.prontuario.pacienteId) || !state.prontuarioLista || state.prontuarioLista.modo !== 'farmacia_pisos')
+            }),
+            item(35, 'Farmácia (Distribuição p/ Pisos)', 'PRONTUARIO', {
+                icon: 'pill',
+                access: byPermission('prontuario_ver'),
+                before: () => { state.prontuario = null; if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'farmacia_pisos'; },
+                active: () => state.activeModule === 'PRONTUARIO' && !(state.prontuario && state.prontuario.pacienteId) && Boolean(state.prontuarioLista && state.prontuarioLista.modo === 'farmacia_pisos')
+            }),
+            item(40, 'NIR (Regulação e Documentação)', 'NIR_REGULACAO', { icon: 'file-check', access: byPermission('nir_ver') }),
+            item(50, 'Setor de Transporte', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
         ]
     },
 
@@ -204,8 +217,8 @@ const MENU_TREE = [
         id: 'exames', ordem: 76, label: 'Exames', icon: 'scan-line',
         children: [
             item(5, 'Atendimento de Exames', 'ATENDIMENTO_EXAMES', { icon: 'megaphone', access: byPermission('atendimento_exames') }),
-            item(10, 'Imagenologia', 'IMAGEM', { icon: 'scan-line', access: byPermission('imagem_gerenciar') }),
-            item(20, 'Ultrassonografia', 'ULTRASSOM', { icon: 'activity', access: byPermission('ultrassom_gerenciar') }),
+            item(10, 'Imagenologia', 'IMAGEM', { icon: 'scan-line', access: anyOf(byPermission('imagem_gerenciar'), byPermission('exame_solicitar'), byPermission('prontuario_ver')) }),
+            item(20, 'Ultrassonografia', 'ULTRASSOM', { icon: 'activity', access: anyOf(byPermission('ultrassom_gerenciar'), byPermission('exame_solicitar'), byPermission('prontuario_ver')) }),
             item(25, 'Laboratório', 'LABORATORIO', { icon: 'flask-conical', access: byPermission('laboratorio_ver') }),
             item(30, 'Autorizações', 'AUTORIZACOES', { icon: 'file-check', access: byPermission('autorizacao_ver') })
         ]

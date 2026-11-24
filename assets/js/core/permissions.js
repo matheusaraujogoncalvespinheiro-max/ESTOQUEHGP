@@ -34,7 +34,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return false;
         if (action === 'view_laudos') return true;
         if (action === 'manage_members') return true;
-        return false;
+        return ['nir_ver', 'transporte_ver', 'transporte_solicitar'].includes(action);
     }
 
     if (role === 'CHEFE_HEMODINAMICA') {
@@ -45,7 +45,9 @@ function hasPermission(action, setor = null) {
         if (action === 'view_patients') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return ['atendimento_procedimentos', 'painel_chamada', 'patrimonio_ver'].includes(action);
+        return [
+            'atendimento_procedimentos', 'painel_chamada', 'patrimonio_ver', 'nir_ver', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
     }
 
     if (role === 'FUNC_HEMODINAMICA') {
@@ -54,7 +56,9 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'HEMODINAMICA') return true;
         if (action === 'view_laudos') return true;
-        return ['atendimento_procedimentos', 'painel_chamada'].includes(action);
+        return [
+            'atendimento_procedimentos', 'painel_chamada', 'nir_ver', 'transporte_ver'
+        ].includes(action);
     }
 
     if (role === 'FUNC_OPME') {
@@ -63,7 +67,7 @@ function hasPermission(action, setor = null) {
         if (action === 'view_history') return true;
         if (action === 'create_laudo' && setor === 'OPME') return true;
         if (action === 'view_laudos') return true;
-        return false;
+        return ['nir_ver', 'transporte_ver'].includes(action);
     }
 
     if (role === 'FUNC_CENTRO_CIRURGICO') {
@@ -73,27 +77,29 @@ function hasPermission(action, setor = null) {
         if (action === 'create_laudo' && setor === 'CENTRO_CIRURGICO') return true;
         if (action === 'view_laudos') return true;
         if (action === 'manage_salas') return true;
-        // Etapa 8: cirurgias (agenda, equipe, checklist, tempos e RPA) e fila de procedimentos
-        return ['cirurgia_ver', 'cirurgia_gerenciar', 'cirurgia_registrar', 'atendimento_procedimentos', 'painel_chamada'].includes(action);
+        return [
+            'cirurgia_ver', 'cirurgia_gerenciar', 'cirurgia_registrar', 'atendimento_procedimentos', 'painel_chamada', 'nir_ver', 'transporte_ver'
+        ].includes(action);
     }
 
     if (role === 'FUNC_ENFERMAGEM') {
         if (action === 'register_patient') return true;
         if (action === 'view_patients') return true;
-        if (action === 'manage_patient_status') return true; // NEW: Allow nurse to manage status
+        if (action === 'manage_patient_status') return true;
         if (action === 'transfer') return false;
         if (action === 'view_history') return false;
         if (action === 'view_notifications') return false;
         if (action === 'create_laudo') return false;
         if (action === 'view_laudos') return false;
-        // Enfermagem (Etapa 6): o perfil é um só (enfermeiro e técnico não são distinguidos): ver docs/pendencias.md
-        return ['mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'fila_leito', 'prontuario_ver', 'prontuario_evoluir', 'pacientes_consultar', 'triagem_clinica', 'painel_chamada', 'enfermagem_ver', 'enfermagem_registrar', 'prescrever_cuidados', 'farmacia_requisicao',
-            // Etapa 8: agenda ambulatorial (consulta), fila de procedimentos, cirurgia (checklist e RPA), UTI, dieta e transfusão
-            'agenda_ambulatorial_ver', 'atendimento_procedimentos', 'cirurgia_ver', 'cirurgia_registrar', 'uti_ver', 'uti_registrar', 'dieta_ver', 'hemoterapia_ver', 'hemoterapia_transfundir',
-            // Etapa 9: óbito (comunicação à família e liberação do corpo; a constatação é do médico)
-            'obito_ver', 'obito_acompanhar',
-            // Laboratório (#29): a enfermagem acompanha pedidos e resultados
-            'laboratorio_ver'].includes(action);
+        // Enfermagem: união das permissões das duas linhas de desenvolvimento (Etapa 6 + evolução/sinais vitais/checagem)
+        return [
+            'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'fila_leito', 'prontuario_ver', 'prontuario_evoluir', 'pacientes_consultar',
+            'triagem_clinica', 'painel_chamada', 'enfermagem_ver', 'enfermagem_registrar', 'prescrever_cuidados', 'farmacia_requisicao',
+            'agenda_ambulatorial_ver', 'atendimento_procedimentos', 'cirurgia_ver', 'cirurgia_registrar', 'uti_ver', 'uti_registrar', 'dieta_ver',
+            'hemoterapia_ver', 'hemoterapia_transfundir', 'obito_ver', 'obito_acompanhar', 'laboratorio_ver', 'evolucao_enfermagem', 'sinais_vitais_registrar',
+            'preparo_exame_checar', 'alergia_gerenciar', 'risco_assistencial_gerenciar', 'prescricao_checar', 'farmacia_retirar', 'auditoria_ver', 'nir_ver',
+            'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
     }
 
     // ---- Farmácia (Etapa 7): estoque do setor FARMACIA, prescrições para a farmácia e dispensação ----
@@ -105,6 +111,21 @@ function hasPermission(action, setor = null) {
     if (role === 'FUNC_FARMACIA') {
         if (['update_stock', 'transfer'].includes(action)) return setor === 'FARMACIA';
         return ['farmacia_ver', 'farmacia_dispensar', 'farmacia_requisicao'].includes(action);
+    }
+
+    if (role === 'TECNICO_ENFERMAGEM') {
+        return [
+            'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'evolucao_enfermagem',
+            'sinais_vitais_registrar', 'preparo_exame_checar', 'prescricao_checar',
+            'farmacia_retirar', 'pacientes_consultar', 'nir_ver', 'transporte_ver'
+        ].includes(action);
+    }
+
+    if (role === 'FARMACEUTICO') {
+        return [
+            'mapa_ver', 'prontuario_ver', 'farmacia_dispensar', 'farmacia_retirar',
+            'pacientes_consultar', 'view_history', 'nir_ver', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
     }
 
     if (role === 'CHEFE_PORTARIA') {
@@ -122,7 +143,10 @@ function hasPermission(action, setor = null) {
     // ---- Recepção, Emergência e Gestão das Triagens ----
     // O Administrador tem tudo (retorno no início da função). Os demais perfis só recebem o que está listado.
     if (role === 'FUNC_RECEPCAO') {
-        return ['recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar', 'fila_leito', 'painel_chamada', 'documento_comparecimento', 'agenda_ambulatorial_ver', 'agenda_ambulatorial_gerenciar'].includes(action);
+        return [
+            'recepcao_acessar', 'recepcao_editar', 'pacientes_consultar', 'mapa_ver', 'internacao_gerenciar', 'fila_leito', 'painel_chamada',
+            'documento_comparecimento', 'agenda_ambulatorial_ver', 'agenda_ambulatorial_gerenciar', 'nir_ver', 'transporte_ver'
+        ].includes(action);
     }
 
     if (role === 'FUNC_EMERGENCIA') {
@@ -135,22 +159,31 @@ function hasPermission(action, setor = null) {
         return ['triagem_ver'].includes(action);
     }
 
-    // ---- Assistência: leitos, prontuário, exames e autorizações ----
+    // ---- Assistência: leitos, prontuário, exames, autorizações, NIR e Setor de Transporte ----
     if (role === 'MEDICO') {
-        return ['mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'prescrever', 'diagnosticar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver', 'atendimento_medico', 'painel_chamada', 'documento_emitir', 'documento_comparecimento', 'enfermagem_ver', 'prescrever_cuidados',
-            'agenda_ambulatorial_ver', 'cirurgia_ver', 'uti_ver', 'dieta_ver', 'dieta_prescrever', 'hemoterapia_ver', 'hemoterapia_solicitar',
-            // Etapa 9: óbito (o médico constata e registra; informa o nº da Declaração de Óbito)
-            'obito_ver', 'obito_registrar', 'obito_acompanhar',
-            // Laboratório (#29): o médico pede o exame e vê o resultado
-            'laboratorio_ver', 'laboratorio_solicitar'].includes(action);
+        // Médico: união (Etapas 8–9, laboratório, evolução médica, alergias/riscos, NIR/transporte)
+        return [
+            'mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'prescrever', 'diagnosticar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar',
+            'autorizacao_ver', 'atendimento_medico', 'painel_chamada', 'documento_emitir', 'documento_comparecimento', 'enfermagem_ver', 'prescrever_cuidados',
+            'agenda_ambulatorial_ver', 'cirurgia_ver', 'uti_ver', 'dieta_ver', 'dieta_prescrever', 'hemoterapia_ver', 'hemoterapia_solicitar', 'obito_ver',
+            'obito_registrar', 'obito_acompanhar', 'laboratorio_ver', 'laboratorio_solicitar', 'evolucao_medica', 'alergia_gerenciar',
+            'risco_assistencial_gerenciar', 'prescricao_checar', 'auditoria_ver', 'interoperabilidade_exportar', 'nir_ver', 'transporte_ver',
+            'transporte_solicitar'
+        ].includes(action);
     }
 
     if (role === 'FUNC_IMAGENOLOGIA') {
-        return ['imagem_gerenciar', 'exame_resultado', 'autorizacao_ver', 'atendimento_exames', 'painel_chamada'].includes(action);
+        return [
+            'imagem_gerenciar', 'exame_resultado', 'autorizacao_ver', 'atendimento_exames', 'painel_chamada', 'nir_ver', 'transporte_ver',
+            'transporte_solicitar', 'prontuario_ver', 'mapa_ver'
+        ].includes(action);
     }
 
     if (role === 'FUNC_ULTRASSOM') {
-        return ['ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver', 'atendimento_exames', 'painel_chamada'].includes(action);
+        return [
+            'ultrassom_gerenciar', 'exame_resultado', 'autorizacao_ver', 'atendimento_exames', 'painel_chamada', 'nir_ver', 'transporte_ver',
+            'transporte_solicitar', 'prontuario_ver', 'mapa_ver'
+        ].includes(action);
     }
 
     if (role === 'AUTORIZADOR') {
@@ -210,6 +243,19 @@ function hasPermission(action, setor = null) {
         return ['direcao_ver', 'qualidade_ver', 'ensino_ver', 'ouvidoria_ver'].includes(action);
     }
 
+    // Setor 1: NIR (Núcleo Interno de Regulação) — organiza a demanda, confere e encaminha a documentação necessária ao Transporte
+    if (role === 'FUNC_NIR') {
+        return [
+            'mapa_ver', 'internacao_gerenciar', 'leito_gerenciar', 'prontuario_ver', 'pacientes_consultar',
+            'nir_ver', 'nir_gerenciar', 'transporte_ver', 'transporte_solicitar'
+        ].includes(action);
+    }
+
+    // Setor 2: Setor de Transporte — recebe a demanda já documentada pelo NIR, designa equipe (maqueiro/motorista) e executa o transporte
+    if (role === 'FUNC_TRANSPORTE') {
+        return ['mapa_ver', 'nir_ver', 'transporte_ver', 'transporte_gerenciar'].includes(action);
+    }
+
     return false;
 }
 
@@ -221,7 +267,9 @@ function getRoleLabel(role) {
         "FUNC_HEMODINAMICA": "Funcionário Hemodinâmica",
         "FUNC_OPME": "Funcionário OPME",
         "FUNC_CENTRO_CIRURGICO": "Funcionário Centro Cirúrgico",
-        "FUNC_ENFERMAGEM": "Funcionário Enfermagem",
+        "FUNC_ENFERMAGEM": "Enfermeiro(a) Assistencial",
+        "TECNICO_ENFERMAGEM": "Técnico(a) de Enfermagem",
+        "FARMACEUTICO": "Farmacêutico(a) Hospitalar",
         "CHEFE_PORTARIA": "Chefe Portaria",
         "FUNC_PORTARIA": "Funcionário Portaria",
         "FUNC_RECEPCAO": "Funcionário Recepção",
@@ -237,7 +285,8 @@ function getRoleLabel(role) {
         "FUNC_NUTRICAO": "Funcionário Nutrição",
         "FUNC_HEMOTERAPIA": "Funcionário Hemoterapia",
         "FUNC_MANUTENCAO": "Funcionário Manutenção e Engenharia Clínica",
-        "FUNC_TRANSPORTE": "Funcionário Transporte",
+        "FUNC_NIR": "Regulador do NIR (Regulação e Documentação)",
+        "FUNC_TRANSPORTE": "Setor de Transporte (Maqueiros / Frota)",
         "FUNC_LAVANDERIA": "Funcionário Lavanderia e Rouparia",
         "FUNC_VOLUNTARIADO": "Coordenação de Voluntariado",
         "FUNC_OUVIDORIA": "Ouvidoria",
@@ -267,9 +316,21 @@ const anyOf = (...checks) => () => checks.some(check => check());
 /** Perfis que podem ser atribuídos a um usuário (usado nas telas de membros). */
 const ASSIGNABLE_ROLES = [
     'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
-    'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
+    'FUNC_ENFERMAGEM', 'TECNICO_ENFERMAGEM', 'FARMACEUTICO', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
     'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA',
-    'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'FUNC_LABORATORIO', 'DIRETORIA'
+    'FUNC_MANUTENCAO', 'FUNC_NIR', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'FUNC_LABORATORIO', 'DIRETORIA'
+];
+
+/** Matriz RBAC granular exigida pela norma SBIS/CFM e LGPD para exibição e auditoria. */
+const MATRIZ_RBAC_ASSISTENCIAL = [
+    { perfil: 'MEDICO', rotulo: 'Médico(a)', escopo: 'Evolução médica, prescrição eletrônica (medicamentos/dietas), diagnóstico CID-10/CID-11, solicitação de exames, alergias e riscos.' },
+    { perfil: 'FUNC_ENFERMAGEM', rotulo: 'Enfermeiro(a)', escopo: 'Evolução de enfermagem, sinais vitais, escalas de risco (Morse/Braden), checagem beira-leito de prescrição, preparo de exames e gestão de leitos.' },
+    { perfil: 'TECNICO_ENFERMAGEM', rotulo: 'Técnico(a) de Enfermagem', escopo: 'Aferição de sinais vitais, anotação de enfermagem, checagem de administração sob supervisão e retirada rastreada na farmácia.' },
+    { perfil: 'FARMACEUTICO', rotulo: 'Farmacêutico(a)', escopo: 'Validação e dispensação farmacêutica por piso/leito, controle de lotes e registro nominal de quem retirou cada medicamento.' },
+    { perfil: 'FUNC_IMAGENOLOGIA', rotulo: 'Equipe Imagenologia', escopo: 'Agendamento na sala/equipamento, execução com metadados DICOM/PACS e liberação de laudos assinados.' },
+    { perfil: 'FUNC_NIR', rotulo: 'Regulador NIR', escopo: 'Regulação de leitos/viagens, conferência de documentação clínica/APAC e encaminhamento ao Setor de Transporte.' },
+    { perfil: 'FUNC_TRANSPORTE', rotulo: 'Setor de Transporte', escopo: 'Designação de maqueiro/motorista/ambulância, início e conclusão de trânsito com registro automático no PEP.' },
+    { perfil: 'FUNC_RECEPCAO', rotulo: 'Equipe Administrativa / Recepção', escopo: 'Cadastro único de pacientes (CPF + CNS) e admissão administrativa, sem acesso a evoluções clínicas restritas.' }
 ];
 
 /** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */

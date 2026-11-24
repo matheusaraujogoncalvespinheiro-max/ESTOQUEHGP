@@ -88,9 +88,9 @@ html[data-tema='escuro'] .erp-tr--cancelada { background: rgba(220, 38, 38, 0.25
 .erp-ico { height: var(--ctl-h); }
 .erp-select { background-position: calc(100% - 16px) calc(50% - 1px), calc(100% - 11px) calc(50% - 1px); }
 
-/* Formulário ERP: rótulo com altura fixa (rótulos longos não empurram o campo) e controles alinhados pela base */
-.cd-erp .cd-grid12 { align-items: end; gap: 12px 14px; }
-.cd-erp .cd-cell { justify-content: flex-end; }
+/* Formulário ERP: rótulo com altura fixa (rótulos longos não empurram o campo) e controles alinhados pelo topo */
+.cd-erp .cd-grid12 { align-items: start; gap: 14px 16px; }
+.cd-erp .cd-cell { justify-content: flex-start; align-items: stretch; width: 100%; }
 .cd-erp .cd-cell > .at-label { min-height: 20px; line-height: 20px; margin: 0; font-size: 14px; }
 .cd-erp .cd-cell .at-input,
 .cd-erp .cd-cell .at-select,
@@ -100,7 +100,7 @@ html[data-tema='escuro'] .erp-tr--cancelada { background: rgba(220, 38, 38, 0.25
 .cd-erp .cd-cell .at-textarea { min-height: 90px; font-size: 15px; }
 .cd-erp .cd-cell .cd-check { min-height: var(--ctl-h); }
 .cd-erp .cd-cell .at-hint { margin-top: 2px; }
-.cd-erp .cd-top--erp .cd-grid12 { align-items: end; }
+.cd-erp .cd-top--erp .cd-grid12 { align-items: start; }
 
 /* Tabelas de itens: campos compactos, colunas com largura mínima e rolagem horizontal quando faltar espaço */
 .cd-itens { min-width: 0; }

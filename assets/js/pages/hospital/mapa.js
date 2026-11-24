@@ -1,5 +1,5 @@
 // Mapa de Ocupação Hospitalar e Internações. A estrutura (Andar → Ala → Quarto → Leito) vem de services/estrutura-hospitalar.js,
-// a mesma que a Portaria usa; o estado de cada leito é lido em tempo real de `leitos_estado`.
+// a mesma que a Portaria usa; o estado de cada leito é lido em tempo real de `leitos_estado` e integra-se com Prontuário e NIR.
 
 function hospitalState() {
     if (!state.hospital) state.hospital = { andar: '', ala: '', status: '', bloqueio: '', q: '', intStatus: 'ATIVA', intQ: '' };
@@ -20,13 +20,15 @@ const aviso = (fn) => async (...args) => { try { return await fn(...args); } cat
 // ============================================================ MAPA
 
 function renderMapaLeitos() {
-    db_watch('leitos'); db_watch('internacoes'); db_cadWatch('leito');
+    if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
+    db_watch('leitos'); db_watch('internacoes'); db_watch('transportes_nir'); db_watch('solicitacoes'); db_cadWatch('leito');
     const verFila = hasPermission('fila_leito');
     if (verFila) db_watch('fila_leito');   // só quem enxerga a fila de leito (as regras do banco não liberam atendimentos para todos os perfis)
     const st = hospitalState();
     const todos = estruturaHospital();
     const ind = indicadoresLeitos();
     const nomes = podeVerNomePaciente();
+    const emTransitoCount = (MOCK_DATA.TRANSPORTES_NIR || []).filter(t => t.tipo === 'PACIENTE' && t.status === 'EM_TRANSITO').length;
 
     const alas = [...new Set(todos.filter(l => !st.andar || l.andar === st.andar).map(l => l.ala))];
     const termo = searchKey(st.q);
@@ -34,11 +36,14 @@ function renderMapaLeitos() {
         if (st.andar && l.andar !== st.andar) return false;
         if (st.ala && l.ala !== st.ala) return false;
         const e = estadoLeito(l.id);
-        if (st.status && e.status !== st.status) return false;
+        if (st.status === 'EM_TRANSPORTE') {
+            const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(l.id) : null;
+            if (!int || !transporteAtivoDoPaciente(int.paciente_id)) return false;
+        } else if (st.status && e.status !== st.status) return false;
         if (st.bloqueio && (e.status !== 'BLOQUEADO' || categoriaDoBloqueio(e) !== st.bloqueio)) return false;
         if (termo) {
             const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(l.id) : null;
-            const alvo = `${l.rotulo} ${l.id} ${nomes && int ? int.paciente_nome + ' ' + int.prontuario : ''}`;
+            const alvo = `${l.rotulo} ${l.id} ${l.ala} ${nomes && int ? int.paciente_nome + ' ' + int.prontuario : ''}`;
             if (!searchKey(alvo).includes(termo)) return false;
         }
         return true;
@@ -51,10 +56,15 @@ function renderMapaLeitos() {
         const e = estadoLeito(l.id);
         const s = STATUS_LEITO[e.status] || STATUS_LEITO.LIVRE;
         const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(l.id) : null;
+        const trAtivo = int ? transporteAtivoDoPaciente(int.paciente_id) : null;
         const sub = e.status === 'OCUPADO' ? (nomes && int ? int.paciente_nome : 'Ocupado') : s.rotulo;
         const tipoBloqueio = e.status === 'BLOQUEADO' ? ` · ${CATEGORIAS_BLOQUEIO[categoriaDoBloqueio(e)]}` : '';
-        return `<button type="button" class="hs-leito" style="--c:${s.cor};--f:${s.fundo}" onclick="hospitalLeitoDetalhe('${l.id}')" title="${escapeHtml(l.andarNome + ' · ' + l.ala + ' · quarto ' + l.quarto + ' · ' + s.rotulo + tipoBloqueio)}">
-            <b>${escapeHtml(l.rotulo)}</b><small>${escapeHtml(sub)}</small></button>`;
+        const seloTr = trAtivo
+            ? `<span class="hs-leito__nir" title="${escapeHtml('Em Transporte via NIR → ' + trAtivo.setor_destino)}">🚑 Em Transporte (${escapeHtml(trAtivo.setor_destino)})</span>`
+            : '';
+        return `<button type="button" class="hs-leito ${trAtivo ? 'hs-leito--transito' : ''}" style="--c:${s.cor};--f:${s.fundo}" onclick="hospitalLeitoDetalhe('${l.id}')" title="${escapeHtml(l.andarNome + ' · ' + l.ala + ' · quarto ' + l.quarto + ' · ' + s.rotulo + tipoBloqueio + (trAtivo ? ' · EM TRANSPORTE: ' + trAtivo.setor_destino : ''))}">
+            <div class="hs-leito__top"><b>${escapeHtml(l.rotulo)}</b>${int && nomes ? `<span class="hs-leito__pront" onclick="event.stopPropagation(); prontuarioAbrir('${int.paciente_id}')" title="Abrir Prontuário Eletrônico">Prontuário</span>` : ''}</div>
+            <small>${escapeHtml(sub)}</small>${seloTr}</button>`;
     };
 
     const arvore = arvoreHospital(visiveis).map(a => `
@@ -65,21 +75,26 @@ function renderMapaLeitos() {
 
     const pendMigr = state.currentUser && state.currentUser.role === 'ADMIN' ? leitosAMigrar().length : 0;
     const avisoMigr = pendMigr ? `<section class="at-card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><p class="at-hint" style="margin:0;flex:1 1 280px"><strong>${pendMigr} leitos do padrão ainda não estão no banco.</strong> Gravar não apaga nem altera nada que já existe e pode ser repetido.</p><button type="button" class="at-btn at-btn--primary" onclick="hospitalMigrarLeitos()">Gravar leitos no banco</button></section>` : '';
+    const opcoesStatus = [
+        ...Object.entries(STATUS_LEITO).map(([id, s]) => ({ id, rotulo: s.rotulo })),
+        { id: 'EM_TRANSPORTE', rotulo: 'Em Transporte (NIR)' }
+    ];
+
     return `
     <div class="at-stack tone-teal">
         ${avisoMigr}
         <div class="cd-kpis hs-kpis" style="--n:${verFila ? 7 : 6}" data-n="${verFila ? 7 : 6}">
             ${cartao('Total de leitos', ind.total, '#0d9488')}${cartao('Ocupados', ind.OCUPADO, STATUS_LEITO.OCUPADO.cor)}${cartao('Livres', ind.LIVRE, STATUS_LEITO.LIVRE.cor)}
-            ${cartao('Em higienização', ind.HIGIENIZACAO, STATUS_LEITO.HIGIENIZACAO.cor)}${cartao('Bloqueados', ind.BLOQUEADO, STATUS_LEITO.BLOQUEADO.cor)}${cartao('Taxa de ocupação', ind.taxa + '%', '#2563eb')}
+            ${cartao('Em higienização', ind.HIGIENIZACAO, STATUS_LEITO.HIGIENIZACAO.cor)}${cartao('Bloqueados', ind.BLOQUEADO, STATUS_LEITO.BLOQUEADO.cor)}${cartao('Em transporte (NIR)', emTransitoCount, '#ea580c')}${cartao('Taxa de ocupação', ind.taxa + '%', '#2563eb')}
             ${verFila ? cartao('Aguardando leito', filaDeLeito().length, '#7c3aed') : ''}
         </div>
         <section class="at-card cd-filters">
             <label class="cd-filter"><span>Andar</span>${sel('hs_andar', st.andar, ANDARES_HOSPITAL.map(a => ({ id: a, rotulo: nomeAndar(a) })), 'Todos', 'hospitalFiltro.bind(null, \'andar\')')}</label>
             <label class="cd-filter"><span>Ala</span>${sel('hs_ala', st.ala, alas.map(a => ({ id: a, rotulo: a })), 'Todas', 'hospitalFiltro.bind(null, \'ala\')')}</label>
-            <label class="cd-filter"><span>Situação</span>${sel('hs_status', st.status, Object.entries(STATUS_LEITO).map(([id, s]) => ({ id, rotulo: s.rotulo })), 'Todas', 'hospitalFiltro.bind(null, \'status\')')}</label>
+            <label class="cd-filter"><span>Situação</span>${sel('hs_status', st.status, opcoesStatus, 'Todas', 'hospitalFiltro.bind(null, \'status\')')}</label>
             <label class="cd-filter"><span>Tipo de bloqueio</span>${sel('hs_bloqueio', st.bloqueio, Object.entries(CATEGORIAS_BLOQUEIO).map(([id, rotulo]) => ({ id, rotulo })), 'Todos', 'hospitalFiltro.bind(null, \'bloqueio\')')}</label>
             <label class="cd-filter cd-filter--grow"><span>Pesquisar leito${nomes ? ' ou paciente' : ''}</span><input class="at-input hs-sel" id="hs_q" type="search" value="${escapeHtml(st.q)}" placeholder="Ex.: 205 ou nome" oninput="hospitalFiltro('q', this.value)" data-keep="hs_q" autocomplete="off"></label>
-            <div class="hs-legenda">${Object.values(STATUS_LEITO).map(s => `<span><i style="background:${s.cor}"></i>${s.rotulo}</span>`).join('')}</div>
+            <div class="hs-legenda">${Object.values(STATUS_LEITO).map(s => `<span><i style="background:${s.cor}"></i>${s.rotulo}</span>`).join('')}<span><i style="background:#ea580c"></i>Em Transporte (NIR)</span></div>
         </section>
         ${arvore || '<div class="at-card at-empty">Nenhum leito encontrado com estes filtros.</div>'}
     </div>`;
@@ -105,27 +120,49 @@ async function hospitalLeitoDetalhe(leitoId) {
     const e = estadoLeito(leitoId);
     const s = STATUS_LEITO[e.status] || STATUS_LEITO.LIVRE;
     const int = e.status === 'OCUPADO' ? internacaoAtivaDoLeito(leitoId) : null;
+    const trAtivo = int ? transporteAtivoDoPaciente(int.paciente_id) : null;
     const nomes = podeVerNomePaciente();
     const gi = hasPermission('internacao_gerenciar'), gl = hasPermission('leito_gerenciar');
     const btn = (rot, fn, cls = 'at-btn--ghost') => `<button type="button" class="at-btn ${cls} at-btn--sm" onclick="${fn}">${rot}</button>`;
     let acoes = '';
     if (e.status === 'LIVRE') acoes = [gi && btn('Internar paciente', `fecharModais(); abrirInternar('${leitoId}')`, 'at-btn--primary'), gl && btn('Bloquear leito', `hospitalPedirBloqueio('${leitoId}')`)].filter(Boolean).join('');
-    if (e.status === 'OCUPADO' && int) acoes = [gi && btn('Dar alta', `hospitalAlta('${int.id}')`, 'at-btn--primary'), gi && btn('Transferir de leito', `hospitalPedirTransferencia('${int.id}')`), hasPermission('prontuario_ver') && btn('Abrir prontuário', `fecharModais(); prontuarioAbrir('${int.paciente_id}')`)].filter(Boolean).join('');
+    if (e.status === 'OCUPADO' && int) {
+        acoes = [
+            hasPermission('prontuario_ver') && btn('Abrir Prontuário Digital', `fecharModais(); prontuarioAbrir('${int.paciente_id}')`, 'at-btn--primary'),
+            hasPermission('transporte_solicitar') && btn('Solicitar Transporte (NIR)', `fecharModais(); nirAbrirModalNovaDemanda({ tipo: 'PACIENTE', paciente_id: '${int.paciente_id}' })`),
+            gi && btn('Transferir de leito', `hospitalPedirTransferencia('${int.id}')`),
+            gi && btn('Dar alta', `hospitalAlta('${int.id}')`)
+        ].filter(Boolean).join('');
+    }
     if (e.status === 'HIGIENIZACAO') acoes = [gl && btn('Concluir higienização (liberar)', `hospitalLiberar('${leitoId}')`, 'at-btn--primary'), gl && btn('Bloquear leito', `hospitalPedirBloqueio('${leitoId}')`)].filter(Boolean).join('');
     if (e.status === 'BLOQUEADO') acoes = gl ? btn('Desbloquear leito', `hospitalDesbloquear('${leitoId}')`, 'at-btn--primary') : '';
 
-    const d = hModal(`Leito ${l.rotulo}`, `
-        <p><span class="at-badge" style="background:${s.fundo};color:${s.cor}">${s.rotulo}</span> ${escapeHtml(l.andarNome)} · ${escapeHtml(l.ala)} · Quarto ${escapeHtml(l.quarto)}</p>
+    const d = hModal(`Leito ${l.rotulo} · ${l.ala}`, `
+        <p style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <span class="at-badge" style="background:${s.fundo};color:${s.cor}">${s.rotulo}</span>
+            ${trAtivo ? `<span class="hs-badge-transito">🚑 Em Transporte (Destino: ${escapeHtml(trAtivo.setor_destino)})</span>` : ''}
+            <span>${escapeHtml(l.andarNome)} · ${escapeHtml(l.ala)} · Quarto ${escapeHtml(l.quarto)}</span>
+        </p>
         ${e.desde ? `<p class="at-hint">Desde ${escapeHtml(formatDateTimeBR(e.desde))}${e.atualizado_por_nome ? ' · por ' + escapeHtml(e.atualizado_por_nome) : ''}</p>` : ''}
         ${e.status === 'BLOQUEADO' ? `<p class="tri-banner tri-banner--warn">Tipo: <strong>${escapeHtml(CATEGORIAS_BLOQUEIO[categoriaDoBloqueio(e)])}</strong> · Motivo: <strong>${escapeHtml(e.motivo || '—')}</strong> · Responsável: ${escapeHtml(e.atualizado_por_nome || '—')}${e.previsao ? ` · Previsão de liberação: <strong>${escapeHtml(formatDateBR(e.previsao))}</strong>${e.previsao < todayISO() ? ' (data já passou: confira se o leito pode ser liberado)' : ''}` : ''}</p>` : ''}
-        ${int ? `<div class="at-card"><strong>${nomes ? escapeHtml(int.paciente_nome) : 'Paciente internado'}</strong>${nomes ? `<br>Prontuário ${escapeHtml(int.prontuario || '—')}` : ''}<br>Internado em ${escapeHtml(formatDateTimeBR(int.data_hora_internacao))} · origem: ${escapeHtml(int.setor_origem)}${int.atendimento_senha ? ` (fila de leito, senha ${escapeHtml(int.atendimento_senha)})` : ''} · registrado por ${escapeHtml(int.registrado_por_nome || int.registrado_por)}</div>` : ''}
+        ${int ? `<div class="at-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+                <div>
+                    <strong>${nomes ? escapeHtml(int.paciente_nome) : 'Paciente internado'}</strong>
+                    ${nomes ? `<br>Prontuário: <strong>${escapeHtml(int.prontuario || '—')}</strong>` : ''}
+                    <br>Setor / Leito: <strong>${escapeHtml(l.ala)} — Leito ${escapeHtml(l.rotulo)}</strong>
+                    <br>Internado em ${escapeHtml(formatDateTimeBR(int.data_hora_internacao))} · Origem: ${escapeHtml(int.setor_origem)}${int.atendimento_senha ? ` (fila de leito, senha ${escapeHtml(int.atendimento_senha)})` : ''}
+                </div>
+                ${trAtivo ? `<div class="tri-banner tri-banner--warn" style="margin:0"><strong>Em Transporte via NIR (${escapeHtml(trAtivo.protocolo)})</strong><br>Destino: ${escapeHtml(trAtivo.setor_destino)}<br>Motivo: ${escapeHtml(trAtivo.motivo)}${trAtivo.equipe ? '<br>Equipe: ' + escapeHtml(trAtivo.equipe.motorista_maqueiro) + ' (' + escapeHtml(trAtivo.equipe.veiculo_maca) + ')' : ''}</div>` : ''}
+            </div>
+        </div>` : ''}
         <div class="at-actions" style="margin:14px 0">${acoes || '<span class="at-hint">Seu perfil não tem ações para este leito.</span>'}</div>
         <h3 class="at-label" style="margin:12px 0 6px">Histórico de ocupação e situação</h3>
         <div id="hs-hist"><div class="at-hint">Carregando...</div></div>`);
     try {
-        const hist = (await db_getAuditoria(leitoId)).filter(a => a.entidade === 'leito').slice(0, 15);
-        d.querySelector('#hs-hist').innerHTML = hist.length ? `<table class="tri-table"><thead><tr><th>Quando</th><th>Ação</th><th>De → para</th><th>Responsável</th></tr></thead><tbody>${hist.map(a => `<tr><td>${escapeHtml(formatDateTimeBR(a.data_hora))}</td><td>${escapeHtml(a.acao)}</td><td>${escapeHtml((a.antes && a.antes.status) || '—')} → ${escapeHtml((a.depois && a.depois.status) || '—')}${a.motivo ? '<br><small>' + escapeHtml(a.motivo) + '</small>' : ''}</td><td>${escapeHtml(a.usuario_nome)}</td></tr>`).join('')}</tbody></table>` : '<div class="at-hint">Sem registros.</div>';
-    } catch (err) { d.querySelector('#hs-hist').textContent = 'Não foi possível carregar o histórico.'; }
+        const hist = typeof db_getAuditoria === 'function' ? (await db_getAuditoria(leitoId)).filter(a => a.entidade === 'leito').slice(0, 15) : [];
+        d.querySelector('#hs-hist').innerHTML = hist.length ? `<table class="tri-table"><thead><tr><th>Quando</th><th>Ação</th><th>De → para</th><th>Responsável</th></tr></thead><tbody>${hist.map(a => `<tr><td>${escapeHtml(formatDateTimeBR(a.data_hora))}</td><td>${escapeHtml(a.acao)}</td><td>${escapeHtml((a.antes && a.antes.status) || '—')} → ${escapeHtml((a.depois && a.depois.status) || '—')}${a.motivo ? '<br><small>' + escapeHtml(a.motivo) + '</small>' : ''}</td><td>${escapeHtml(a.usuario_nome)}</td></tr>`).join('')}</tbody></table>` : '<div class="at-hint">Sem registros anteriores.</div>';
+    } catch (err) { d.querySelector('#hs-hist').textContent = 'Histórico local ativo.'; }
 }
 
 const hospitalLiberar = aviso(async (id) => { await concluirHigienizacao(id); fecharModais(); showMsg('Leito liberado.'); render(); });
@@ -235,31 +272,41 @@ function abrirInternar(leitoId = '') {
 // ============================================================ INTERNAÇÕES (lista)
 
 function renderInternacoes() {
-    db_watch('leitos'); db_watch('internacoes');
+    if (typeof garantirSeedAssistencia === 'function') garantirSeedAssistencia();
+    db_watch('leitos'); db_watch('internacoes'); db_watch('transportes_nir');
     if (hasPermission('fila_leito')) db_watch('fila_leito');   // a internação direta confere se o paciente espera na fila de leito
     const st = hospitalState();
     const termo = searchKey(st.intQ);
     let lista = [...MOCK_DATA.INTERNACOES].sort((a, b) => String(b.data_hora_internacao).localeCompare(String(a.data_hora_internacao)));
     if (st.intStatus) lista = lista.filter(i => i.status === st.intStatus);
-    if (termo) lista = lista.filter(i => searchKey(`${i.paciente_nome} ${i.prontuario} ${i.leito_id}`).includes(termo));
+    if (termo) lista = lista.filter(i => searchKey(`${i.paciente_nome} ${i.prontuario} ${i.leito_id} ${i.ala || ''}`).includes(termo));
     const ativas = MOCK_DATA.INTERNACOES.filter(i => i.status === 'ATIVA').length;
     return `
     <div class="at-stack tone-teal">
         <header class="cd-head"><div class="cd-head__ico">${lucideIcon('bed-double', 'w-7 h-7')}</div>
-            <div class="cd-head__txt"><h2>Internações</h2><p>Cada internação liga o paciente a um leito. O histórico de internações anteriores é sempre preservado.</p></div>
+            <div class="cd-head__txt"><h2>Internações</h2><p>Cada internação liga o paciente a um leito e setor. Clique em qualquer paciente para abrir detalhes ou ir ao Prontuário Digital.</p></div>
             <div class="cd-head__btns"><button type="button" class="at-btn at-btn--primary cd-new" onclick="abrirInternar()">${lucideIcon('plus', 'w-5 h-5')} Nova internação</button></div></header>
         <div class="cd-kpis"><div class="cd-kpi"><strong>${ativas}</strong><span>Internações ativas</span></div><div class="cd-kpi"><strong>${MOCK_DATA.INTERNACOES.length}</strong><span>Total registrado</span></div></div>
         <section class="at-card cd-filters">
             <label class="cd-filter"><span>Situação</span><select class="at-select hs-sel" onchange="hospitalFiltro('intStatus', this.value)" data-keep="int_st"><option value="ATIVA" ${st.intStatus === 'ATIVA' ? 'selected' : ''}>Ativas</option><option value="ALTA" ${st.intStatus === 'ALTA' ? 'selected' : ''}>Com alta</option><option value="" ${st.intStatus === '' ? 'selected' : ''}>Todas</option></select></label>
-            <label class="cd-filter cd-filter--grow"><span>Pesquisar</span><input class="at-input hs-sel" type="search" value="${escapeHtml(st.intQ)}" placeholder="Paciente, prontuário ou leito" oninput="hospitalFiltro('intQ', this.value)" data-keep="int_q" autocomplete="off"></label>
+            <label class="cd-filter cd-filter--grow"><span>Pesquisar</span><input class="at-input hs-sel" type="search" value="${escapeHtml(st.intQ)}" placeholder="Paciente, prontuário, setor ou leito" oninput="hospitalFiltro('intQ', this.value)" data-keep="int_q" autocomplete="off"></label>
         </section>
-        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Paciente</th><th>Prontuário</th><th>Leito</th><th>Internação</th><th>Situação</th><th>Origem</th></tr></thead>
-            <tbody>${lista.length ? lista.map(i => `<tr class="cd-row" tabindex="0" onclick="hospitalInternacaoDetalhe('${i.id}')" onkeydown="if (event.key === 'Enter') hospitalInternacaoDetalhe('${i.id}')">
-                <td data-label="Paciente">${escapeHtml(i.paciente_nome)}</td><td data-label="Prontuário">${escapeHtml(i.prontuario || '—')}</td>
-                <td data-label="Leito">${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)} · ${escapeHtml(i.andar)}º andar</td>
+        <section class="at-card" style="padding:0;overflow:hidden"><div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Paciente</th><th>Prontuário</th><th>Setor / Leito</th><th>Internação</th><th>Situação</th><th>Ações rápidas</th></tr></thead>
+            <tbody>${lista.length ? lista.map(i => {
+                const tr = i.status === 'ATIVA' ? transporteAtivoDoPaciente(i.paciente_id) : null;
+                return `<tr class="cd-row" tabindex="0" onclick="hospitalInternacaoDetalhe('${i.id}')" onkeydown="if (event.key === 'Enter') hospitalInternacaoDetalhe('${i.id}')">
+                <td data-label="Paciente"><strong>${escapeHtml(i.paciente_nome)}</strong></td>
+                <td data-label="Prontuário">${escapeHtml(i.prontuario || '—')}</td>
+                <td data-label="Setor / Leito">${escapeHtml((leitoPorId(i.leito_id) || { rotulo: i.leito_id }).rotulo)} · ${escapeHtml(i.ala || (i.andar + 'º andar'))}</td>
                 <td data-label="Internação">${escapeHtml(formatDateTimeBR(i.data_hora_internacao))}</td>
-                <td data-label="Situação"><span class="at-badge ${i.status === 'ATIVA' ? 'at-badge--ok' : 'at-badge--off'}">${i.status === 'ATIVA' ? 'Ativa' : 'Alta'}</span></td>
-                <td data-label="Origem">${escapeHtml(i.setor_origem)}</td></tr>`).join('') : '<tr><td colspan="6" class="at-empty">Nenhuma internação encontrada.</td></tr>'}</tbody></table></div></section>
+                <td data-label="Situação">
+                    <span class="at-badge ${i.status === 'ATIVA' ? 'at-badge--ok' : 'at-badge--off'}">${i.status === 'ATIVA' ? 'Internado' : 'Alta'}</span>
+                    ${tr ? ` <span class="hs-badge-transito">🚑 Em Transporte (${escapeHtml(tr.setor_destino)})</span>` : ''}
+                </td>
+                <td data-label="Ações" onclick="event.stopPropagation()">
+                    ${hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="prontuarioAbrir('${i.paciente_id}')">Prontuário</button>` : ''}
+                </td></tr>`;
+            }).join('') : '<tr><td colspan="6" class="at-empty">Nenhuma internação encontrada.</td></tr>'}</tbody></table></div></section>
     </div>`;
 }
 
@@ -267,11 +314,14 @@ function hospitalInternacaoDetalhe(id) {
     const i = MOCK_DATA.INTERNACOES.find(x => x.id === id);
     if (!i) return;
     const l = leitoPorId(i.leito_id) || { rotulo: i.leito_id, andarNome: '', ala: '', quarto: '' };
+    const tr = i.status === 'ATIVA' ? transporteAtivoDoPaciente(i.paciente_id) : null;
     hModal(`Internação · ${i.paciente_nome}`, `
+        ${tr ? `<div class="tri-banner tri-banner--warn" style="margin-bottom:12px"><strong>🚑 Em Transporte via NIR (${escapeHtml(tr.protocolo)})</strong> — Destino: <strong>${escapeHtml(tr.setor_destino)}</strong> · Motivo: ${escapeHtml(tr.motivo)}</div>` : ''}
         ${(i.historico_leitos || []).length > 1 ? `<h3 class="at-label" style="margin:0 0 6px">Trajetória de leitos</h3><ol class="at-timeline" style="margin-bottom:12px">${i.historico_leitos.map(h => `<li><strong>${escapeHtml((leitoPorId(h.leito_id) || { rotulo: h.leito_id }).rotulo)}</strong> desde ${escapeHtml(formatDateTimeBR(h.desde))}${h.motivo ? '<small>' + escapeHtml(h.motivo) + (h.por ? ' · ' + escapeHtml(h.por) : '') + '</small>' : ''}</li>`).join('')}</ol>` : ''}
-        <dl class="about-list">${[['Prontuário', i.prontuario || '—'], ['Leito', `${l.rotulo} (${l.andarNome} · ${l.ala} · quarto ${l.quarto})`], ['Internado em', formatDateTimeBR(i.data_hora_internacao)], ['Registrado por', i.registrado_por_nome || i.registrado_por], ['Setor de origem', i.setor_origem], ...(i.atendimento_senha ? [['Atendimento de origem', `Fila de leito · senha ${i.atendimento_senha}`]] : []), ...(i.motivo_alocacao ? [['Motivo da alocação', i.motivo_alocacao]] : []), ['Situação', i.status === 'ATIVA' ? 'Ativa' : 'Alta'], ...(i.status === 'ALTA' ? [[i.tipo_alta === 'OBITO' ? 'Óbito em' : 'Alta em', formatDateTimeBR(i.data_hora_alta)], ['Tipo de alta', (ROTULOS_TIPO_ALTA[i.tipo_alta] || 'Não informado') + (i.alta_destino ? ' · ' + i.alta_destino : '')], ...(i.alta_observacao ? [['Observação da alta', i.alta_observacao]] : []), ['Alta registrada por', i.alta_por_nome || i.alta_por]] : [])].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>
+        <dl class="about-list">${[['Prontuário', i.prontuario || '—'], ['Leito', `${l.rotulo} (${l.andarNome} · ${l.ala} · quarto ${l.quarto})`], ['Internado em', formatDateTimeBR(i.data_hora_internacao)], ['Registrado por', i.registrado_por_nome || i.registrado_por], ['Setor de origem', i.setor_origem], ...(i.atendimento_senha ? [['Atendimento de origem', `Fila de leito · senha ${i.atendimento_senha}`]] : []), ...(i.motivo_alocacao ? [['Motivo da alocação', i.motivo_alocacao]] : []), ['Situação', i.status === 'ATIVA' ? (tr ? `Em Transporte (${tr.setor_destino})` : 'Ativa') : 'Alta'], ...(i.status === 'ALTA' ? [[i.tipo_alta === 'OBITO' ? 'Óbito em' : 'Alta em', formatDateTimeBR(i.data_hora_alta)], ['Tipo de alta', (ROTULOS_TIPO_ALTA[i.tipo_alta] || 'Não informado') + (i.alta_destino ? ' · ' + i.alta_destino : '')], ...(i.alta_observacao ? [['Observação da alta', i.alta_observacao]] : []), ['Alta registrada por', i.alta_por_nome || i.alta_por]] : [])].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>
         <div class="at-actions" style="margin-top:14px">
-            ${i.status === 'ATIVA' && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="hospitalAlta('${i.id}')">Dar alta</button><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="hospitalPedirTransferencia('${i.id}')">Transferir de leito</button>` : ''}
-            ${hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="fecharModais(); prontuarioAbrir('${i.paciente_id}')">Abrir prontuário</button>` : ''}
+            ${hasPermission('prontuario_ver') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" onclick="fecharModais(); prontuarioAbrir('${i.paciente_id}')">Abrir Prontuário Digital</button>` : ''}
+            ${i.status === 'ATIVA' && hasPermission('transporte_solicitar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="fecharModais(); nirAbrirModalNovaDemanda({ tipo: 'PACIENTE', paciente_id: '${i.paciente_id}' })">Solicitar Transporte (NIR)</button>` : ''}
+            ${i.status === 'ATIVA' && hasPermission('internacao_gerenciar') ? `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="hospitalPedirTransferencia('${i.id}')">Transferir de leito</button><button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="hospitalAlta('${i.id}')">Dar alta</button>` : ''}
         </div>`, 'md');
 }

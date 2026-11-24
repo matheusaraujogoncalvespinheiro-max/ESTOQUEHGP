@@ -11,7 +11,11 @@ const USERS_DB = {
     'funccentrocirurgico': { password: '1234', role: 'FUNC_CENTRO_CIRURGICO', name: 'Funcionário Centro Cirúrgico' },
     'chefeportaria': { password: '1234', role: 'CHEFE_PORTARIA', name: 'Chefe Portaria' },
     'portaria': { password: '1234', role: 'FUNC_PORTARIA', name: 'Funcionário Portaria' },
-    'porteiro': { password: '1234', role: 'FUNC_PORTARIA', name: 'Porteiro' }
+    'porteiro': { password: '1234', role: 'FUNC_PORTARIA', name: 'Porteiro' },
+    'medico': { password: '1234', role: 'MEDICO', name: 'Dr. Carlos Eduardo Silva' },
+    'imagenologia': { password: '1234', role: 'FUNC_IMAGENOLOGIA', name: 'Téc. Mariana Costa (Imagenologia)' },
+    'nir': { password: '1234', role: 'FUNC_NIR', name: 'Regulador Lucas Mendes (NIR)' },
+    'transporte': { password: '1234', role: 'FUNC_TRANSPORTE', name: 'Coord. Roberto Alves (Setor de Transporte)' }
 };
 
 // Dados Iniciais

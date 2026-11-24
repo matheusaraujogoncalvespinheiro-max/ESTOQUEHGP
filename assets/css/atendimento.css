@@ -123,7 +123,7 @@ html[data-tema='escuro'] .tone-teal { --tone-soft: rgba(13, 148, 136, 0.22); --t
 .at-card__title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font-size: 20px; font-weight: 800; color: var(--sh-ink); }
 .at-card__title svg { color: var(--tone, var(--sh-accent)); }
 
-.at-form { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.at-form { display: grid; gap: 18px 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; width: 100%; }
 .at-form .at-span-2 { grid-column: span 2; }
 
 @media (max-width: 720px) {
@@ -131,11 +131,12 @@ html[data-tema='escuro'] .tone-teal { --tone-soft: rgba(13, 148, 136, 0.22); --t
     .at-form .at-span-2 { grid-column: auto; }
 }
 
-.at-field { display: grid; gap: 6px; align-content: start; min-width: 0; }
-.at-label { font-size: 14px; font-weight: 700; color: var(--sh-ink); }
+.at-field { display: flex; flex-direction: column; gap: 6px; align-items: stretch; justify-content: flex-start; width: 100%; min-width: 0; }
+.at-label { font-size: 14px; font-weight: 700; color: var(--sh-ink); min-height: 20px; line-height: 20px; margin: 0; }
 .at-label .req { color: #dc2626; }
-.at-hint { font-size: 12.5px; color: var(--sh-muted); }
+.at-hint { font-size: 12.5px; color: var(--sh-muted); line-height: 1.4; }
 .at-error { min-height: 0; margin: 0; font-size: 13px; font-weight: 600; color: #dc2626; }
+.at-error:empty { display: none; }
 
 .at-input,
 .at-select,
