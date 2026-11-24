@@ -905,29 +905,3 @@
 .shell-root .wm-sub__cab:hover .wm-sub__voltar { color: var(--sh-ink); transform: translateX(-2px); }
 .shell-root .wm-sub__cab:focus-visible { outline: 2px solid var(--sh-accent); outline-offset: -2px; }
 .shell-root .wm-secao.is-open > .wm-sub > .wm-sub__cab { border-radius: 0 22px 0 0; }
-
-/* Menu simples, como na referência: fundo escuro, ícones de contorno sem ficha e setinha para a direita */
-.shell-root .wm-sidebar {
-    --sh-surface: #41434f; --sh-bg: #2d2e38; --sh-ink: #ffffff; --sh-muted: #e4e5ec;
-    --sh-hover: rgba(255, 255, 255, 0.09); --sh-line: rgba(255, 255, 255, 0.1);
-    --sh-accent-soft: rgba(255, 255, 255, 0.14); --sh-accent-ink: #ffffff; --sh-accent: #ffffff;
-    background: var(--sh-surface); color: var(--sh-ink); border-right: 0;
-}
-.shell-root .wm-nav { padding: 22px 12px 18px; }
-.shell-root .wm-secao { margin-bottom: 4px; }
-.shell-root .wm-item { height: 46px; gap: 14px; padding: 0 14px; border-radius: 12px; font-size: 14.5px; font-weight: 500; color: var(--sh-ink); }
-.shell-root .wm-item:hover { background: var(--sh-hover); }
-.shell-root .wm-secao > .wm-item .wm-seta { transform: rotate(-90deg); opacity: 0.9; }
-.shell-root:has(.wm-secao.is-open) .wm-secao.is-open > .wm-item { background: rgba(255, 255, 255, 0.12); }
-.shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item .wm-dot { left: 40px; }
-
-/* Painel e cartão do submenu */
-.shell-root .wm-secao.is-open > .wm-sub { background: var(--sh-bg); border-right: 0; box-shadow: none; }
-.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo { background: var(--sh-bg); }
-.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > ul { background: #5f6176; border: 0; box-shadow: none; }
-.shell-root .wm-secao.is-open > .wm-sub .wm-link { color: #fff; font-weight: 500; }
-.shell-root .wm-secao.is-open > .wm-sub .wm-link:hover, .shell-root .wm-secao.is-open > .wm-sub .wm-link:focus-visible { background: #fff; color: #2d2e38; }
-.shell-root .wm-secao.is-open > .wm-sub .wm-link__ico { opacity: 0.9; }
-.shell-root .wm-secao.is-open > .wm-sub .wm-grupo__btn { color: #fff; font-weight: 600; }
-.shell-root .wm-sub__cab strong { color: #fff; }
-.shell-root .wm-sub__cab small { color: #d6d7e0; }
