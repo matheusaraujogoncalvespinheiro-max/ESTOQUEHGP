@@ -111,3 +111,16 @@ html[data-tema='escuro'] .hs-leito { background: transparent; }
 @media (max-width: 1100px) { .enf-kpis[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .enf-kpis[data-n="5"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } .enf-kpis[data-n="5"] > :last-child { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .enf-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .enf-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
+/* Perfis e Permissões (#5) */
+.pp-grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.pp-grupo { border: 1px solid var(--sh-border, #e2e8f0); border-radius: 10px; padding: 8px 12px 12px; min-width: 0; }
+.pp-grupo legend { font-weight: 700; text-transform: capitalize; padding: 0 6px; }
+.pp-acao { display: flex; align-items: center; gap: 8px; padding: 6px 0; min-height: 36px; cursor: pointer; }
+.pp-acao span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.pp-alt { font-style: normal; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; }
+
+/* Laboratório (#29): linhas do resultado */
+.lb-linha { display: grid; grid-template-columns: 2fr 1fr 1fr 1.4fr; gap: 8px; margin-top: 8px; }
+.lb-linha .at-input { min-width: 0; width: 100%; }
+@media (max-width: 640px) { .lb-linha { grid-template-columns: 1fr 1fr; padding-bottom: 8px; border-bottom: 1px dashed var(--sh-border, #e2e8f0); } }

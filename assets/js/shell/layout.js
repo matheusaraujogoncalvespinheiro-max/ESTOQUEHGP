@@ -119,7 +119,7 @@ function renderTopbar(open) {
 }
 
 function renderPagebar(ativa) {
-    if (typeof db_cadWatch === 'function') db_cadWatch('parametro'); // parâmetros do sistema (ex.: dias de alerta de validade)
+    if (typeof db_cadWatch === 'function') db_cadWatch('parametro'); db_cadWatch('listaapoio'); db_cadWatch('paineltv'); if (typeof db_watch === 'function') db_watch('permissoes'); // parâmetros do sistema (ex.: dias de alerta de validade)
     const showFilter = ['OPME', 'HEMODINAMICA', 'CENTRO_CIRURGICO', 'FARMACIA', 'PACIENTES_REGISTRADOS'].includes(state.activeModule);
     return `
     <div class="pagebar">

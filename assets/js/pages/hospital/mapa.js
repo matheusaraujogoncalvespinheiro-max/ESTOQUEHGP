@@ -63,8 +63,11 @@ function renderMapaLeitos() {
                 <div class="hs-quartos">${al.quartos.map(q => `<div class="hs-quarto"><span>Quarto ${escapeHtml(q.quarto)}</span><div class="hs-leitos">${q.leitos.map(botaoLeito).join('')}</div></div>`).join('')}</div></div>`).join('')}
         </section>`).join('');
 
+    const pendMigr = state.currentUser && state.currentUser.role === 'ADMIN' ? leitosAMigrar().length : 0;
+    const avisoMigr = pendMigr ? `<section class="at-card" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><p class="at-hint" style="margin:0;flex:1 1 280px"><strong>${pendMigr} leitos do padrão ainda não estão no banco.</strong> Gravar não apaga nem altera nada que já existe e pode ser repetido.</p><button type="button" class="at-btn at-btn--primary" onclick="hospitalMigrarLeitos()">Gravar leitos no banco</button></section>` : '';
     return `
     <div class="at-stack tone-teal">
+        ${avisoMigr}
         <div class="cd-kpis hs-kpis" style="--n:${verFila ? 7 : 6}" data-n="${verFila ? 7 : 6}">
             ${cartao('Total de leitos', ind.total, '#0d9488')}${cartao('Ocupados', ind.OCUPADO, STATUS_LEITO.OCUPADO.cor)}${cartao('Livres', ind.LIVRE, STATUS_LEITO.LIVRE.cor)}
             ${cartao('Em higienização', ind.HIGIENIZACAO, STATUS_LEITO.HIGIENIZACAO.cor)}${cartao('Bloqueados', ind.BLOQUEADO, STATUS_LEITO.BLOQUEADO.cor)}${cartao('Taxa de ocupação', ind.taxa + '%', '#2563eb')}
@@ -80,6 +83,14 @@ function renderMapaLeitos() {
         </section>
         ${arvore || '<div class="at-card at-empty">Nenhum leito encontrado com estes filtros.</div>'}
     </div>`;
+}
+
+async function hospitalMigrarLeitos() {
+    try {
+        const r = await migrarLeitosParaBanco();
+        showMsg(`Estrutura gravada: ${r.criados} leitos novos, ${r.jaExistiam} já existiam.`);
+        db_watch('leitos'); render();
+    } catch (err) { showMsg(err.message, 'error'); }
 }
 
 function hospitalFiltro(k, v) {

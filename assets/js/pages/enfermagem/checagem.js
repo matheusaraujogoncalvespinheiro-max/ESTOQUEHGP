@@ -121,6 +121,7 @@ function enfChecar(id, resultado) {
     const feito = resultado === 'FEITO';
     const ehMed = c.tipo === 'MEDICAMENTO';
     const dispensacao = ehMed ? enfTextoDispensacao(c) : '';
+    const lotesDisp = ehMed && typeof lotesDispensadosDoItem === 'function' ? lotesDispensadosDoItem(CAD_DATA.dispensacao || [], c.registro_id, c.item_idx) : [];
     const dl = (pares) => `<dl class="about-list">${pares.filter(([, v]) => v).map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join('')}</dl>`;
     const d = hModal(`${feito ? (ehMed ? 'Administrar' : 'Registrar cuidado') : 'Não feito'} · ${c.paciente_nome}`, `
         ${enfCabecalhoHtml(i)}
@@ -132,6 +133,7 @@ function enfChecar(id, resultado) {
             <label class="at-field at-span-2"><span class="at-label">Descreva o que aconteceu *</span><input class="at-input" id="enf_mot_texto" maxlength="300" autocomplete="off"></label></div>`}
         <div class="at-form tc-form" style="margin-top:10px">
             <label class="at-field"><span class="at-label">Seu registro no conselho (COREN) ${feito ? '' : '(opcional)'}</span><input class="at-input" id="enf_conselho" maxlength="30" autocomplete="off" value="${escapeHtml(conselhoLembrado())}"></label>
+            ${feito && ehMed ? `<label class="at-field"><span class="at-label">Lote administrado (opcional)</span><input class="at-input" id="enf_lote" maxlength="40" list="enf_lotes" autocomplete="off"><datalist id="enf_lotes">${lotesDisp.map(l => '<option value="' + escapeHtml(l) + '">').join('')}</datalist></label>` : ''}
             <label class="at-field at-span-2"><span class="at-label">Observação</span><input class="at-input" id="enf_obs" maxlength="300" autocomplete="off"></label></div>
         <p class="at-error" id="enf_erro" role="alert"></p>
         <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--ghost" data-close>Voltar</button><button type="button" class="at-btn at-btn--primary" id="enf_ok">${feito ? 'Confirmar ' + (ehMed ? 'administração' : 'realização') : 'Registrar como não feito'}</button></div>`, 'lg');
@@ -146,7 +148,7 @@ function enfChecar(id, resultado) {
         d.querySelector('#enf_erro').textContent = '';
         const v = (idc) => (d.querySelector('#' + idc) || {}).value;
         try {
-            await registrarChecagem(id, { resultado, motivo_tipo: v('enf_mot_tipo'), motivo_texto: v('enf_mot_texto'), registro_conselho: v('enf_conselho'), observacao: v('enf_obs') });
+            await registrarChecagem(id, { resultado, motivo_tipo: v('enf_mot_tipo'), motivo_texto: v('enf_mot_texto'), registro_conselho: v('enf_conselho'), observacao: v('enf_obs'), lote: v('enf_lote'), lotes_dispensados: lotesDisp });
             lembrarConselho(v('enf_conselho'));
             d.close(); showMsg(feito ? (ehMed ? 'Administração registrada.' : 'Cuidado registrado.') : 'Registrado como não feito.');
         } catch (err) { d.querySelector('#enf_erro').textContent = err.message || 'Operação não realizada.'; }

@@ -155,6 +155,9 @@ test('itens a dispensar: só internações ativas, sem complementos, com situaç
     assert.equal(l2[0].situacao, 'PENDENTE');   // pendentes primeiro
     assert.deepEqual(j("resumoDispensacaoDoItem(__d, 'r1', 0)"), { dispensado: true, total: 5, ultima_em: '2026-06-10T15:00:00.000Z' });
     assert.deepEqual(j("resumoDispensacaoDoItem(__d, 'r2', 0)"), { dispensado: false, total: 0, ultima_em: '' });
+    // #48: lotes dispensados do item (sem repetir, sem cancelados)
+    dados('__l', [{ registro_clinico_id: 'r1', item_idx: 0, lote_codigo: 'L1', ativo: true }, { registro_clinico_id: 'r1', item_idx: 0, lote_codigo: 'L1', ativo: true }, { registro_clinico_id: 'r1', item_idx: 0, lote_codigo: 'L2', ativo: true }, { registro_clinico_id: 'r1', item_idx: 0, lote_codigo: 'L3', ativo: false }]);
+    assert.deepEqual(j("lotesDispensadosDoItem(__l, 'r1', 0)"), ['L1', 'L2']);
 });
 
 test('sugestão de produto: pelo nome ou princípio ativo, só ativos e com saldo', () => {

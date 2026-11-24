@@ -76,6 +76,8 @@ function renderContent() {
             return renderEnfChecagem();
         case 'ENF_PLANTAO':
             return renderEnfPlantao();
+        case 'LABORATORIO':
+            return renderLaboratorio();
         case 'IMAGEM':
             return renderCentralExames('IMAGENOLOGIA');
         case 'ULTRASSOM':
@@ -150,6 +152,8 @@ function renderContent() {
             return renderOuvidoria();
         case 'QUALIDADE':
             return renderQualidade();
+        case 'PERFIS_PERMISSOES':
+            return renderPerfisPermissoes();
         case 'ENSINO_PESQUISA':
             return renderEnsino();
         case 'PAINEL_CHAMADA':

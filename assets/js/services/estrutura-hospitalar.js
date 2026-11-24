@@ -39,16 +39,30 @@ function leitosCadastrados() {
     })).filter(l => ANDARES_HOSPITAL.includes(l.andar));
 }
 
+// Estrutura gravada no banco (coleção leitos_estrutura, #39). O padrão em código continua como base; o que está no banco
+// complementa e, quando o mesmo leito existe nos dois, vale o do banco (permite corrigir a ala de um leito sem mexer no código).
+const leitosNoBanco = () => (typeof MOCK_DATA !== 'undefined' && Array.isArray(MOCK_DATA.LEITOS_ESTRUTURA) ? MOCK_DATA.LEITOS_ESTRUTURA : []);
+
 let _estruturaCache = null;
 let _estruturaChave = '';
 function estruturaHospital() {
     const extras = leitosCadastrados();
-    const chave = extras.map(l => `${l.id}|${l.andar}|${l.ala}`).join(';');
+    const banco = leitosNoBanco();
+    const chave = extras.map(l => `${l.id}|${l.andar}|${l.ala}`).join(';') + '#' + banco.map(l => `${l.id}|${l.andar}|${l.ala}|${l.ativo}`).join(';');
     if (!_estruturaCache || chave !== _estruturaChave) {
         _estruturaChave = chave;
-        _estruturaCache = [...estruturaFixa(), ...extras];
+        const porId = new Map(estruturaFixa().map(l => [l.id, l]));
+        banco.filter(l => l.ativo !== false && l.andar && l.quarto && l.letra).forEach(l => porId.set(l.id, { id: l.id, andar: String(l.andar), andarNome: nomeAndar(l.andar), ala: l.ala || 'Ala não informada', quarto: l.quarto, letra: l.letra, rotulo: l.rotulo || `${l.quarto}-${l.letra}`, noBanco: true }));
+        extras.forEach(l => { if (!porId.has(l.id)) porId.set(l.id, l); });
+        _estruturaCache = [...porId.values()];
     }
     return _estruturaCache;
+}
+
+/** Leitos do padrão que ainda não estão no banco (a migração grava só estes e nunca sobrescreve nem apaga). */
+function leitosAMigrar(jaNoBanco = leitosNoBanco()) {
+    const existentes = new Set(jaNoBanco.map(l => l.id));
+    return estruturaFixa().filter(l => !existentes.has(l.id));
 }
 const leitoPorId = (id) => estruturaHospital().find(l => l.id === String(id || '').toUpperCase().trim()) || null;
 

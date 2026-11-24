@@ -48,15 +48,19 @@ Object.assign(CAD_DEFS, {
     equipamento: {
         key: 'equipamento', label: 'Equipamentos', singular: 'Equipamento', icon: 'monitor-cog', prefix: 'EQP', roles: roles(['ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_MANUTENCAO'], [...R_CENTRAL_VER, 'FUNC_MANUTENCAO']),
         desc: 'Equipamentos e bens do hospital, com patrimônio, localização e situação operacional. As ordens de serviço e os planos de preventiva e calibração ficam em Apoio e Infraestrutura.',
-        rotulo: (r) => r.nome, search: ['codigo', 'nome', 'patrimonio', 'numero_serie', 'modelo'], filters: [{ k: 'situacao_op', label: 'Situação', opts: ['Operacional', 'Em manutenção', 'Fora de uso'] }],
+        validate: (f) => validarBaixaPatrimonial(f),
+        rotulo: (r) => r.nome, search: ['codigo', 'nome', 'patrimonio', 'numero_serie', 'modelo'], filters: [{ k: 'situacao_op', label: 'Situação', opts: ['Operacional', 'Em manutenção', 'Fora de uso', 'Baixado'] }],
         columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'nome', label: 'Equipamento', sort: true }, { k: 'patrimonio', label: 'Patrimônio', get: (r) => r.patrimonio || '—' }, { k: 'setor', label: 'Setor', get: (r) => (r.setor ? cadRotuloRef('setor', r.setor) : '—') }, { k: 'situacao_op', label: 'Situação', sort: true }],
         tabs: [{ id: 'dados', label: 'Dados', fields: [
             { k: 'nome', label: 'Equipamento', type: 'upper', req: true, span2: true },
             { k: 'patrimonio', label: 'Nº de patrimônio', type: 'text', maxlen: 30 }, { k: 'numero_serie', label: 'Nº de série', type: 'text', maxlen: 40 },
             { k: 'modelo', label: 'Modelo', type: 'text' }, { k: 'fabricante', label: 'Fabricante', type: 'ref', ref: 'fabricante' },
             { k: 'setor', label: 'Setor / localização', type: 'ref', ref: 'setor' },
-            { k: 'situacao_op', label: 'Situação operacional', type: 'select', req: true, opts: ['Operacional', 'Em manutenção', 'Fora de uso'] },
-            { k: 'aquisicao', label: 'Data de aquisição', type: 'date' }, { ...OBS }] }]
+            { k: 'situacao_op', label: 'Situação operacional', type: 'select', req: true, opts: ['Operacional', 'Em manutenção', 'Fora de uso', 'Baixado'], help: 'Baixado = baixa patrimonial: exige data e motivo. O registro não é apagado.' },
+            { k: 'aquisicao', label: 'Data de aquisição', type: 'date' }, { k: 'valor_aquisicao', label: 'Custo de aquisição (R$)', type: 'money' },
+            { k: 'garantia_ate', label: 'Garantia até', type: 'date' }, { k: 'responsavel', label: 'Responsável pelo bem', type: 'text', maxlen: 80 },
+            { k: 'contrato', label: 'Contrato de manutenção / fornecedor', type: 'text', maxlen: 80 },
+            { k: 'baixa_data', label: 'Data da baixa', type: 'date' }, { k: 'baixa_motivo', label: 'Motivo da baixa', type: 'text', maxlen: 200 }, { ...OBS }] }]
     },
 
     servico: {

@@ -81,6 +81,7 @@ async function solicitarTransporte(form) {
             if (!i) throw new Error('A internação escolhida não está mais ativa. Escolha o paciente de novo.');
             Object.assign(v, { paciente_id: i.paciente_id || v.paciente_id, paciente_nome: i.paciente_nome, prontuario: i.prontuario || '' });
         } else if (v.paciente_id) {
+            if (typeof exigirPacienteVivo === 'function') await exigirPacienteVivo(v.paciente_id);   // #68
             const p = await db_getPaciente(v.paciente_id);
             if (!p) throw new Error('Paciente não encontrado no cadastro.');
             Object.assign(v, { paciente_nome: p.nome, prontuario: p.prontuario || '' });

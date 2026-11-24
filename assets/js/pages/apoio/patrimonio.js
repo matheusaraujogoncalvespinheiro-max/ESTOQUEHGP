@@ -7,7 +7,7 @@ function patrimonioState() {
     return state.patrimonio;
 }
 
-const ptBadgeEquip = { PARADO: 'at-badge at-badge--emergencia', COM_OS: 'at-badge at-badge--outros', FORA_DE_USO: 'at-badge at-badge--off', EM_MANUTENCAO_CAD: 'at-badge at-badge--outros', OPERACIONAL: 'at-badge at-badge--ok' };
+const ptBadgeEquip = { PARADO: 'at-badge at-badge--emergencia', COM_OS: 'at-badge at-badge--outros', FORA_DE_USO: 'at-badge at-badge--off', BAIXADO: 'at-badge at-badge--off', EM_MANUTENCAO_CAD: 'at-badge at-badge--outros', OPERACIONAL: 'at-badge at-badge--ok' };
 const ptBadgePlano = { VENCIDO: 'at-badge at-badge--emergencia', A_VENCER: 'at-badge at-badge--outros', EM_DIA: 'at-badge at-badge--ok', INATIVO: 'at-badge at-badge--off' };
 const ptRotuloPlano = { VENCIDO: 'Vencido', A_VENCER: 'A vencer', EM_DIA: 'Em dia', INATIVO: 'Inativo' };
 const ptTextoDias = (s) => (s.dias === null ? '' : (s.dias < 0 ? `${-s.dias} dia(s) de atraso` : (s.dias === 0 ? 'vence hoje' : `em ${s.dias} dia(s)`)));
@@ -42,7 +42,7 @@ function renderPatrimonio() {
         }).join('');
         return `<div class="rf-filtros">
                 ${e9Busca('patrimonio', st.q, 'Nome, código, patrimônio ou série')}
-                <label class="at-field"><span class="at-label">Situação</span>${e9Sel('patrimonio', 'sit', st.sit, [['', 'Todas'], ['PARADO', 'Parado'], ['COM_OS', 'Com OS aberta'], ['EM_MANUTENCAO_CAD', 'Em manutenção (cadastro)'], ['FORA_DE_USO', 'Fora de uso'], ['OPERACIONAL', 'Operacional']])}</label>
+                <label class="at-field"><span class="at-label">Situação</span>${e9Sel('patrimonio', 'sit', st.sit, [['', 'Todas'], ['PARADO', 'Parado'], ['COM_OS', 'Com OS aberta'], ['EM_MANUTENCAO_CAD', 'Em manutenção (cadastro)'], ['FORA_DE_USO', 'Fora de uso'], ['BAIXADO', 'Baixado'], ['OPERACIONAL', 'Operacional']])}</label>
             </div>
             <div class="tri-tablewrap"><table class="tri-table cd-table rf-tabela e9-tab"><thead><tr><th>Equipamento</th><th>Setor</th><th>Situação</th><th>Próxima manutenção</th><th>Ações</th></tr></thead>
                 <tbody>${linhas || `<tr><td colspan="5" class="at-empty">${equips.length ? 'Nenhum equipamento com estes filtros.' : 'Nenhum equipamento cadastrado. Cadastre em Cadastro › Apoio › Equipamentos.'}</td></tr>`}</tbody></table></div>
@@ -149,7 +149,7 @@ async function ptHistorico(equipamentoId) {
         const lista = await db_getOsDoEquipamento(equipamentoId);
         const planos = (MOCK_DATA.PLANOS_MANUT || []).filter(p => p.equipamento_id === equipamentoId);
         hModal(`Histórico · ${e.nome}`, `
-            ${e9Dl([['Código', e.codigo], ['Patrimônio', e.patrimonio], ['Nº de série', e.numero_serie], ['Modelo', e.modelo], ['Setor', e.setor ? cadRotuloRef('setor', e.setor) : ''], ['Situação no cadastro', e.situacao_op]])}
+            ${e9Dl([['Código', e.codigo], ['Patrimônio', e.patrimonio], ['Nº de série', e.numero_serie], ['Modelo', e.modelo], ['Setor', e.setor ? cadRotuloRef('setor', e.setor) : ''], ['Situação no cadastro', e.situacao_op], ['Responsável', e.responsavel], ['Custo de aquisição', e.valor_aquisicao ? formatMoney(e.valor_aquisicao) : ''], ['Garantia até', e.garantia_ate ? formatDateBR(e.garantia_ate) : ''], ['Contrato', e.contrato], ['Baixa', e.situacao_op === 'Baixado' ? `${formatDateBR(e.baixa_data)} · ${e.baixa_motivo}` : '']])}
             <h3 class="at-label" style="margin:14px 0 6px">Planos</h3>
             ${planos.length ? `<ul class="e8-resumo">${planos.map(p => `<li>${escapeHtml(TIPOS_PLANO[p.tipo])} a cada ${p.periodicidade_dias} dia(s): próxima em <strong>${escapeHtml(formatDateBR(p.proxima_em))}</strong>${p.ultima_em ? ` · última em ${escapeHtml(formatDateBR(p.ultima_em))}` : ''}${p.ativo === false ? ' (inativo)' : ''}</li>`).join('')}</ul>` : '<p class="at-hint">Nenhum plano para este equipamento.</p>'}
             <h3 class="at-label" style="margin:14px 0 6px">Ordens de serviço</h3>

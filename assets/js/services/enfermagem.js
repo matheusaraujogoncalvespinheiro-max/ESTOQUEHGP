@@ -164,7 +164,11 @@ function validarDecisaoChecagem(form) {
     if (observacao.length > 300) throw new Error('Observação: no máximo 300 caracteres.');
     const conselho = String(form.registro_conselho || '').trim();
     if (conselho.length > 30) throw new Error('Registro no conselho: no máximo 30 caracteres.');
-    const decisao = { resultado, observacao, registro_conselho: conselho, motivo_tipo: '', motivo_texto: '' };
+    // Lote administrado (#48): opcional; quando a farmácia dispensou lotes deste item, o informado precisa ser um deles (se não bater, a enfermagem confere antes de registrar).
+    const lote = String(form.lote || '').trim();
+    if (lote.length > 40) throw new Error('Lote: no máximo 40 caracteres.');
+    if (lote && Array.isArray(form.lotes_dispensados) && form.lotes_dispensados.length && !form.lotes_dispensados.includes(lote)) throw new Error('Este lote não consta entre os dispensados pela farmácia para este item. Confira o lote.');
+    const decisao = { resultado, observacao, registro_conselho: conselho, motivo_tipo: '', motivo_texto: '', lote_administrado: resultado === 'FEITO' ? lote : '' };
     if (resultado === 'NAO_FEITO') {
         if (!MOTIVOS_NAO_FEITO[form.motivo_tipo]) throw new Error('Escolha o motivo de não ter sido feito.');
         const texto = String(form.motivo_texto || '').trim();
@@ -247,7 +251,7 @@ async function registrarChecagem(id, form) {
     const agora = nowISO();
     const r = await db_decidirChecagem(id, (atual) => ({
         ...atual, status: d.resultado, feito_em: agora, feito_por: user.username, feito_por_nome: user.name, feito_por_perfil: user.role,
-        registro_conselho: d.registro_conselho, observacao: d.observacao, motivo_tipo: d.motivo_tipo, motivo_texto: d.motivo_texto
+        registro_conselho: d.registro_conselho, observacao: d.observacao, motivo_tipo: d.motivo_tipo, motivo_texto: d.motivo_texto, lote_administrado: d.lote_administrado
     }));
     await auditar({ entidade: 'checagem', entidade_id: id, acao: r.status === 'FEITO' ? 'CHECAR_FEITO' : 'CHECAR_NAO_FEITO', depois: { tipo: r.tipo, item: r.item_texto, paciente: r.paciente_id, previsto: r.previsto_em, motivo: r.motivo_tipo }, motivo: d.motivo_texto });
     return r;

@@ -216,6 +216,57 @@ Object.assign(CAD_DEFS, {
     }
 });
 
+// Exames de laboratório (#29): catálogo dos exames que o laboratório recebe. Não traz valor de referência (quem libera o resultado digita o da metodologia).
+Object.assign(CAD_DEFS, {
+    labexame: {
+        key: 'labexame', label: 'Exames de Laboratório', singular: 'Exame de laboratório', icon: 'flask-conical', prefix: 'LAB',
+        desc: 'Exames que podem ser pedidos ao laboratório. O material e o código do procedimento são os que o hospital definir; o sistema não preenche nem sugere valores de referência.',
+        roles: { ver: ['ADMIN', 'FUNC_LABORATORIO', 'MEDICO'], criar: ['ADMIN'], editar: ['ADMIN'], inativar: ['ADMIN'] },
+        rotulo: (r) => r.nome, search: ['codigo', 'nome', 'material', 'codigo_procedimento'], unique: ['nome'], filters: [],
+        columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'nome', label: 'Exame', sort: true }, { k: 'material', label: 'Material', sort: true, get: (r) => r.material || '—' },
+            { k: 'codigo_procedimento', label: 'Cód. procedimento', get: (r) => r.codigo_procedimento || '—' }],
+        tabs: [{ id: 'dados', label: 'Dados', fields: [
+            { k: 'nome', label: 'Nome do exame', type: 'text', req: true, maxlen: 80, span2: true },
+            { k: 'material', label: 'Material', type: 'text', maxlen: 60, help: 'Ex.: sangue, urina. É o material sugerido na coleta.' },
+            { k: 'codigo_procedimento', label: 'Código do procedimento', type: 'text', maxlen: 20, help: 'Informe conforme a tabela oficial (SIGTAP). Não é preenchido automaticamente.' }, { ...OBS }] }]
+    }
+});
+
+// Painéis de TV (#23): quais filas cada TV da sala de espera mostra e o tempo do rodízio entre elas.
+Object.assign(CAD_DEFS, {
+    paineltv: {
+        key: 'paineltv', label: 'Painéis de TV', singular: 'TV', icon: 'tv', prefix: 'TV', roles: roles(['ADMIN']),
+        desc: 'Cada TV mostra só as filas marcadas (apenas senha, local e hora; nunca nome de paciente). Com tempo de rodízio, a TV passa de uma fila para a próxima que tem chamada hoje; uma chamada nova leva a tela direto para a fila dela. O tempo é definido pelo hospital. Em cada TV, escolha o painel no próprio Painel de Chamadas.',
+        rotulo: (r) => r.nome, search: ['nome'], unique: ['nome'], filters: [],
+        columns: [{ k: 'nome', label: 'TV / setor', sort: true }, { k: 'filas', label: 'Filas', get: (r) => filasDaTv(r).map(f => FILAS_ATENDIMENTO[f]).join(', ') }, { k: 'rodizio_seg', label: 'Rodízio (s)', sort: true, num: true, get: (r) => (r.rodizio_seg ? r.rodizio_seg : 'Sem rodízio') }],
+        validate: (f) => { try { validarTvPainel(f); return []; } catch (e) { return [{ campo: 'nome', mensagem: e.message }]; } },
+        tabs: [{ id: 'dados', label: 'TV', fields: [
+            { k: 'nome', label: 'Nome da TV ou setor', type: 'text', req: true, maxlen: 40, span2: true },
+            { k: 'fila_triagem', label: 'Triagem', type: 'check', checkLabel: 'Mostrar chamadas da Triagem' },
+            { k: 'fila_medico', label: 'Atendimento médico', type: 'check', checkLabel: 'Mostrar chamadas do Atendimento médico' },
+            { k: 'fila_exames', label: 'Exames', type: 'check', checkLabel: 'Mostrar chamadas de Exames' },
+            { k: 'fila_ambulatorio', label: 'Ambulatório', type: 'check', checkLabel: 'Mostrar chamadas do Ambulatório' },
+            { k: 'fila_procedimentos', label: 'Procedimentos', type: 'check', checkLabel: 'Mostrar chamadas de Procedimentos' },
+            { k: 'rodizio_seg', label: 'Rodízio (segundos)', type: 'number', min: 5, max: 300, help: 'Em branco = a TV não gira. Precisa de pelo menos duas filas marcadas.' }, { ...OBS }] }]
+    }
+});
+
+// Listas de apoio (#67): o hospital acrescenta ou renomeia opções das listas de rouparia, resíduos, voluntariado e destino do corpo.
+Object.assign(CAD_DEFS, {
+    listaapoio: {
+        key: 'listaapoio', label: 'Listas de Apoio', singular: 'Opção de lista', icon: 'list-checks', prefix: 'LST', roles: roles(['ADMIN']),
+        desc: 'Opções das listas usadas pelos setores de apoio. As opções cadastradas aqui são ACRESCENTADAS às padrão (ou renomeiam a padrão de mesmo código). Nada some, e os registros antigos continuam como estavam. As listas padrão ainda não foram confirmadas pelo hospital.',
+        rotulo: (r) => `${r.lista}: ${r.rotulo}`, search: ['lista', 'codigo', 'rotulo'], unique: ['lista+codigo'],
+        filters: [],
+        columns: [{ k: 'lista', label: 'Lista', sort: true, get: (r) => (LISTAS_APOIO[r.lista] || { rotulo: r.lista }).rotulo }, { k: 'codigo', label: 'Código', sort: true }, { k: 'rotulo', label: 'Nome da opção', sort: true }],
+        validate: (f) => { try { validarItemListaApoio(f); return []; } catch (e) { return [{ campo: 'rotulo', mensagem: e.message }]; } },
+        tabs: [{ id: 'dados', label: 'Opção', fields: [
+            { k: 'lista', label: 'Lista', type: 'select', req: true, roEdit: true, opts: () => Object.entries(LISTAS_APOIO).map(([id, c]) => ({ id, rotulo: c.rotulo })) },
+            { k: 'codigo', label: 'Código', type: 'text', req: true, maxlen: 30, roEdit: true, help: 'Letras sem acento, números e _. Não muda depois de salvo.' },
+            { k: 'rotulo', label: 'Nome da opção', type: 'text', req: true, maxlen: 60 }, { ...OBS }] }]
+    }
+});
+
 // Parâmetros que o HOSPITAL define. Os que não têm padrão ficam sem efeito até alguém informar o valor (o sistema não inventa prazo nem meta).
 const PARAMETROS_SISTEMA = [
     { id: 'dias_alerta_validade', rotulo: 'Dias de alerta de validade dos lotes (padrão 30)' },

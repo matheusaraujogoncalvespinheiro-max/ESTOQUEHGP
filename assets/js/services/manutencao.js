@@ -79,8 +79,19 @@ function validarPlanoManut(form, { equipamentos = [] } = {}) {
     };
 }
 
+/** Baixa patrimonial (#69): quem baixa informa data (não futura) e motivo. Devolve a lista de erros do cadastro ([] = ok). */
+function validarBaixaPatrimonial(f, hoje = todayISO()) {
+    if (f.situacao_op !== 'Baixado') return [];
+    const erros = [];
+    if (!f.baixa_data) erros.push({ campo: 'baixa_data', mensagem: 'Informe a data da baixa.' });
+    else if (f.baixa_data > hoje) erros.push({ campo: 'baixa_data', mensagem: 'A data da baixa não pode ser futura.' });
+    if (String(f.baixa_motivo || '').trim().length < 5) erros.push({ campo: 'baixa_motivo', mensagem: 'Informe o motivo da baixa (mínimo de 5 caracteres).' });
+    return erros;
+}
+
 /** Situação do equipamento no painel: deriva das OS abertas; sem OS aberta vale o que está no cadastro. */
 function situacaoDoEquipamento(equipamento, osLista) {
+    if (equipamento.situacao_op === 'Baixado') return { codigo: 'BAIXADO', rotulo: 'Baixado (patrimônio)', os: null, abertas: [] };   // baixa patrimonial (#69): vale sobre as OS
     const abertas = (osLista || []).filter(o => o.equipamento_id === equipamento.id && osAberta(o));
     const parada = abertas.find(o => o.parado);
     if (parada) return { codigo: 'PARADO', rotulo: `Parado · ${parada.protocolo}`, os: parada, abertas };

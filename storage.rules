@@ -1,11 +1,29 @@
 // REGRAS DO FIREBASE STORAGE — projeto "erp-hospitalar"
 //
-// O sistema AINDA NÃO envia arquivos (anexos do prontuário são a pendência #31). Por isso o Storage fica totalmente fechado:
-// nenhum arquivo pode ser lido nem gravado. Quando os anexos forem feitos, estas regras serão abertas só para
-// quem tem acesso ao paciente/registro, com limite de tamanho e tipo (PDF e imagem).
+// Anexos do prontuário (pendência #31): só arquivos em anexos/<id do paciente>/<arquivo>.
+// - Ler: Administrador, médico e enfermagem (os mesmos perfis que leem o prontuário).
+// - Criar: os mesmos perfis, só PDF/JPEG/PNG e até 10 MB. Não existe substituir nem apagar (update/delete negados).
+// - Qualquer outro caminho continua fechado.
+// O perfil vem do cadastro `app_users` (mesmas regras do Firestore); a conta precisa estar ativa e ser a do cadastro.
+// Limite desta versão: as permissões editadas na tela Perfis e Permissões NÃO valem aqui (só o Firestore as lê).
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function adminRaiz() { return request.auth != null && request.auth.token.email == 'admin@admin.com'; }
+    function usuario() { return request.auth.token.email.split('@')[0].lower(); }
+    function cadastro() { return firestore.get(/databases/(default)/documents/app_users/$(usuario())).data; }
+    function logado() { return request.auth != null && (adminRaiz() || (firestore.exists(/databases/(default)/documents/app_users/$(usuario()))
+      && cadastro().get('ativo', true) != false && cadastro().auth_email == request.auth.token.email)); }
+    function perfil() { return adminRaiz() ? 'ADMIN' : cadastro().role; }
+    function clinico() { return logado() && perfil() in ['ADMIN', 'MEDICO', 'FUNC_ENFERMAGEM']; }
+
+    match /anexos/{pacienteId}/{arquivo} {
+      allow read: if clinico();
+      allow create: if clinico() && resource == null
+        && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+      allow update, delete: if false;
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

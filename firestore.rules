@@ -26,6 +26,14 @@ service cloud.firestore {
     function ehAdmin() { return logado() && perfil() == 'ADMIN'; }
     function temPerfil(lista) { return logado() && (perfil() == 'ADMIN' || perfil() in lista); }
 
+    // Perfis e Permissões editáveis (#5): config_permissoes/<PERFIL> guarda só a diferença sobre as listas fixas abaixo ({ concede: [...], revoga: [...] }).
+    // Só as coleções que chamam temAcao() leem isso; as demais continuam presas às listas fixas de perfis.
+    function permExiste() { return exists(/databases/$(database)/documents/config_permissoes/$(perfil())); }
+    function permDoc() { return get(/databases/$(database)/documents/config_permissoes/$(perfil())).data; }
+    function concedida(acao) { return permExiste() && acao in permDoc().concede; }
+    function revogada(acao) { return permExiste() && acao in permDoc().revoga; }
+    function temAcao(lista, acao) { return logado() && (perfil() == 'ADMIN' || concedida(acao) || (perfil() in lista && !revogada(acao))); }
+
     // Perfis por área
     function clinico() { return ['MEDICO', 'FUNC_ENFERMAGEM']; }
     function internacao() { return ['FUNC_ENFERMAGEM', 'FUNC_RECEPCAO']; }
@@ -41,7 +49,7 @@ service cloud.firestore {
     // ---------- Administrador: lê tudo e cria/altera em qualquer coleção, EXCETO nas de registro imutável (histórico, prontuário, chamadas...) e nunca apaga ----------
     match /{col}/{id} {
       allow read: if ehAdmin();
-      allow create, update: if ehAdmin() && !(col in ['historico_alteracoes', 'registros_clinicos', 'documentos_clinicos', 'prontuarios_abertos', 'sinais_vitais', 'chamadas', 'balanco_hidrico', 'rouparia_mov', 'residuos_registros', 'obito_paciente']);
+      allow create, update: if ehAdmin() && !(col in ['historico_alteracoes', 'registros_clinicos', 'documentos_clinicos', 'prontuarios_abertos', 'sinais_vitais', 'chamadas', 'balanco_hidrico', 'rouparia_mov', 'residuos_registros', 'obito_paciente', 'anexos_clinicos']);
     }
 
     // ---------- Usuários: só o administrador lê e altera (nunca expor hashes) ----------
@@ -63,11 +71,18 @@ service cloud.firestore {
     // Etapa 4: o setor de imagem registra o LAUDO (tipo RESULTADO) e só lê registros desse tipo (consulta com where tipo == 'RESULTADO'). RASCUNHO: não testado no emulador.
     // Etapa 7: a Farmácia lê só registros do tipo PRESCRICAO (consulta com where tipo == 'PRESCRICAO'), para dispensar o que foi prescrito.
     match /registros_clinicos/{id} {
-      allow read: if temPerfil(clinico()) || (temPerfil(imagem()) && resource.data.tipo == 'RESULTADO') || (temPerfil(farmacia()) && resource.data.tipo == 'PRESCRICAO');
+      allow read: if temAcao(clinico(), 'prontuario_ver') || (temPerfil(imagem()) && resource.data.tipo == 'RESULTADO') || (temPerfil(farmacia()) && resource.data.tipo == 'PRESCRICAO');
       // Etapa 8: quem atende Procedimentos grava só o registro do tipo PROCEDIMENTO
-      allow create: if (temPerfil(clinico()) || (temPerfil(imagem()) && request.resource.data.tipo == 'RESULTADO') || (temPerfil(procedimentos()) && request.resource.data.tipo == 'PROCEDIMENTO'))
+      allow create: if (temAcao(clinico(), 'prontuario_evoluir') || (temPerfil(imagem()) && request.resource.data.tipo == 'RESULTADO') || (temPerfil(procedimentos()) && request.resource.data.tipo == 'PROCEDIMENTO'))
         && request.resource.data.autor == usuario()
         && request.resource.data.assinado == true;
+      allow update, delete: if false;
+    }
+
+    // Anexos do prontuário (#31): o arquivo fica no Storage (storage.rules); aqui só o registro, criado uma vez e nunca alterado nem apagado.
+    match /anexos_clinicos/{id} {
+      allow read: if temAcao(clinico(), 'prontuario_ver');
+      allow create: if temAcao(clinico(), 'prontuario_evoluir') && request.resource.data.autor == usuario();
       allow update, delete: if false;
     }
 
@@ -85,10 +100,22 @@ service cloud.firestore {
     // e atualiza o `atendimentos` (fila INTERNACAO), por isso os perfis abaixo precisam das 4 permissões juntas (Enfermagem e Recepção as têm).
     // O painel de disponibilidade lê só `leitos_estado` e `cad_leito`, sem dados de paciente. RASCUNHO: não testado no emulador; as regras não conferem
     // a ordem da fila nem o motivo da alocação (isso é validado no serviço `alocarLeitoDaFila`).
-    match /leitos_estado/{id} {
+    // Estrutura física gravada no banco (#39): leitura para quem lê os leitos; só o Administrador grava; nunca apaga.
+    // Permissões editáveis (#5): todo usuário logado lê (a tela precisa); só o Administrador grava; nunca apaga.
+    match /config_permissoes/{id} {
+      allow read: if logado();
+      allow create, update: if perfil() == 'ADMIN';
+      allow delete: if false;
+    }
+    match /leitos_estrutura/{id} {
       allow read: if temPerfil(leitos()) || temPerfil(farmacia()) || temPerfil(['DIRETORIA']);
+      allow create, update: if perfil() == 'ADMIN';
+      allow delete: if false;
+    }
+    match /leitos_estado/{id} {
+      allow read: if temAcao(leitos(), 'mapa_ver') || temPerfil(farmacia()) || temPerfil(['DIRETORIA']);
       // Etapa 9: o médico muda o leito para higienização só ao registrar um óbito (o serviço grava tudo numa transação).
-      allow create, update: if temPerfil(['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO'])
+      allow create, update: if temAcao(['FUNC_ENFERMAGEM', 'FUNC_HIGIENIZACAO', 'FUNC_RECEPCAO'], 'leito_gerenciar')
         || (temPerfil(['MEDICO']) && request.resource.data.status == 'HIGIENIZACAO');
       allow delete: if false;
     }
@@ -282,6 +309,14 @@ service cloud.firestore {
       allow delete: if false;
     }
     // Transporte: quem solicita lê o que abriu; a equipe de transporte lê e atende tudo. O serviço restringe o transporte de paciente a certos perfis.
+    // Laboratório (#29): o médico pede, a enfermagem lê; o laboratório coleta e libera. Um resultado liberado não muda mais; ninguém apaga.
+    match /lab_pedidos/{id} {
+      allow read: if temAcao(['MEDICO', 'FUNC_ENFERMAGEM', 'FUNC_LABORATORIO'], 'laboratorio_ver');
+      allow create: if temPerfil(['MEDICO']) && request.resource.data.status == 'SOLICITADO' && request.resource.data.solicitante == usuario();
+      allow update: if resource.data.status != 'LIBERADO' && resource.data.status != 'CANCELADO'
+        && (temPerfil(['FUNC_LABORATORIO']) || (temPerfil(['MEDICO']) && resource.data.solicitante == usuario() && request.resource.data.status == 'CANCELADO'));
+      allow delete: if false;
+    }
     match /transportes/{id} {
       allow read: if temPerfil(['FUNC_TRANSPORTE']) || (logado() && resource.data.solicitante == usuario());
       allow create: if logado();
@@ -320,7 +355,9 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /obito_paciente/{id} {
-      allow read: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
+      // #68: qualquer usuário logado confere se o paciente tem óbito registrado (leitura de UM documento, sem dado clínico) para o bloqueio de novos atendimentos; a lista continua restrita.
+      allow get: if logado();
+      allow list: if temPerfil(['MEDICO', 'FUNC_ENFERMAGEM']);
       allow create: if temPerfil(['MEDICO']);
       allow update, delete: if false;
     }

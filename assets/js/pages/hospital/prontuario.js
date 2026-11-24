@@ -20,7 +20,7 @@ function renderProntuario() {
     if (!st.pacienteId) return renderProntuarioConsulta();
     if (!st.paciente) return '<div class="at-card at-empty">Carregando prontuário...</div>';
     db_watchRegistros(st.pacienteId);
-    db_watchDocumentos(st.pacienteId);
+    db_watchDocumentos(st.pacienteId); db_watchAnexos(st.pacienteId);
     return renderProntuarioPaciente(st);
 }
 
@@ -146,7 +146,7 @@ function renderProntuarioPaciente(st) {
     const p = st.paciente;
     const ativa = internacaoAtivaDoPaciente(p.id);
     const abasEnfermagem = hasPermission('enfermagem_ver') ? [['CUIDADO', 'Cuidados'], ['EVOLUCAO_ENFERMAGEM', 'Evolução de enfermagem'], ['INTERCORRENCIA', 'Intercorrências'], ['sinais', 'Sinais vitais'], ['checagens', 'Checagens']] : [];
-    const abas = [['resumo', 'Resumo'], ['atendimentos', 'Atendimentos'], ['internacoes', 'Internações'], ['EVOLUCAO', 'Evoluções'], ['PRESCRICAO', 'Prescrições'], ['PROCEDIMENTO', 'Procedimentos realizados'], ...abasEnfermagem, ['DIAGNOSTICO', 'Diagnósticos (CID-10)'], ['ALERGIA', 'Alergias'], ['exames', 'Exames'], ['documentos', 'Documentos'], ['procedimentos', 'Procedimentos']];
+    const abas = [['resumo', 'Resumo'], ['atendimentos', 'Atendimentos'], ['internacoes', 'Internações'], ['EVOLUCAO', 'Evoluções'], ['PRESCRICAO', 'Prescrições'], ['PROCEDIMENTO', 'Procedimentos realizados'], ...abasEnfermagem, ['DIAGNOSTICO', 'Diagnósticos (CID-10)'], ['ALERGIA', 'Alergias'], ['exames', 'Exames'], ['documentos', 'Documentos'], ['anexos', 'Anexos'], ['procedimentos', 'Procedimentos']];
     const loc = ativa ? `${(leitoPorId(ativa.leito_id) || { rotulo: ativa.leito_id }).rotulo} · ${ativa.andar}º andar · ${ativa.ala}` : 'Sem internação ativa';
     return `
     <div class="at-stack tone-teal">
@@ -202,6 +202,7 @@ function renderProntuarioAba(st, p, ativa) {
     }
     if (st.tab === 'atendimentos') return renderProntuarioAtendimentos(st, p);
     if (st.tab === 'documentos') return renderProntuarioDocumentos(st, p);
+    if (st.tab === 'anexos') return renderProntuarioAnexos(st, p);
     if (st.tab === 'exames') return renderProntuarioExames(st, p, ativa);
     if (st.tab === 'procedimentos') return renderProntuarioProcedimentos(p);
     if (st.tab === 'sinais' || st.tab === 'checagens') return renderProntuarioEnfermagem(st, p, st.tab);

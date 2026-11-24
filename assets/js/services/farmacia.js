@@ -45,6 +45,11 @@ function resumoDispensacaoDoItem(dispensacoes, registroId, idx) {
     return { dispensado: ds.length > 0, total: ds.reduce((a, d) => a + (Number(d.quantidade) || 0), 0), ultima_em: ds.length ? ds[0].criado_em : '' };
 }
 
+/** Lotes que a farmácia dispensou para este item (sem repetir), para a enfermagem registrar o lote administrado (#48). */
+function lotesDispensadosDoItem(dispensacoes, registroId, idx) {
+    return [...new Set(dispensacoesDoItem(dispensacoes, registroId, idx).map(d => String(d.lote_codigo || '').trim()).filter(Boolean))];
+}
+
 /** Opções do campo "item prescrito" da dispensação: só os das internações ativas. */
 function opcoesItensPrescritos() {
     if (typeof db_watchEnfermagem === 'function') db_watchEnfermagem('prescricoes_med');   // a lista precisa das prescrições mesmo sem passar pela tela de prescrições

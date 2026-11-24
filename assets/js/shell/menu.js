@@ -29,6 +29,7 @@ function homeModule(role) {
     if (role === 'FUNC_ENSINO') return 'ENSINO_PESQUISA';
     if (role === 'DIRETORIA') return 'DIRECAO';
     if (role === 'CHEFE_FARMACIA' || role === 'FUNC_FARMACIA') return 'FARM_PRESCRICOES';
+    if (role === 'FUNC_LABORATORIO') return 'LABORATORIO';
     return 'DASHBOARD';
 }
 

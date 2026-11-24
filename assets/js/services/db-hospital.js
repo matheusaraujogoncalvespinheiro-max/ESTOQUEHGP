@@ -10,10 +10,11 @@
 
 const COLH = {
     LEITOS: 'leitos_estado', INTERNACOES: 'internacoes', LOCK_INTERNACAO: 'internacao_ativa', REGISTROS: 'registros_clinicos',
-    SOLICITACOES: 'solicitacoes_exame', PRONTUARIOS: 'prontuarios_abertos', AUTORIZACOES: 'autorizacoes', VAGAS: 'agenda_vagas', CONFIG: 'config_hospital'
+    SOLICITACOES: 'solicitacoes_exame', PRONTUARIOS: 'prontuarios_abertos', AUTORIZACOES: 'autorizacoes', VAGAS: 'agenda_vagas', CONFIG: 'config_hospital', ESTRUTURA: 'leitos_estrutura'
 };
 
 MOCK_DATA.LEITOS_ESTADO = {};        // id do leito -> estado
+MOCK_DATA.LEITOS_ESTRUTURA = [];     // estrutura física gravada no banco (#39); complementa o padrão em código
 MOCK_DATA.INTERNACOES = [];
 MOCK_DATA.PRONTUARIOS = [];
 MOCK_DATA.SOLICITACOES_EXAME = [];
@@ -24,7 +25,12 @@ MOCK_DATA.REGISTROS_CLINICOS = { paciente_id: null, items: [] };
 MOCK_DATA.FILA_LEITO = [];           // atendimentos aguardando leito (escuta dedicada, ver fila_leito abaixo)
 
 Object.assign(WATCHER_FACTORIES, {
-    leitos: () => onSnapshotData(db.collection(COLH.LEITOS), (items) => { MOCK_DATA.LEITOS_ESTADO = Object.fromEntries(items.map(i => [i.id, i])); }),
+    leitos: () => {
+        const a = onSnapshotData(db.collection(COLH.LEITOS), (items) => { MOCK_DATA.LEITOS_ESTADO = Object.fromEntries(items.map(i => [i.id, i])); });
+        // A estrutura gravada é opcional: sem permissão de leitura (ou sem migração) o padrão em código continua valendo.
+        const b = onSnapshotData(db.collection(COLH.ESTRUTURA), (items) => { MOCK_DATA.LEITOS_ESTRUTURA = items; });
+        return () => { a(); b(); };
+    },
     internacoes: () => onSnapshotData(db.collection(COLH.INTERNACOES), (items) => { MOCK_DATA.INTERNACOES = items; }),
     prontuarios: () => onSnapshotData(db.collection(COLH.PRONTUARIOS), (items) => { MOCK_DATA.PRONTUARIOS = items; }),
     solicitacoes: () => onSnapshotData(db.collection(COLH.SOLICITACOES), (items) => { MOCK_DATA.SOLICITACOES_EXAME = items; }),
@@ -38,6 +44,22 @@ Object.assign(WATCHER_FACTORIES, {
     ),
     config_hospital: () => onSnapshotData(db.collection(COLH.CONFIG), (items) => { const c = items.find(i => i.id === 'active'); MOCK_DATA.CONFIG_HOSPITAL = c || { nome: '', cnes: '' }; })
 });
+
+/** Grava no banco só os leitos que ainda não existem (nunca sobrescreve nem apaga; reexecutar é seguro). Devolve { criados, jaExistiam }. */
+async function db_migrarLeitos(leitos) {
+    const database = typeof requireDb === 'function' ? requireDb() : db;
+    const atuais = new Set((await database.collection(COLH.ESTRUTURA).get()).docs.map(d => d.id));
+    const novos = leitos.filter(l => !atuais.has(l.id));
+    for (let i = 0; i < novos.length; i += 400) {
+        const lote = database.batch();
+        novos.slice(i, i + 400).forEach(l => lote.set(database.collection(COLH.ESTRUTURA).doc(l.id), {
+            id: l.id, andar: l.andar, ala: l.ala, quarto: l.quarto, letra: l.letra, rotulo: l.rotulo, ativo: true,
+            origem: 'migracao_padrao', criado_em: new Date().toISOString(), criado_por: (state.currentUser && state.currentUser.username) || ''
+        }));
+        await lote.commit();
+    }
+    return { criados: novos.length, jaExistiam: leitos.length - novos.length };
+}
 
 /** Registros clínicos de UM paciente (troca a escuta quando o prontuário aberto muda). */
 function db_watchRegistros(pacienteId) {

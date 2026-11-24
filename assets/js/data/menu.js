@@ -60,7 +60,7 @@ const historyTab = (tab) => ({
 
 const MENU_TREE = [
     // 1. INÍCIO (opção única)
-    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_OPME', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA', 'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'DIRETORIA') },
+    { id: 'inicio', ordem: 10, label: 'Início', icon: 'home', module: 'DASHBOARD', access: exceptRoles('FUNC_LABORATORIO', 'FUNC_OPME', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'CHEFE_HEMODINAMICA', 'FUNC_PORTARIA', 'CHEFE_PORTARIA', 'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA', 'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'DIRETORIA') },
 
     // 2. CADASTRO: cada opção tem tela de CONSULTA e tela de CADASTRO (pages/cadastros/engine.js; campos em data/cadastros.js)
     {
@@ -71,7 +71,7 @@ const MENU_TREE = [
                 cadItem(50, 'Fabricante', 'fabricante'), cadItem(60, 'Unidade', 'unidade'), cadItem(70, 'Etiqueta', 'etiqueta')]),
             group(30, 'Financeiro', [cadItem(10, 'Centro de Custo', 'centrocusto'), cadItem(20, 'Plano de Contas', 'plano'), cadItem(30, 'Sub-Plano de Contas', 'subplano'),
                 cadItem(40, 'Contas', 'conta'), cadItem(50, 'Metas', 'metas')]),
-            group(35, 'Assistência', [cadItem(10, 'Tipos de Exame', 'tipoexame'), cadItem(15, 'Tipos de Atendimento', 'tipoatendimento'), cadItem(17, 'Locais de Atendimento', 'localatendimento'), cadItem(20, 'Especialidades', 'especialidade'), cadItem(30, 'Unidades Assistenciais', 'unidadeassist'), cadItem(40, 'Quartos e Leitos', 'leito'), cadItem(50, 'Escalas de Enfermagem', 'escalaenf')]),
+            group(35, 'Assistência', [cadItem(10, 'Tipos de Exame', 'tipoexame'), cadItem(12, 'Exames de Laboratório', 'labexame'), cadItem(15, 'Tipos de Atendimento', 'tipoatendimento'), cadItem(17, 'Locais de Atendimento', 'localatendimento'), cadItem(20, 'Especialidades', 'especialidade'), cadItem(30, 'Unidades Assistenciais', 'unidadeassist'), cadItem(40, 'Quartos e Leitos', 'leito'), cadItem(50, 'Escalas de Enfermagem', 'escalaenf')]),
             group(37, 'Apoio', [cadItem(10, 'Equipamentos', 'equipamento'), cadItem(20, 'Serviços', 'servico'), cadItem(30, 'Convênios', 'convenio'), cadItem(40, 'Protocolos e Documentos', 'protocolo')]),
             group(40, 'Usuário', [cadItem(10, 'Cadastros de Usuários', 'usuario')])
         ]
@@ -206,6 +206,7 @@ const MENU_TREE = [
             item(5, 'Atendimento de Exames', 'ATENDIMENTO_EXAMES', { icon: 'megaphone', access: byPermission('atendimento_exames') }),
             item(10, 'Imagenologia', 'IMAGEM', { icon: 'scan-line', access: byPermission('imagem_gerenciar') }),
             item(20, 'Ultrassonografia', 'ULTRASSOM', { icon: 'activity', access: byPermission('ultrassom_gerenciar') }),
+            item(25, 'Laboratório', 'LABORATORIO', { icon: 'flask-conical', access: byPermission('laboratorio_ver') }),
             item(30, 'Autorizações', 'AUTORIZACOES', { icon: 'file-check', access: byPermission('autorizacao_ver') })
         ]
     },
@@ -296,8 +297,8 @@ const MENU_TREE = [
             group(10, 'Configuração', [
                 group(10, 'Empresa', [cadItem(10, 'Dados', 'empresa')]),
                 group(20, 'Financeiro', [cadItem(10, 'Contas a Pagar / Receber', 'titulo')]),
-                group(30, 'Cadastro', [relItem(10, 'Permissões de Usuário', 'PERMISSOES', byRole('ADMIN')), cadItem(20, 'Setores', 'setor')]),
-                group(40, 'Dashboard', [cadItem(10, 'Configuração', 'parametro')])
+                group(30, 'Cadastro', [relItem(10, 'Permissões de Usuário', 'PERMISSOES', byRole('ADMIN')), item(15, 'Perfis e Permissões', 'PERFIS_PERMISSOES', { icon: 'shield-check', access: byRole('ADMIN') }), cadItem(20, 'Setores', 'setor')]),
+                group(40, 'Dashboard', [cadItem(10, 'Configuração', 'parametro'), cadItem(20, 'Listas de Apoio', 'listaapoio'), cadItem(30, 'Painéis de TV', 'paineltv')])
             ]),
             group(20, 'Outras opções', [
                 item(10, 'Backup', 'BACKUP', { access: byRole('ADMIN', 'CHEFE_OPME') })

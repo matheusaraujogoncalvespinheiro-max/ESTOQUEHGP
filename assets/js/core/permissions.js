@@ -12,6 +12,13 @@ function hasPermission(action, setor = null) {
     // O administrador tem acesso a todas as telas e operações.
     if (role === 'ADMIN') return true;
 
+    // Perfis e Permissões editáveis (#5): o que o Administrador concedeu ou retirou no banco vale sobre o padrão do código.
+    if (typeof permissaoBancoDe === 'function') {
+        const o = permissaoBancoDe(role, action);
+        if (o === 'revoga') return false;
+        if (o === 'concede') return true;
+    }
+
     // Apoio e infraestrutura (Etapa 9): ações abertas a vários perfis (as demais ficam no bloco de cada perfil)
     if (action === 'manutencao_solicitar') return true;   // qualquer usuário logado abre um chamado de manutenção
     if (action === 'transporte_solicitar') return PERFIS_SOLICITAM_TRANSPORTE.includes(role);
@@ -84,7 +91,9 @@ function hasPermission(action, setor = null) {
             // Etapa 8: agenda ambulatorial (consulta), fila de procedimentos, cirurgia (checklist e RPA), UTI, dieta e transfusão
             'agenda_ambulatorial_ver', 'atendimento_procedimentos', 'cirurgia_ver', 'cirurgia_registrar', 'uti_ver', 'uti_registrar', 'dieta_ver', 'hemoterapia_ver', 'hemoterapia_transfundir',
             // Etapa 9: óbito (comunicação à família e liberação do corpo; a constatação é do médico)
-            'obito_ver', 'obito_acompanhar'].includes(action);
+            'obito_ver', 'obito_acompanhar',
+            // Laboratório (#29): a enfermagem acompanha pedidos e resultados
+            'laboratorio_ver'].includes(action);
     }
 
     // ---- Farmácia (Etapa 7): estoque do setor FARMACIA, prescrições para a farmácia e dispensação ----
@@ -131,7 +140,9 @@ function hasPermission(action, setor = null) {
         return ['mapa_ver', 'prontuario_ver', 'prontuario_evoluir', 'prescrever', 'diagnosticar', 'exame_solicitar', 'exame_priorizar', 'pacientes_consultar', 'autorizacao_ver', 'atendimento_medico', 'painel_chamada', 'documento_emitir', 'documento_comparecimento', 'enfermagem_ver', 'prescrever_cuidados',
             'agenda_ambulatorial_ver', 'cirurgia_ver', 'uti_ver', 'dieta_ver', 'dieta_prescrever', 'hemoterapia_ver', 'hemoterapia_solicitar',
             // Etapa 9: óbito (o médico constata e registra; informa o nº da Declaração de Óbito)
-            'obito_ver', 'obito_registrar', 'obito_acompanhar'].includes(action);
+            'obito_ver', 'obito_registrar', 'obito_acompanhar',
+            // Laboratório (#29): o médico pede o exame e vê o resultado
+            'laboratorio_ver', 'laboratorio_solicitar'].includes(action);
     }
 
     if (role === 'FUNC_IMAGENOLOGIA') {
@@ -191,6 +202,10 @@ function hasPermission(action, setor = null) {
         return ['ensino_ver', 'ensino_gerenciar'].includes(action);
     }
 
+    if (role === 'FUNC_LABORATORIO') {
+        return ['laboratorio_ver', 'laboratorio_executar'].includes(action);
+    }
+
     if (role === 'DIRETORIA') {
         return ['direcao_ver', 'qualidade_ver', 'ensino_ver', 'ouvidoria_ver'].includes(action);
     }
@@ -228,6 +243,7 @@ function getRoleLabel(role) {
         "FUNC_OUVIDORIA": "Ouvidoria",
         "FUNC_QUALIDADE": "Qualidade e Segurança do Paciente",
         "FUNC_ENSINO": "Ensino e Pesquisa",
+        "FUNC_LABORATORIO": "Funcionário Laboratório",
         "DIRETORIA": "Direção (consulta)"
     };
     return labels[role] || "Colaborador";
@@ -253,7 +269,7 @@ const ASSIGNABLE_ROLES = [
     'ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_OPME', 'FUNC_CENTRO_CIRURGICO',
     'FUNC_ENFERMAGEM', 'CHEFE_PORTARIA', 'FUNC_PORTARIA', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA', 'COORD_TRIAGEM',
     'MEDICO', 'FUNC_IMAGENOLOGIA', 'FUNC_ULTRASSOM', 'AUTORIZADOR', 'FUNC_HIGIENIZACAO', 'CHEFE_FARMACIA', 'FUNC_FARMACIA', 'FUNC_NUTRICAO', 'FUNC_HEMOTERAPIA',
-    'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'DIRETORIA'
+    'FUNC_MANUTENCAO', 'FUNC_TRANSPORTE', 'FUNC_LAVANDERIA', 'FUNC_VOLUNTARIADO', 'FUNC_OUVIDORIA', 'FUNC_QUALIDADE', 'FUNC_ENSINO', 'FUNC_LABORATORIO', 'DIRETORIA'
 ];
 
 /** Lança erro se o usuário logado não tiver a permissão (validação nos serviços, não só na tela). */

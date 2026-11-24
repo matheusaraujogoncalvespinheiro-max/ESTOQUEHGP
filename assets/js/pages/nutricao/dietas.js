@@ -91,6 +91,13 @@ function nutPrescrever(internacaoId) {
     d.querySelector('#nd_ok').onclick = async () => {
         d.querySelector('#nd_erro').textContent = '';
         try {
+            // Dieta × alergia (#61): avisa (não bloqueia) quando o agente de uma alergia ativa aparece na descrição ou nas restrições. Sem leitura das alergias, segue sem aviso.
+            const inter = (MOCK_DATA.INTERNACOES || []).find(x => x.id === internacaoId);
+            if (inter && inter.paciente_id && typeof cruzarAlergiaMedicamento === 'function') {
+                let conflitos = [];
+                try { conflitos = cruzarAlergiaMedicamento(separarAlergias(await db_alergiasDoPaciente(inter.paciente_id)).ativas, d.querySelector('#nd_desc').value + ' ' + d.querySelector('#nd_rest').value); } catch (e) { /* sem acesso às alergias */ }
+                if (conflitos.length && !confirm(avisoConflitoAlergia('esta dieta', conflitos) + ' Registrar a dieta mesmo assim?')) return;
+            }
             await prescreverDieta(internacaoId, { tipo: d.querySelector('#nd_tipo').value, via: d.querySelector('#nd_via').value, descricao: d.querySelector('#nd_desc').value,
                 restricoes: d.querySelector('#nd_rest').value, observacao: d.querySelector('#nd_obs').value, ate: d.querySelector('#nd_ate').value });
             d.close(); showMsg('Dieta registrada.');

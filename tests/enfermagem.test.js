@@ -117,9 +117,14 @@ test('checagens do aprazamento: uma por horário, id determinístico e dados do 
 
 test('decisão da checagem: feito é simples; não feito exige tipo e descrição do motivo', () => {
     assert.deepEqual(j("validarDecisaoChecagem({ resultado: 'FEITO', observacao: ' ok ', registro_conselho: ' COREN-TO 123 ' })"),
-        { resultado: 'FEITO', observacao: 'ok', registro_conselho: 'COREN-TO 123', motivo_tipo: '', motivo_texto: '' });
+        { resultado: 'FEITO', observacao: 'ok', registro_conselho: 'COREN-TO 123', motivo_tipo: '', motivo_texto: '', lote_administrado: '' });
     assert.deepEqual(j("validarDecisaoChecagem({ resultado: 'NAO_FEITO', motivo_tipo: 'RECUSA', motivo_texto: 'Paciente recusou a dose' })").motivo_tipo, 'RECUSA');
     assert.throws(() => call("validarDecisaoChecagem({ resultado: 'TALVEZ' })"), /Escolha o resultado/);
+    // #48: lote administrado (opcional; se a farmácia dispensou lotes do item, precisa ser um deles; só vale para FEITO)
+    assert.equal(j("validarDecisaoChecagem({ resultado: 'FEITO', lote: ' L1 ', lotes_dispensados: ['L1', 'L2'] })").lote_administrado, 'L1');
+    assert.equal(j("validarDecisaoChecagem({ resultado: 'FEITO', lote: 'ZZ' })").lote_administrado, 'ZZ');
+    assert.throws(() => call("validarDecisaoChecagem({ resultado: 'FEITO', lote: 'ZZ', lotes_dispensados: ['L1'] })"), /não consta entre os dispensados/);
+    assert.equal(j("validarDecisaoChecagem({ resultado: 'NAO_FEITO', motivo_tipo: 'RECUSA', motivo_texto: 'Paciente recusou', lote: 'L1' })").lote_administrado, '');
     assert.throws(() => call("validarDecisaoChecagem({ resultado: 'NAO_FEITO', motivo_texto: 'Paciente recusou' })"), /Escolha o motivo/);
     assert.throws(() => call("validarDecisaoChecagem({ resultado: 'NAO_FEITO', motivo_tipo: 'INVENTADO', motivo_texto: 'Paciente recusou' })"), /Escolha o motivo/);
     assert.throws(() => call("validarDecisaoChecagem({ resultado: 'NAO_FEITO', motivo_tipo: 'RECUSA', motivo_texto: 'não' })"), /mínimo 5 letras/);

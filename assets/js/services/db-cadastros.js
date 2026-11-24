@@ -21,6 +21,7 @@ function db_cadWatch(key, colecao = cadColecao(key)) {
     CAD_WATCHERS[key] = db.collection(colecao).onSnapshot(
         (snap) => {
             CAD_DATA[key] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            if (key === 'listaapoio' && typeof listasApoioAplicar === 'function') listasApoioAplicar();
             if (typeof render === 'function' && state.isAuthenticated) render();
         },
         (err) => console.error(`Erro ao ouvir ${colecao}:`, err)

@@ -159,6 +159,7 @@ function atendimentoEhRetorno(anteriores, hoje, janelaDias = null) {
 async function registrarCheckin(form) {
     requirePermission('recepcao_acessar');
     const database = requireDb();
+    if (typeof exigirPacienteVivo === 'function') await exigirPacienteVivo(form.paciente_id);   // #68
     const paciente = await db_getPaciente(form.paciente_id);
     const tipo = tiposAtendimentoAtivos().find(t => t.id === form.tipo_id);
     const anteriores = paciente ? await db_getAtendimentosPaciente(paciente.id) : [];

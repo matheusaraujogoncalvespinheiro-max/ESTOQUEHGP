@@ -167,6 +167,19 @@ async function registrarNumeroDoObito(id, numero, motivo = '') {
     return nova;
 }
 
+/**
+ * Bloqueio após o óbito (#68): paciente com óbito registrado não recebe novo atendimento, exame, internação nem transporte.
+ * Só consulta a marca `obito_paciente/<id>` (sem dado clínico). Se a marca não puder ser lida, NÃO bloqueia (o óbito continua protegido por sigilo)
+ * e o motivo é registrado no console. Quem precisar reabrir um caso por engano procura o Administrador (a marca nunca é apagada).
+ */
+async function exigirPacienteVivo(pacienteId) {
+    if (!pacienteId) return;
+    let marca = null;
+    try { marca = await requireDb().collection(COL_OBITO_PACIENTE).doc(String(pacienteId)).get(); }
+    catch (err) { console.warn('Óbito: marca não consultada', err && err.code); return; }
+    if (marca && marca.exists) throw new Error('Este paciente tem óbito registrado: novo atendimento, exame, internação e transporte estão bloqueados.');
+}
+
 /** Busca os óbitos por período (leitura sob demanda: não há ouvinte em tempo real para dado sigiloso). */
 async function db_getObitos(de = '', ate = '') {
     registrarAcesso('obito', 'lista', 'Óbitos: consulta da lista');

@@ -17,6 +17,13 @@ const categoriaDoBloqueio = (estado) => (CATEGORIAS_BLOQUEIO[estado && estado.ca
 
 const estadoLeito = (id) => MOCK_DATA.LEITOS_ESTADO[id] || { id, status: 'LIVRE' };
 /** Situação do leito lida do banco (não da memória): para quem precisa de certeza antes de mudar o cadastro do leito. */
+/** #39: grava a estrutura padrão de leitos no banco (só Administrador). Não sobrescreve nem apaga nada; pode ser repetida. */
+async function migrarLeitosParaBanco() {
+    if (!state.currentUser || state.currentUser.role !== 'ADMIN') throw new Error('Acesso negado: só o Administrador migra a estrutura de leitos.');
+    const r = await db_migrarLeitos(leitosAMigrar());
+    await auditar({ entidade: 'leito', entidade_id: 'estrutura', acao: 'MIGRACAO_LEITOS', antes: null, depois: r, motivo: 'Gravação da estrutura padrão no banco' });
+    return r;
+}
 async function estadoLeitoNoBanco(id) { return (await getDocH(COLH.LEITOS, id)) || { id, status: 'LIVRE' }; }
 const internacaoAtivaDoLeito = (leitoId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.leito_id === leitoId) || null;
 const internacaoAtivaDoPaciente = (pacienteId) => MOCK_DATA.INTERNACOES.find(i => i.status === 'ATIVA' && i.paciente_id === pacienteId) || null;
@@ -54,6 +61,7 @@ function montarInternacao({ paciente, leito, setor_origem, extras = {} }, agora,
 
 /** Interna o paciente no leito. Valida leito livre e paciente sem internação ativa (de forma atômica no banco). */
 async function internarPaciente({ paciente, leito_id, setor_origem }) {
+    if (typeof exigirPacienteVivo === 'function' && paciente) await exigirPacienteVivo(paciente.id);   // #68
     requirePermission('internacao_gerenciar');
     const leito = leitoPorId(leito_id);
     if (!leito) throw new Error('Leito inválido: escolha um leito da estrutura do hospital.');
@@ -402,6 +410,7 @@ function dadosPacienteParaFormulario(paciente) {
 }
 
 async function emitirSolicitacaoExame(paciente, internacao, f) {
+    if (typeof exigirPacienteVivo === 'function' && paciente) await exigirPacienteVivo(paciente.id);   // #68
     requirePermission('exame_solicitar');
     const erros = validarSolicitacao(f);
     if (erros.length) throw new Error(erros[0].mensagem);

@@ -106,6 +106,8 @@ test('situação do equipamento deriva das OS abertas e não mexe no cadastro', 
     assert.equal(s(eq, []).codigo, 'OPERACIONAL');
     assert.equal(s({ id: 'eq1', situacao_op: 'Fora de uso' }, []).codigo, 'FORA_DE_USO');
     assert.equal(s({ id: 'eq1', situacao_op: 'Em manutenção' }, []).codigo, 'EM_MANUTENCAO_CAD');
+    // #69: baixa patrimonial vale sobre as OS abertas
+    assert.equal(s({ id: 'eq1', situacao_op: 'Baixado' }, [{ equipamento_id: 'eq1', status: 'ABERTA', parado: true, protocolo: 'OS00009' }]).codigo, 'BAIXADO');
     assert.equal(s(eq, [{ equipamento_id: 'eq1', status: 'ABERTA', parado: false, protocolo: 'OS00001' }]).codigo, 'COM_OS');
     const parado = s(eq, [{ equipamento_id: 'eq1', status: 'AGUARDANDO_PECA', parado: true, protocolo: 'OS00002' }, { equipamento_id: 'eq1', status: 'ABERTA', parado: false, protocolo: 'OS00003' }]);
     assert.deepEqual([parado.codigo, parado.rotulo, parado.abertas.length], ['PARADO', 'Parado · OS00002', 2]);
@@ -334,4 +336,12 @@ test('transporte (#70): paciente ligado à internação usa o nome e o prontuár
     assert.deepEqual([t.paciente_nome, t.prontuario, t.paciente_id, t.internacao_id, t.justificativa_sem_vinculo], ['Joana Real', '777', 'pac1', 'int1', '']);
     assert.match(await erroDe(`solicitarTransporte({ ${base}, internacao_id: 'nao-existe' })`), /não está mais ativa/);
     assert.match(await erroDe(`solicitarTransporte({ ${base} })`), /Justificativa para paciente sem cadastro/);
+});
+
+test('baixa patrimonial (#69): exige data (não futura) e motivo; outras situações não exigem nada', () => {
+    const b = (f) => { dados('__f', f); return val("validarBaixaPatrimonial(__f, '2026-06-10')"); };
+    assert.deepEqual(b({ situacao_op: 'Operacional' }), []);
+    assert.deepEqual(b({ situacao_op: 'Baixado' }).map(e => e.campo), ['baixa_data', 'baixa_motivo']);
+    assert.match(b({ situacao_op: 'Baixado', baixa_data: '2026-07-01', baixa_motivo: 'Sem conserto' })[0].mensagem, /futura/);
+    assert.deepEqual(b({ situacao_op: 'Baixado', baixa_data: '2026-06-01', baixa_motivo: 'Sem conserto viável' }), []);
 });
