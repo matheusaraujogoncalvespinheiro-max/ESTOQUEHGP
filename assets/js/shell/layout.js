@@ -25,7 +25,7 @@ function renderNode(node, chave, ativa, pai = '') {
     const aberto = abertoNo(chave);
     return `<li class="wm-grupo${aberto ? ' is-open' : ''}${contemAtiva(node, ativa) ? ' is-current' : ''}" data-chave="${chave}">
         <button type="button" class="wm-grupo__btn" onclick="toggleMenuGroup('${chave}')" aria-expanded="${aberto}"><span>${escapeHtml(node.label)}</span>${icon('chevron-down', { size: 14, cls: 'wm-seta' })}</button>
-        <div class="wm-sub wm-sub--grupo">${nivelDe(chave) === 1 ? `<div class="wm-sub__cab"><button type="button" class="wm-sub__voltar" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar para ${escapeHtml(pai)}">${icon('chevron-left', { size: 16 })}</button><div><small>${escapeHtml(pai)}</small><strong>${escapeHtml(node.label)}</strong></div></div>` : ''}<ul>${node.children.map((c, i) => renderNode(c, `${chave}.${i}`, ativa, node.label)).join('')}</ul></div>
+        <div class="wm-sub wm-sub--grupo">${nivelDe(chave) === 1 ? `<div class="wm-sub__cab"><div><small>${escapeHtml(pai)}</small><strong>${escapeHtml(node.label)}</strong></div><button type="button" class="wm-sub__voltar" onclick="toggleMenuGroup('${chave}')" aria-label="Voltar para ${escapeHtml(pai)}">${icon('chevron-left', { size: 16 })}</button></div>` : ''}<ul>${node.children.map((c, i) => renderNode(c, `${chave}.${i}`, ativa, node.label)).join('')}</ul></div>
     </li>`;
 }
 
