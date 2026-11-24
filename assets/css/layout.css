@@ -906,14 +906,28 @@
 .shell-root .wm-sub__cab:focus-visible { outline: 2px solid var(--sh-accent); outline-offset: -2px; }
 .shell-root .wm-secao.is-open > .wm-sub > .wm-sub__cab { border-radius: 0 22px 0 0; }
 
-/* Menu principal mais elegante: ícones em "fichas" e linhas mais soltas. Os ícones ficam no centro da coluna de 72 px nos dois estados */
-.shell-root .wm-nav { padding: 22px 14px 18px; }
-.shell-root .wm-secao { margin-bottom: 6px; }
-.shell-root .wm-item { height: 48px; gap: 12px; padding: 0 5px; border-radius: 14px; font-size: 14.5px; font-weight: 600; letter-spacing: -0.005em; }
-.shell-root .wm-item > svg:first-child, .shell-root .wm-item > i:first-child { box-sizing: border-box; width: 34px; height: 34px; padding: 8px; border-radius: 11px; background: var(--sh-hover); color: var(--sh-muted); transition: background 0.18s, color 0.18s; }
-.shell-root .wm-item:hover > svg:first-child, .shell-root .wm-item:hover > i:first-child { background: var(--sh-accent-soft); color: var(--sh-accent-ink); }
-.shell-root:has(.wm-secao.is-open) .wm-secao.is-open > .wm-item > svg:first-child { background: var(--sh-accent); color: #fff; }
-.shell-root .wm-item .wm-seta { opacity: 0.55; margin-right: 8px; }
-.shell-root .wm-item:hover .wm-seta { opacity: 1; }
-.shell-root:has(.wm-secao.is-open) .wm-secao.is-open > .wm-item { background: transparent; }
-.shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item .wm-dot { left: 38px; }
+/* Menu simples, como na referência: fundo escuro, ícones de contorno sem ficha e setinha para a direita */
+.shell-root .wm-sidebar {
+    --sh-surface: #41434f; --sh-bg: #2d2e38; --sh-ink: #ffffff; --sh-muted: #e4e5ec;
+    --sh-hover: rgba(255, 255, 255, 0.09); --sh-line: rgba(255, 255, 255, 0.1);
+    --sh-accent-soft: rgba(255, 255, 255, 0.14); --sh-accent-ink: #ffffff; --sh-accent: #ffffff;
+    background: var(--sh-surface); color: var(--sh-ink); border-right: 0;
+}
+.shell-root .wm-nav { padding: 22px 12px 18px; }
+.shell-root .wm-secao { margin-bottom: 4px; }
+.shell-root .wm-item { height: 46px; gap: 14px; padding: 0 14px; border-radius: 12px; font-size: 14.5px; font-weight: 500; color: var(--sh-ink); }
+.shell-root .wm-item:hover { background: var(--sh-hover); }
+.shell-root .wm-secao > .wm-item .wm-seta { transform: rotate(-90deg); opacity: 0.9; }
+.shell-root:has(.wm-secao.is-open) .wm-secao.is-open > .wm-item { background: rgba(255, 255, 255, 0.12); }
+.shell-root:has(.wm-secao.is-open) .wm-secao > .wm-item .wm-dot { left: 40px; }
+
+/* Painel e cartão do submenu */
+.shell-root .wm-secao.is-open > .wm-sub { background: var(--sh-bg); border-right: 0; box-shadow: none; }
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo { background: var(--sh-bg); }
+.shell-root .wm-secao.is-open > .wm-sub > ul > .wm-grupo.is-open > .wm-sub--grupo > ul { background: #5f6176; border: 0; box-shadow: none; }
+.shell-root .wm-secao.is-open > .wm-sub .wm-link { color: #fff; font-weight: 500; }
+.shell-root .wm-secao.is-open > .wm-sub .wm-link:hover, .shell-root .wm-secao.is-open > .wm-sub .wm-link:focus-visible { background: #fff; color: #2d2e38; }
+.shell-root .wm-secao.is-open > .wm-sub .wm-link__ico { opacity: 0.9; }
+.shell-root .wm-secao.is-open > .wm-sub .wm-grupo__btn { color: #fff; font-weight: 600; }
+.shell-root .wm-sub__cab strong { color: #fff; }
+.shell-root .wm-sub__cab small { color: #d6d7e0; }
