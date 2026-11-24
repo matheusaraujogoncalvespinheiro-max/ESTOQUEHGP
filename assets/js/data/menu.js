@@ -286,6 +286,7 @@ const MENU_TREE = [
             relItem(50, 'Compras', 'COMPRAS', byRole('ADMIN', 'CHEFE_OPME')),
             relItem(60, 'Procedimentos', 'PROCEDIMENTOS_REL', byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM', 'FUNC_CENTRO_CIRURGICO')),
             relItem(70, 'Perdas', 'PERDAS', byRole('ADMIN', 'CHEFE_OPME')),
+            relItem(75, 'Patrimônio', 'PATRIMONIO', byRole('ADMIN', 'FUNC_MANUTENCAO')),
             relItem(80, 'Auditoria', 'AUDITORIA', byPermission('auditoria_ver'))
         ]
     },

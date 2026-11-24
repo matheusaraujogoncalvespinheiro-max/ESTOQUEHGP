@@ -33,6 +33,7 @@ const RELATORIOS = {
     CONSUMO: { rotulo: 'Consumo', periodo: true, gerar: (f) => relatorioConsumo(MOCK_DATA.PRODUCT_HISTORY || [], CAD_DATA.saida || [], MOCK_DATA.LAUDOS || [], f.de, f.ate), cad: ['saida'] },
     COMPRAS: { rotulo: 'Compras', periodo: true, gerar: (f) => relatorioCompras(CAD_DATA.pedido || [], CAD_DATA.recebimento || [], (id) => cadRotuloRef('fornecedor', id), f.de, f.ate), cad: ['pedido', 'recebimento', 'fornecedor'] },
     PROCEDIMENTOS_REL: { rotulo: 'Procedimentos', periodo: true, gerar: (f) => relatorioProcedimentos(MOCK_DATA.PROCEDIMENTOS_AGENDADOS || [], MOCK_DATA.PROCEDIMENTOS_NAO_REALIZADOS || [], MOCK_DATA.LAUDOS || [], f.de, f.ate) },
+    PATRIMONIO: { rotulo: 'Patrimônio', periodo: false, cad: ['equipamento'], gerar: () => relatorioPatrimonio(CAD_DATA.equipamento || []) },
     PERDAS: { rotulo: 'Perdas', periodo: true, gerar: (f) => relatorioPerdas(CAD_DATA.perda || [], f.de, f.ate), cad: ['perda'] },
     PERMISSOES: { rotulo: 'Permissões por perfil', periodo: false, gerar: () => relatorioPermissoes() },
     AUDITORIA: { rotulo: 'Auditoria', periodo: true, auditoria: true, gerar: (f) => relatorioAuditoria(state.relatorio.auditoria || [], { entidade: f.entidade, usuario: f.q, de: f.de, ate: f.ate }) }

@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const ctx = vm.createContext({ console, crypto: globalThis.crypto, TextEncoder, state: { currentUser: null }, MOCK_DATA: { AUTORIZACOES: [], LEITOS_ESTADO: {}, INTERNACOES: [] }, USERS_DB: {} });
+const ctx = vm.createContext({ console, crypto: globalThis.crypto, TextEncoder, state: { currentUser: null }, MOCK_DATA: { AUTORIZACOES: [], LEITOS_ESTADO: {}, INTERNACOES: [] }, USERS_DB: {}, formatMoney: (v) => 'R$ ' + Number(v).toFixed(2), formatDateBR: (d) => String(d).split('-').reverse().join('/'), todayISO: () => '2026-06-01' });
 ['assets/js/core/utils.js', 'assets/js/core/validators.js', 'assets/js/core/regras.js', 'assets/js/core/senha.js', 'assets/js/services/portaria.js', 'assets/js/services/estrutura-hospitalar.js', 'assets/js/services/hospital.js', 'assets/js/services/relatorios.js']
     .forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f }));
 const call = (code) => vm.runInContext(code, ctx);
@@ -109,4 +109,14 @@ test('farmácia (#50): requisições contam situação e prioridade no período'
         { id: 3, criado_em: '2026-05-03T10:00:00', codigo: 'REQ3', unidade: 'UTI', prioridade: 'Rotina', situacao: 'Atendida', itens: [] }], '2026-03-01', '2026-03-31')`);
     assert.deepEqual(r.resumo.map(x => x.valor), [2, 1, 1, 1]);
     assert.equal(r.linhas[0].codigo, 'REQ2');
+});
+
+test('patrimônio (#69): situação, garantia vencida, custo e baixa', () => {
+    const r = json(`relatorioPatrimonio([
+        { nome: 'Monitor', codigo: 'EQP1', situacao_op: 'Operacional', garantia_ate: '2026-01-10', valor_aquisicao: 1500, responsavel: 'Setor UTI' },
+        { nome: 'Bomba', codigo: 'EQP2', situacao_op: 'Baixado', garantia_ate: '2025-01-01', baixa_data: '2026-02-01', baixa_motivo: 'Sem conserto' },
+        { nome: 'Inativo', ativo: false }], '2026-06-01')`);
+    assert.deepEqual(r.resumo.map(x => x.valor), [2, 1, 1]);
+    assert.match(r.linhas.find(l => l.codigo === 'EQP1').garantia, /Vencida em/);
+    assert.match(r.linhas.find(l => l.codigo === 'EQP2').baixa, /Sem conserto/);
 });

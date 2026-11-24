@@ -497,3 +497,19 @@ function relatorioFarmaciaRequisicoes(requisicoes, de, ate, termo = '') {
         resumo: [{ rot: 'Requisições', valor: lista.length }, { rot: 'Solicitadas', valor: cont(r => r.situacao === 'Solicitada') }, { rot: 'Atendidas', valor: cont(r => r.situacao === 'Atendida') }, { rot: 'Urgentes', valor: cont(r => r.prioridade !== 'Rotina') }]
     };
 }
+
+/** Patrimônio (#69): equipamentos com situação, garantia, custo de aquisição e baixa. Mostra o que está cadastrado; não calcula depreciação. */
+function relatorioPatrimonio(equipamentos, hoje = todayISO()) {
+    const ativos = (equipamentos || []).filter(e => e.ativo !== false);
+    const garantiaVencida = (e) => Boolean(e.garantia_ate) && e.garantia_ate < hoje && e.situacao_op !== 'Baixado';
+    const linhas = ativos.map(e => ({
+        codigo: e.codigo || '', equipamento: e.nome || '', patrimonio: e.patrimonio || '', situacao: e.situacao_op || '', responsavel: e.responsavel || '',
+        garantia: e.garantia_ate ? (garantiaVencida(e) ? 'Vencida em ' : 'Até ') + formatDateBR(e.garantia_ate) : '—',
+        custo: e.valor_aquisicao ? formatMoney(e.valor_aquisicao) : '—', baixa: e.situacao_op === 'Baixado' ? `${formatDateBR(e.baixa_data)} · ${e.baixa_motivo || ''}` : '—'
+    })).sort((a, b) => String(a.equipamento).localeCompare(String(b.equipamento)));
+    return {
+        titulo: 'Patrimônio', descricao: 'Equipamentos cadastrados com situação, garantia, custo de aquisição e baixa patrimonial. Valores são os informados no cadastro; não há depreciação.',
+        colunas: [{ k: 'codigo', label: 'Código' }, { k: 'equipamento', label: 'Equipamento' }, { k: 'patrimonio', label: 'Patrimônio' }, { k: 'situacao', label: 'Situação' }, { k: 'responsavel', label: 'Responsável' }, { k: 'garantia', label: 'Garantia' }, { k: 'custo', label: 'Custo de aquisição' }, { k: 'baixa', label: 'Baixa' }],
+        linhas, resumo: [{ rot: 'Equipamentos', valor: ativos.length }, { rot: 'Baixados', valor: ativos.filter(e => e.situacao_op === 'Baixado').length }, { rot: 'Garantia vencida', valor: ativos.filter(garantiaVencida).length }]
+    };
+}
