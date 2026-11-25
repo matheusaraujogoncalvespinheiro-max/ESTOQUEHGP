@@ -822,7 +822,7 @@ function farmaciaAbrirModalNovaDispensacao(pacienteIdFixo = '') {
             </div>
             <div class="at-field">
                 <label class="at-label" for="nfar_med">Medicamento / Insumo Farmacêutico *</label>
-                <input class="at-input" id="nfar_med" placeholder="Ex.: Ceftriaxona 1g, Omeprazol 40mg, Dipirona 1g" maxlength="150" autocomplete="off">
+                <input class="at-input" id="nfar_med" list="nfar_catalogo" placeholder="Ex.: Ceftriaxona 1g, Omeprazol 40mg, Dipirona 1g" maxlength="150" autocomplete="off"><datalist id="nfar_catalogo">${(typeof prescricaoCatalogoMedicamentos === 'function' ? prescricaoCatalogoMedicamentos() : []).map(n => `<option value="${escapeHtml(n)}"></option>`).join('')}</datalist>
             </div>
             <div class="at-field">
                 <label class="at-label" for="nfar_dose">Apresentação / Dose *</label>

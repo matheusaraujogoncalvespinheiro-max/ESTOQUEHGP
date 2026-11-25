@@ -274,6 +274,35 @@ function darBaixaNoEstoque(setor, barcode, quantidade, loteId = null) {
  * Zera um lote inteiro (ação de administrador/chefe), pela mesma regra de removeFromBatch. Produto sem controle por lote:
  * o lote sai do banco, como antes. Produto com controle por lote: o lote fica registrado com saldo 0. O produto nunca é apagado.
  */
+/**
+ * Converte (parte do) saldo geral "Sem lote" num lote real, informando o número, a validade e a fabricação verdadeiros.
+ * Serve para poder ligar o controle por lote sem criar lote fictício. A quantidade sai do saldo geral e entra no lote (o total
+ * do produto não muda) e as duas pontas ficam no histórico. Devolve { ok: true, lote } ou { ok: false, message }.
+ */
+function converterSaldoGeralEmLote(setor, produto, { lote, validade, fabricacao = '', quantidade } = {}) {
+    const geral = (produto.lotes || []).find(l => loteEhSaldoGeral(l));
+    const saldo = geral ? Number(geral.quantidade) || 0 : 0;
+    const q = Number(quantidade);
+    const codigo = String(lote || '').trim();
+    if (!saldo) return { ok: false, message: 'O produto não tem saldo sem lote.' };
+    if (!Number.isInteger(q) || q <= 0) return { ok: false, message: 'Informe a quantidade a converter (inteira, maior que zero).' };
+    if (q > saldo) return { ok: false, message: `O saldo sem lote é de ${saldo} un.` };
+    if (!codigo) return { ok: false, message: 'Informe o número do lote.' };
+    if (codigo.toUpperCase() === LOTE_SEM_CONTROLE) return { ok: false, message: `"${LOTE_SEM_CONTROLE}" é reservado pelo sistema.` };
+    if (!validade) return { ok: false, message: 'Informe a validade do lote.' };
+    if (validade < new Date().toISOString().slice(0, 10)) return { ok: false, message: 'Validade vencida: item vencido não vira lote do estoque. Descarte por Perdas.' };
+    if (fabricacao && fabricacao > validade) return { ok: false, message: 'A fabricação não pode ser depois da validade.' };
+    // Mesmas regras de entrada de um produto controlado por lote (lote existente com outra validade é recusado)
+    const conf = conferirEntradaLote({ cadastro: { config: { usa_lote: true } }, lotes: produto.lotes }, { lote: codigo, validade }, { retorno: true });
+    if (!conf.ok) return { ok: false, message: conf.message };
+    const r = addProductWithBatch(setor, { barcode: produto.barcode, lote: codigo, validade, fabricacao, quantidade: q, remessa: geral.remessa || produto.remessa || '' }, { retorno: true });
+    if (r.type === 'erro') return { ok: false, message: r.message };
+    if (!removeFromBatch(setor, produto.id, geral.id, q)) return { ok: false, message: 'Não foi possível baixar o saldo sem lote: confira o estoque.' };
+    logEntryHistory('CONVERSAO_SAIDA', setor, produto.barcode, produto.material, q, LOTE_SEM_CONTROLE, `Convertido no lote ${codigo}`);
+    logEntryHistory('CONVERSAO_ENTRADA', setor, produto.barcode, produto.material, q, codigo, 'Conversão do saldo sem lote');
+    return { ok: true, lote: r.lote };
+}
+
 function deleteSpecificBatch(setor, productId, batchId, loteCode = '') {
     if (typeof SETORES_SEM_AJUSTE_DIRETO !== 'undefined' && SETORES_SEM_AJUSTE_DIRETO.includes(setor)) { showMsg(MSG_SEM_AJUSTE_DIRETO, 'error'); return false; }
     const produto = (MOCK_DATA[setor] || []).find(p => String(p.id) === String(productId));

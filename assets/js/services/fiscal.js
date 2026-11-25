@@ -84,16 +84,41 @@ function validarNFSe(form) {
 }
 
 /** Entrada de mercadoria: Pendente (só importada) ou Lançada (conferida, com CFOP e data). Lançar exige NF-e autorizada. */
+/** CFOPs de ENTRADA do cadastro (Cadastro › Fiscal › CFOP), ativos: o valor gravado na entrada é o código de 4 dígitos. */
+function cfopEntradaOpcoes() {
+    return (CAD_DATA.cfop || []).filter(c => c.ativo !== false && /^[1-3]\d{3}$/.test(onlyDigits(c.cfop)))
+        .map(c => ({ id: onlyDigits(c.cfop), rotulo: `${onlyDigits(c.cfop)} - ${c.descricao || ''}` }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+}
+
 function validarEntradaMercadoria(form, id) {
     const nfe = (CAD_DATA.nfe || []).find(n => n.id === form.nfe);
     if (!nfe) throw new Error('Selecione a NF-e da entrada.');
     if ((CAD_DATA.entradanf || []).some(e => e.id !== id && e.nfe === form.nfe && e.situacao !== 'Cancelada')) throw new Error('Esta NF-e já tem uma entrada registrada.');
     const extra = { valor_nota: nfe.valor_total, fornecedor_nome: nfe.emitente_nome, numero_nfe: nfe.numero, data_emissao: nfe.data_emissao };
+    // Operação de entrada (cadastro): sugere o CFOP padrão e a natureza quando estão em branco
+    if (form.operacao_id) {
+        const op = (CAD_DATA.operacao || []).find(o => o.id === form.operacao_id);
+        if (!op) throw new Error('Operação não encontrada: escolha outra.');
+        if (op.estoque !== 'Entrada') throw new Error(`A operação "${op.descricao}" não é de entrada.`);
+        const cfopOp = op.cfop_id ? (CAD_DATA.cfop || []).find(c => c.id === op.cfop_id) : null;
+        if (!form.cfop && cfopOp) form.cfop = extra.cfop = onlyDigits(cfopOp.cfop);
+        if (!String(form.natureza_operacao || '').trim() && op.natureza) extra.natureza_operacao = op.natureza;
+    }
+    // Entrada que já deu entrada no estoque: a única mudança aceita é o cancelamento, que estorna o estoque
+    const anterior = id ? (CAD_DATA.entradanf || []).find(e => e.id === id) : null;
+    if (anterior && anterior.estoque_lancado && !anterior.estoque_estornado) {
+        if (form.situacao !== 'Cancelada') throw new Error('Esta entrada já deu entrada no estoque: só pode ser cancelada (o cancelamento retira do estoque o que entrou).');
+        planejarEstornoEntradaNF(anterior);
+        extra.estoque_estornado = true;
+        return extra;
+    }
     if (form.situacao === 'Lançada') {
         if (nfe.situacao !== 'Autorizada') throw new Error(`A NF-e está "${nfe.situacao}": só nota autorizada pode ser lançada.`);
         if (!form.data_entrada || form.data_entrada > todayISO()) throw new Error('Informe a data do lançamento (não pode ser futura).');
         if (form.data_entrada < nfe.data_emissao) throw new Error('O lançamento não pode ser anterior à emissão da nota.');
-        if (!/^[1-3]\d{3}$/.test(String(form.cfop || ''))) throw new Error('O CFOP de entrada tem 4 dígitos e começa com 1, 2 ou 3.');
+        if (!/^[1-3]\d{3}$/.test(String(form.cfop || ''))) throw new Error('Escolha o CFOP de entrada (4 dígitos, começa com 1, 2 ou 3).');
+        if (!cfopEntradaOpcoes().some(o => o.id === String(form.cfop))) throw new Error(`O CFOP ${form.cfop} não está no cadastro de CFOP (ou está inativo). Cadastre em Cadastro › Fiscal › CFOP.`);
         if (!form.valor_confere) throw new Error('Confirme a conferência de valor e itens para lançar.');
         const atual = id ? (CAD_DATA.entradanf || []).find(e => e.id === id) : null;
         if (form.entrada_estoque && !(atual && atual.estoque_lancado)) {
@@ -129,6 +154,36 @@ function conferirItensEntradaEstoque(itens) {
         if (repetido) throw new Error(`${nome}: o lote ${i.lote} aparece com duas validades diferentes nesta nota.`);
         return { pr, item: i, quantidade };
     });
+}
+
+/** Lote do estoque onde entrou cada item (o mesmo lote; sem lote = saldo geral), agrupado. Lança erro se algum não tem mais o saldo. */
+function planejarEstornoEntradaNF(reg) {
+    const grupos = new Map();
+    (reg.itens || []).forEach(i => {
+        const pr = i.produto ? cadProdutoDe(i.produto) : null;
+        if (!pr || !pr.produto) throw new Error(`O produto do item ${i.descricao || i.codigo || ''} não está mais no estoque: o estorno não pode ser feito.`);
+        const codigo = String(i.lote || '').trim() || LOTE_SEM_CONTROLE;
+        const chave = `${i.produto}|${codigo}`;
+        const g = grupos.get(chave) || { pr, codigo, quantidade: 0 };
+        g.quantidade += Number(i.quantidade) || 0;
+        grupos.set(chave, g);
+    });
+    return [...grupos.values()].map(g => {
+        const lote = (g.pr.produto.lotes || []).find(l => String(l.lote) === g.codigo);
+        const saldo = lote ? Number(lote.quantidade) || 0 : 0;
+        if (saldo < g.quantidade) throw new Error(`Não dá para cancelar: o lote ${rotuloLote(g.codigo)} de ${g.pr.produto.material} tem ${saldo} un e a nota deu entrada em ${g.quantidade}. Parte já saiu do estoque.`);
+        return { ...g, lote };
+    });
+}
+
+/** Cancelamento de entrada já lançada: retira dos MESMOS lotes o que a nota deu entrada (uma vez só) e registra no histórico. */
+function estornarEntradaEstoqueNF(reg, atual) {
+    if (!atual || !atual.estoque_lancado || atual.estoque_estornado || reg.situacao !== 'Cancelada') return;
+    planejarEstornoEntradaNF(atual).forEach(g => {
+        if (!removeFromBatch(g.pr.setor, g.pr.produto.id, g.lote.id, g.quantidade)) throw new Error(`Falha ao estornar o lote ${rotuloLote(g.codigo)}.`);
+        if (typeof logEntryHistory === 'function') logEntryHistory('ESTORNO_ENTRADA_NF', g.pr.setor, g.pr.produto.barcode, g.pr.produto.material, g.quantidade, g.codigo, `Cancelamento da entrada ${reg.codigo || ''} · NF ${reg.numero_nfe || ''}`);
+    });
+    if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
 }
 
 /** Lança no estoque os itens da entrada (uma vez só: o registro fica com estoque_lancado). */

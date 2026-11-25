@@ -418,7 +418,7 @@ function cadControle(def, f, st, readonly) {
             const semOpcoes = f.type === 'ref' && !opts.length;
             return cadComboHtml({ id, valor: val, opts, placeholder: semOpcoes ? 'Nenhum cadastro disponível' : 'Selecione', vazio: semOpcoes ? null : 'Selecione', fn: 'cadSelecionar', arg: f.k, desabilitado: semOpcoes });
         }
-        case 'check': return `<label class="cd-check"><input type="checkbox" id="${id}" name="${f.k}" ${val ? 'checked' : ''} onchange="cadCampo('${f.k}', this)" ${keep}> <span>${escapeHtml(f.checkLabel || 'Sim')}</span></label>`;
+        case 'check': return `<label class="cd-check"><input type="checkbox" id="${id}" name="${f.k}" ${val ? 'checked' : ''} onchange="cadCampo('${f.k}', this)" ${keep}> <span>${escapeHtml(f.checkLabel || 'Sim')}</span></label>${f.apos ? f.apos(st) : ''}`;
         case 'date': return `<input class="at-input" type="date" id="${id}" name="${f.k}" value="${escapeHtml(val)}" ${f.max ? `max="${f.max}"` : ''} oninput="cadCampo('${f.k}', this)" ${keep}>`;
         case 'number': case 'money':
             return `<input class="at-input" type="number" inputmode="decimal" step="${f.type === 'money' ? '0.01' : (f.step || '1')}" min="${f.min ?? 0}" ${f.max ? `max="${f.max}"` : ''} id="${id}" name="${f.k}" value="${escapeHtml(val)}" placeholder="${escapeHtml(f.ph || '')}" ${on} ${keep}>`;

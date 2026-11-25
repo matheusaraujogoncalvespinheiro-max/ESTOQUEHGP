@@ -222,7 +222,10 @@ const MENU_TREE = [
             item(40, 'Estoque da Farmácia', 'FARMACIA', { icon: 'package', access: byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA') }),
             relItem(50, 'Rastreabilidade', 'RASTREIO', byRole(...ROLES_RASTREIO)),
             relItem(60, 'Relatório de Dispensações', 'FARMACIA_DISP', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA')),
-            relItem(70, 'Relatório de Requisições', 'FARMACIA_REQ', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA'))
+            relItem(70, 'Relatório de Requisições', 'FARMACIA_REQ', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA')),
+            relItem(80, 'Consumo por Paciente', 'FARMACIA_PACIENTE', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA')),
+            relItem(90, 'Consumo por Unidade', 'FARMACIA_UNIDADE', byRole('ADMIN', 'CHEFE_FARMACIA', 'FUNC_FARMACIA')),
+            relItem(100, 'Medicamentos Controlados', 'FARMACIA_CONTROLADOS', byRole('ADMIN', 'CHEFE_FARMACIA'))
         ]
     },
 
@@ -309,6 +312,7 @@ const MENU_TREE = [
                 relItem(20, 'Reposição', 'REPOSICAO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
                 relItem(30, 'Validade dos lotes', 'VALIDADE', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
                 relItem(31, 'Estoque por lote', 'ESTOQUE_LOTES', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
+                relItem(32, 'Itens de sala sem baixa gravada', 'SALAS_SEM_BAIXA', byRole('ADMIN', 'CHEFE_OPME', 'FUNC_CENTRO_CIRURGICO')),
                 relItem(40, 'Rastreabilidade por paciente e lote', 'RASTREIO', byRole(...ROLES_RASTREIO)),
                 relItem(50, 'Consumo', 'CONSUMO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA')),
                 relItem(60, 'Perdas', 'PERDAS', byRole('ADMIN', 'CHEFE_OPME')),

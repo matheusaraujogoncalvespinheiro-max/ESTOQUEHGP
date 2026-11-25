@@ -114,17 +114,17 @@ const FRETE_NFE = ['0 - Contratação por conta do emitente', '1 - Contratação
 const STATUS_ENTRADA = ['Pendente', 'Lançada', 'Cancelada'];
 
 Object.assign(CAD_DEFS.entradanf, {
-    estiloERP: true, tituloTela: 'Entrada de Estoque', rotuloNovo: 'Nova', textoVazio: 'Nenhuma entrada encontrada', layout: 'erp',
+    estiloERP: true, tituloTela: 'Entrada de Estoque', rotuloNovo: 'Nova', watch: ['cfop', 'operacao'], textoVazio: 'Nenhuma entrada encontrada', layout: 'erp',
     colunasERP: 'minmax(0,1fr) minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 90px minmax(0,1fr) minmax(0,1fr)',
     filtrosTexto: [{ k: 'numero_nfe', label: 'N. NF-e', larg: 'p' }, { k: 'codigo', label: 'N. Interno', larg: 'p' }, { k: 'fornecedor_nome', label: 'Fornecedores', ph: 'Código ou nome', larg: 'g' }],
     filters: [{ k: 'situacao', label: 'Status', opts: STATUS_ENTRADA, todos: 'Todos' }],
     botoesLista: [{ rotulo: 'NF Destinadas', icon: 'file-text', fn: 'entradaNfDestinadas', cor: 'azul' }, { rotulo: 'Importar XML', icon: 'upload', fn: 'entradaImportarXml', cor: 'claro', direita: true }],
     kpiERP: (todos) => ({ rotulo: 'Total Pendente', valor: formatMoney(todos.filter(r => r.situacao === 'Pendente').reduce((a, r) => a + (Number(r.valor_nota) || 0), 0)), icon: 'banknote' }),
     corLinha: (r) => (r.situacao === 'Lançada' ? 'ok' : (r.situacao === 'Cancelada' ? 'cancelada' : '')),
-    // Depois que os itens entraram no estoque, a entrada não muda mais (desfazer = saída/perda pelas Movimentações)
-    somenteLeitura: (r) => Boolean(r.estoque_lancado),
+    // Entrada que deu entrada no estoque só aceita o cancelamento (que estorna os mesmos lotes); cancelada e estornada, fica só para consulta
+    somenteLeitura: (r) => Boolean(r.estoque_estornado),
     depois: (reg) => aplicarEntradaEstoqueNF(reg),
-    depoisEdicao: (reg, form, atual) => aplicarEntradaEstoqueNF(reg, atual),
+    depoisEdicao: (reg, form, atual) => { estornarEntradaEstoqueNF(reg, atual); aplicarEntradaEstoqueNF(reg, atual); },
     top: [{ k: 'codigo', label: 'N. Interno', type: 'text', ro: true, roVazio: '0', col: 2 }, { k: 'situacao', label: 'Status', type: 'select', req: true, col: 2, opts: STATUS_ENTRADA },
         { k: 'nfe', label: 'NF-e', type: 'ref', ref: 'nfe', req: true, roEdit: true, col: 5 }, { k: 'data_entrada', label: 'Data do lançamento', type: 'date', max: todayISO(), col: 3 }],
     tabs: [
@@ -133,7 +133,8 @@ Object.assign(CAD_DEFS.entradanf, {
                 { k: 'lote', label: 'Lote' }, { k: 'fabricacao', label: 'Fabricação', type: 'date' }, { k: 'validade', label: 'Validade', type: 'date' }] }] },
         { id: 'fatura', label: 'Fatura', fields: [{ k: 'faturas', label: 'Faturas (duplicatas)', type: 'itens', col: 12, semAdicionar: true, colunas: [{ k: 'numero', label: 'Duplicata', ro: true }, { k: 'vencimento', label: 'Vencimento', ro: true }, { k: 'valor', label: 'Valor', ro: true }] }] },
         { id: 'adicionais', label: 'Adicionais', fields: [
-            { k: 'cfop', label: 'CFOP de entrada (4 dígitos)', type: 'digits', len: 4, maxlen: 4, col: 3, help: 'Obrigatório para lançar.' }, { k: 'natureza_operacao', label: 'Natureza da operação', type: 'text', col: 5 },
+            { k: 'operacao_id', label: 'Operação de entrada', type: 'ref', ref: 'operacao', filtro: (r) => r.estoque === 'Entrada', col: 4, help: 'Cadastro › Fiscal › Operações. Preenche o CFOP e a natureza, se estiverem em branco.' },
+            { k: 'cfop', label: 'CFOP de entrada', type: 'select', opts: () => cfopEntradaOpcoes(), col: 3, help: 'Do cadastro de CFOP (1xxx, 2xxx ou 3xxx). Obrigatório para lançar.' }, { k: 'natureza_operacao', label: 'Natureza da operação', type: 'text', col: 5 },
             { k: 'valor_confere', label: 'Conferência', type: 'check', checkLabel: 'Valor e itens conferidos com a mercadoria', col: 4 },
             { k: 'entrada_estoque', label: 'Estoque', type: 'check', checkLabel: 'Ao lançar, dar entrada dos itens no estoque', col: 12,
                 help: 'Cada item precisa estar vinculado a um produto. Produto controlado por lote exige lote e validade (o XML traz do grupo de rastreabilidade, quando o fornecedor informa). Não marque se a mercadoria já entrou por um Recebimento.' },

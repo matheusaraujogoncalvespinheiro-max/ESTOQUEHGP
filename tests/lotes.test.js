@@ -227,3 +227,63 @@ test('inventário: sobra entra no estoque (com lote exige lote e validade), falt
     call('aplicarAjusteInventario(__inv3)');
     assert.equal(call(`${prod('P1')}.qtd`), 185);
 });
+
+test('CFOP da entrada: só do cadastro (entrada, ativo); operação de entrada sugere o CFOP padrão', () => {
+    semente();
+    call(`CAD_DATA.cfop = [{ id: 'c1', cfop: '1102', descricao: 'COMPRA', ativo: true }, { id: 'c2', cfop: '5102', descricao: 'VENDA', ativo: true }, { id: 'c3', cfop: '2102', descricao: 'COMPRA FORA', ativo: false }];
+        CAD_DATA.operacao = [{ id: 'o1', descricao: 'ENTRADA POR COMPRA', estoque: 'Entrada', natureza: 'COMPRA', cfop_id: 'c1' }, { id: 'o2', descricao: 'VENDA', estoque: 'Saída' }];
+        CAD_DATA.nfe = [{ id: 'n1', situacao: 'Autorizada', valor_total: 10, emitente_nome: 'F', numero: '9', data_emissao: '2026-01-01' }]; CAD_DATA.entradanf = [];`);
+    assert.deepEqual(j('cfopEntradaOpcoes().map(o => o.id)'), ['1102']);
+    const base = (x) => JSON.stringify({ nfe: 'n1', situacao: 'Lançada', data_entrada: '2026-01-02', valor_confere: true, ...x });
+    assert.throws(() => call(`validarEntradaMercadoria(${base({ cfop: '2102' })})`), /não está no cadastro/);
+    assert.throws(() => call(`validarEntradaMercadoria(${base({ operacao_id: 'o2' })})`), /não é de entrada/);
+    const r = j(`validarEntradaMercadoria(${base({ operacao_id: 'o1', cfop: '' })})`);
+    assert.equal(r.cfop, '1102'); assert.equal(r.natureza_operacao, 'COMPRA');
+});
+
+test('cancelar entrada de NF já lançada: estorna os mesmos lotes; recusa se parte já saiu', () => {
+    semente();
+    const reg = { id: 'e1', codigo: 'EMF2', numero_nfe: '77', estoque_lancado: true, situacao: 'Lançada', itens: [
+        { descricao: 'STENT', produto: 'OPME|P1', quantidade: 6, lote: 'NF-X', validade: dia(200) }, { descricao: 'GAZE', produto: 'OPME|P2', quantidade: 3, lote: '' }] };
+    dados('__e1', reg);
+    call('aplicarEntradaEstoqueNF(__e1)');
+    assert.equal(call(`${prod('P1')}.qtd`), 193);
+    call(`${lote('P1', 'NF-X')}.quantidade = 2`);   // 4 un já saíram
+    assert.throws(() => call('planejarEstornoEntradaNF(__e1)'), /Parte já saiu/);
+    call(`${lote('P1', 'NF-X')}.quantidade = 6; recalcularProdutoEstoque(${prod('P1')})`);
+    call(`estornarEntradaEstoqueNF({ ...__e1, situacao: 'Cancelada' }, __e1)`);
+    assert.equal(call(`${lote('P1', 'NF-X')}.quantidade`), 0);
+    assert.equal(call(`${prod('P1')}.qtd`), 187);
+    assert.equal(call(`${prod('P2')}.qtd`), 0);
+    call(`estornarEntradaEstoqueNF({ ...__e1, situacao: 'Cancelada' }, { ...__e1, estoque_estornado: true })`);   // não estorna duas vezes
+    assert.equal(call(`${prod('P1')}.qtd`), 187);
+});
+
+test('converter saldo "Sem lote" em lote real: total não muda, lote exige validade, não passa do saldo', () => {
+    semente();
+    call(`addProductWithBatch('OPME', { barcode: 'P2', quantidade: 10 })`);
+    assert.equal(j(`converterSaldoGeralEmLote('OPME', ${prod('P2')}, { lote: 'G1', quantidade: 4 })`).ok, false);
+    assert.match(j(`converterSaldoGeralEmLote('OPME', ${prod('P2')}, { lote: 'G1', validade: '${dia(100)}', quantidade: 11 })`).message, /10 un/);
+    assert.equal(j(`converterSaldoGeralEmLote('OPME', ${prod('P2')}, { lote: 'G1', validade: '${dia(100)}', quantidade: 4 })`).ok, true);
+    assert.equal(call(`${prod('P2')}.qtd`), 10);
+    assert.equal(call(`${lote('P2', 'G1')}.quantidade`), 4);
+    assert.equal(call(`${lote('P2', 'SEM-LOTE')}.quantidade`), 6);
+    assert.equal(j(`converterSaldoGeralEmLote('OPME', ${prod('P2')}, { lote: 'G2', validade: '${dia(100)}', quantidade: 6 })`).ok, true);
+    assert.equal(call(`${lote('P2', 'SEM-LOTE')} === undefined`), true);   // saldo geral zerado sai da lista
+    assert.equal(call(`${prod('P2')}.qtd`), 10);
+});
+
+test('sobra de dispensação volta ao mesmo lote, no máximo o dispensado', () => {
+    semente();
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/services/operacoes.js'), 'utf8'), ctx, { filename: 'services/operacoes.js' });
+    call(`CAD_DATA.dispensacao = [{ id: 'd1', codigo: 'DSP1', produto: 'OPME|P1', produto_desc: 'P1 · STENT', lote_codigo: 'L002', quantidade: 5, paciente_id: 'pa', paciente_nome: 'PACIENTE A', leito_id: '101A', criado_em: '${dia(0)}T10:00', controlado: true, controle: 'Controle especial', ativo: true }];
+        CAD_DATA.devolucao = [{ id: 'v1', codigo: 'DEV1', dispensacao_id: 'd1', quantidade: 2, ativo: true }];`);
+    assert.equal(call(`saldoDevolvivelDispensacao(CAD_DATA.dispensacao[0])`), 3);
+    assert.throws(() => call(`validarDevolucao({ produto: 'OPME|P1', quantidade: 4, dispensacao_id: 'd1' })`), /no máximo 3/);
+    assert.throws(() => call(`validarDevolucao({ produto: 'OPME|P2', quantidade: 1, dispensacao_id: 'd1' })`), /escolha esse produto/);
+    const v = j(`validarDevolucao({ produto: 'OPME|P1', quantidade: 3, dispensacao_id: 'd1' })`);
+    assert.equal(v.lote_codigo, 'L002');
+    dados('__dv', { ...v, produto: 'OPME|P1', quantidade: 3, dispensacao_id: 'd1' });
+    call('aplicarDevolucao(__dv)');
+    assert.equal(call(`${lote('P1', 'L002')}.quantidade`), 103);
+});

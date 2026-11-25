@@ -124,12 +124,40 @@ function aplicarRemocao(acao) {
 }
 
 // ---- Devolução ao estoque (item voltando de setor/paciente) ----
+
+/** Quanto de uma dispensação ainda pode voltar ao estoque (dispensado menos as devoluções de sobra não canceladas). */
+function saldoDevolvivelDispensacao(disp, devolucoes = CAD_DATA.devolucao || []) {
+    const devolvido = devolucoes.filter(d => d.ativo !== false && d.dispensacao_id === disp.id).reduce((a, d) => a + (Number(d.quantidade) || 0), 0);
+    return Math.max(0, (Number(disp.quantidade) || 0) - devolvido);
+}
+
+/** Opções do campo "Sobra de dispensação": dispensações ativas que ainda têm o que devolver. */
+function opcoesDispensacoesDevolviveis() {
+    return (CAD_DATA.dispensacao || []).filter(d => d.ativo !== false && saldoDevolvivelDispensacao(d) > 0)
+        .sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')))
+        .map(d => ({ id: d.id, rotulo: `${d.codigo} · ${d.paciente_nome || ''} · ${d.produto_desc || ''} · lote ${rotuloLote(d.lote_codigo)} · até ${saldoDevolvivelDispensacao(d)} un` }));
+}
+
+/** Sobra de dispensação: o item volta ao MESMO lote dispensado, no máximo o que foi dispensado e ainda não voltou. */
+function conferirSobraDispensacao(form, pr, qtd) {
+    const disp = (CAD_DATA.dispensacao || []).find(d => d.id === form.dispensacao_id);
+    if (!disp || disp.ativo === false) throw new Error('Dispensação não encontrada ou cancelada.');
+    if (disp.produto !== form.produto) throw new Error(`A dispensação ${disp.codigo} foi do produto ${disp.produto_desc}: escolha esse produto.`);
+    const resta = saldoDevolvivelDispensacao(disp);
+    if (qtd > resta) throw new Error(`Da dispensação ${disp.codigo} podem voltar no máximo ${resta} un.`);
+    const lote = loteDoEstoque(pr.setor, pr.produto, disp.lote_codigo || LOTE_SEM_CONTROLE);
+    const validade = (lote && lote.validade) || disp.validade_lote || '';
+    if (validade && validade !== 'N/A' && validade < todayISO()) throw new Error(`O lote ${rotuloLote(disp.lote_codigo)} venceu: a sobra não volta ao estoque, use Perdas.`);
+    return { dispensacao_codigo: disp.codigo, lote_codigo: disp.lote_codigo || '', validade: validade === 'N/A' ? '' : validade, origem: form.origem || `Paciente ${disp.paciente_nome || ''}`.trim() };
+}
+
 function validarDevolucao(form) {
     const pr = cadProdutoDe(form.produto);
     if (!pr) throw new Error('Selecione o produto.');
     if (!hasPermission('update_stock', pr.setor)) throw new Error(`Seu perfil não pode movimentar o estoque ${rotuloSetorOps(pr.setor)}.`);
     const qtd = Number(form.quantidade);
     if (!Number.isInteger(qtd) || qtd < 1) throw new Error('Informe a quantidade (número inteiro, mínimo 1).');
+    if (form.dispensacao_id) return { setor: pr.setor, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}`, ...conferirSobraDispensacao(form, pr, qtd), ...conferirVinculoRequisicao(form, 'devolucao') };
     // Com controle por lote: lote e validade obrigatórios. Sem controle: opcionais (sem lote volta ao saldo geral).
     const controla = produtoControlaLote(pr.produto);
     if (controla && String(form.lote_codigo || '').trim().length < 1) throw new Error('Este produto é controlado por lote: informe o lote do item devolvido.');
@@ -142,6 +170,12 @@ function validarDevolucao(form) {
 function aplicarDevolucao(reg) {
     const pr = cadProdutoDe(reg.produto);
     const p = pr.produto;
+    if (reg.dispensacao_id) {   // sobra de dispensação: volta ao mesmo lote (mesmo zerado ou inativo)
+        const r = devolverAoLote(pr.setor, p.barcode, { lote: reg.lote_codigo || LOTE_SEM_CONTROLE, validade: reg.validade || 'N/A', remessa: p.remessa || '' }, reg.quantidade, p);
+        if (r.type === 'erro') throw new Error(r.message);
+        registrarHistoricoEstoque('DEVOLUCAO', pr, reg.quantidade, reg.lote_codigo, `Sobra da dispensação ${reg.dispensacao_codigo || ''}`);
+        return;
+    }
     entradaOuErro(pr.setor, { barcode: p.barcode, lote: String(reg.lote_codigo || '').trim(), remessa: p.remessa || '', validade: reg.validade, quantidade: reg.quantidade, empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min });
     registrarHistoricoEstoque('DEVOLUCAO', pr, reg.quantidade, reg.lote_codigo);
 }
@@ -232,6 +266,10 @@ function validarCancelamento(form) {
     if (!op) throw new Error('Selecione a operação a cancelar.');
     if (op.ativo === false) throw new Error('Esta operação já foi cancelada.');
     if (String(form.motivo || '').trim().length < 10) throw new Error('Explique o motivo do cancelamento (mínimo de 10 caracteres).');
+    if (form.tipo_operacao === 'dispensacao') {
+        const sobras = (CAD_DATA.devolucao || []).filter(d => d.ativo !== false && d.dispensacao_id === op.id);
+        if (sobras.length) throw new Error(`Esta dispensação tem devolução de sobra (${sobras.map(d => d.codigo).join(', ')}): cancele a devolução antes, para o estoque não voltar em dobro.`);
+    }
     if (VOLTAM_AO_ESTOQUE.includes(form.tipo_operacao)) {
         const pr = cadProdutoDe(op.produto);
         if (!pr) throw new Error('O produto desta operação não existe mais no estoque. Faça um Recebimento para recompor.');

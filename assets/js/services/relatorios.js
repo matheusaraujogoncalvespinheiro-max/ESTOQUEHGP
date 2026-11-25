@@ -134,7 +134,7 @@ function relatorioValidade(produtos, hoje = new Date()) {
  * produto sem controle = uma linha com o saldo geral. Usa todos os produtos sincronizados do banco (não só os da tela).
  * termo filtra por código, produto ou lote; situacao: '' | 'VENCIDO' | 'A_VENCER' | 'SEM_SALDO' | 'INATIVO' | 'OK'.
  */
-function relatorioEstoqueLotes(produtos, termo = '', hoje = new Date()) {
+function relatorioEstoqueLotes(produtos, termo = '', hoje = new Date(), { de = '', ate = '' } = {}) {
     const q = searchKey(termo);
     const ROT = { OK: 'Válido', A_VENCER: 'A vencer', VENCIDO: 'Vencido', SEM_SALDO: 'Sem saldo', INATIVO: 'Inativo' };
     const linhas = [];
@@ -142,21 +142,38 @@ function relatorioEstoqueLotes(produtos, termo = '', hoje = new Date()) {
         const controla = produtoControlaLote(p);
         const base = { codigo: p.barcode, produto: p.material, setor: p.setor, controle: controla ? 'Por lote' : 'Saldo geral' };
         if (!controla) {
+            if (de || ate) return;   // faixa de validade: só lotes com validade (o saldo geral não tem)
             linhas.push({ ...base, lote: '—', fabricacao: '—', validade: '—', situacao: Number(p.qtd) > 0 ? 'Com saldo' : 'Sem saldo', prateleira: '—', quantidade: Number(p.qtd) || 0 });
             return;
         }
-        (p.lotes || []).filter(l => !loteEhSaldoGeral(l) || Number(l.quantidade) > 0).forEach(l => linhas.push({ ...base,
+        (p.lotes || []).filter(l => (!loteEhSaldoGeral(l) || Number(l.quantidade) > 0) && (!(de || ate) || (!semValidade(l.validade) && (!de || l.validade >= de) && (!ate || l.validade <= ate)))).forEach(l => linhas.push({ ...base,
             lote: rotuloLote(l.lote), fabricacao: l.fabricacao ? formatDateBR(l.fabricacao) : '—', validade: semValidade(l.validade) ? '—' : formatDateBR(l.validade),
             situacao: ROT[situacaoLote(l, hoje)], prateleira: l.prateleira || '—', quantidade: Number(l.quantidade) || 0 }));
     });
     const filtradas = q ? linhas.filter(l => searchKey(`${l.codigo} ${l.produto} ${l.lote} ${l.situacao}`).includes(q)) : linhas;
     const deLote = filtradas.filter(l => l.controle === 'Por lote');
     return {
-        titulo: 'Estoque por lote', descricao: 'Saldo de cada lote dos produtos controlados por lote (o saldo do produto é a soma dos lotes) e o saldo geral dos produtos sem controle por lote. Pesquise por código, produto, lote ou situação (vencido, a vencer, sem saldo, inativo).',
+        titulo: 'Estoque por lote', descricao: 'Saldo de cada lote dos produtos controlados por lote (o saldo do produto é a soma dos lotes) e o saldo geral dos produtos sem controle por lote. Pesquise por código, produto, lote ou situação (vencido, a vencer, sem saldo, inativo); a faixa "Validade de / até" mostra só os lotes que vencem nesse intervalo.',
         colunas: [{ k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'setor', label: 'Setor' }, { k: 'controle', label: 'Controle' }, { k: 'lote', label: 'Lote' }, { k: 'fabricacao', label: 'Fabricação' }, { k: 'validade', label: 'Validade' }, { k: 'situacao', label: 'Situação' }, { k: 'prateleira', label: 'Prateleira' }, { k: 'quantidade', label: 'Qtd.' }],
         linhas: filtradas,
         resumo: [{ rot: 'Lotes', valor: deLote.length }, { rot: 'Vencidos', valor: deLote.filter(l => l.situacao === 'Vencido').length }, { rot: 'A vencer', valor: deLote.filter(l => l.situacao === 'A vencer').length },
             { rot: 'Sem saldo', valor: deLote.filter(l => l.situacao === 'Sem saldo').length }, { rot: 'Unidades', valor: filtradas.reduce((a, l) => a + l.quantidade, 0) }]
+    };
+}
+
+/**
+ * Itens de sala puxados antes do controle por lote: a saída deles nunca foi gravada no banco (só na memória deste navegador),
+ * então a devolução também só muda a memória. A lista mostra o que conferir fisicamente e acertar por ajuste ou inventário.
+ */
+function relatorioSalasSemBaixa(salas) {
+    const linhas = [];
+    (salas || []).forEach(s => (s.materiais || []).filter(m => !m.baixado).forEach(m => linhas.push({
+        sala: `Sala ${s.id}`, paciente: s.status === 'EM_PROCEDIMENTO' ? (s.paciente || '—') : '—', codigo: m.barcode, produto: m.material, lote: rotuloLote(m.lote),
+        puxada: Number(m.qtd_puxada) || 0, confirmada: Number(m.qtd_confirmada) || 0, pendente: Math.max(0, (Number(m.qtd_puxada) || 0) - (Number(m.qtd_confirmada) || 0)) })));
+    return {
+        titulo: 'Itens de sala sem baixa gravada', descricao: 'Materiais puxados para as salas antes do controle por lote. A saída deles não foi gravada no banco: confira fisicamente e, se o saldo do Centro Cirúrgico não bater, acerte por Baixas ou pelo Inventário. A lista usa os dados guardados neste navegador.',
+        colunas: [{ k: 'sala', label: 'Sala' }, { k: 'paciente', label: 'Paciente' }, { k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'lote', label: 'Lote' }, { k: 'puxada', label: 'Puxada' }, { k: 'confirmada', label: 'Confirmada' }, { k: 'pendente', label: 'A devolver' }],
+        linhas, resumo: [{ rot: 'Itens', valor: linhas.length }, { rot: 'Unidades a devolver', valor: linhas.reduce((a, l) => a + l.pendente, 0) }]
     };
 }
 
@@ -515,6 +532,72 @@ function relatorioFarmaciaDispensacoes(dispensacoes, de, ate, termo = '') {
         titulo: 'Dispensações da Farmácia', descricao: 'Medicamentos dispensados a pacientes internados no período, somados por produto. Dispensação cancelada não conta nas unidades. Sem "De" e "Até" mostra todas as carregadas.',
         colunas: [{ k: 'produto', label: 'Produto' }, { k: 'dispensacoes', label: 'Dispensações' }, { k: 'unidades', label: 'Unidades' }, { k: 'controle', label: 'Controle especial' }, { k: 'pacientes', label: 'Pacientes' }, { k: 'lotes', label: 'Lotes' }],
         linhas, resumo: [{ rot: 'Dispensações', valor: ativas.length }, { rot: 'Unidades', valor: ativas.reduce((a, d) => a + (Number(d.quantidade) || 0), 0) }, { rot: 'Controle especial', valor: ativas.filter(d => d.controle === 'Controle especial').length }, { rot: 'Canceladas', valor: lista.length - ativas.length }]
+    };
+}
+
+/** Unidades devolvidas (sobra) de cada dispensação, das devoluções não canceladas. */
+function sobrasPorDispensacao(devolucoes) {
+    const m = new Map();
+    (devolucoes || []).filter(d => d.ativo !== false && d.dispensacao_id).forEach(d => m.set(d.dispensacao_id, (m.get(d.dispensacao_id) || 0) + (Number(d.quantidade) || 0)));
+    return m;
+}
+
+/**
+ * Consumo da Farmácia por PACIENTE ou por UNIDADE no período: dispensações (menos as sobras devolvidas) e, por unidade,
+ * também as saídas do estoque da Farmácia para setores. `unidadeDoLeito(leitoId)` devolve o nome da unidade (andar · ala).
+ */
+function relatorioFarmaciaConsumo(modo, { dispensacoes = [], devolucoes = [], saidas = [], unidadeDoLeito = () => '' } = {}, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const sobras = sobrasPorDispensacao(devolucoes);
+    const grupos = new Map();
+    const somar = (chave, base, unidades, produto, origem) => {
+        if (!(unidades > 0)) return;
+        const g = grupos.get(chave) || { ...base, unidades: 0, produtos: new Set(), dispensacoes: 0, saidas: 0 };
+        g.unidades += unidades; g.produtos.add(produto); g[origem] += 1;
+        grupos.set(chave, g);
+    };
+    (dispensacoes || []).filter(d => d.ativo !== false && dentro(d.criado_em, de, ate)).forEach(d => {
+        const liquido = (Number(d.quantidade) || 0) - (sobras.get(d.id) || 0);
+        if (modo === 'PACIENTE') somar(d.paciente_id || d.paciente_nome, { nome: d.paciente_nome || '—', prontuario: d.prontuario || '—' }, liquido, d.produto_desc, 'dispensacoes');
+        else { const u = unidadeDoLeito(d.leito_id) || 'Unidade não identificada'; somar(u, { nome: u }, liquido, d.produto_desc, 'dispensacoes'); }
+    });
+    if (modo === 'UNIDADE') (saidas || []).filter(s => s.ativo !== false && s.setor === 'FARMACIA' && dentro(s.criado_em, de, ate)).forEach(s => {
+        const u = String(s.destino_detalhe || s.destino || '').trim() || 'Destino não informado';
+        somar(u, { nome: u }, Number(s.quantidade) || 0, s.produto_desc, 'saidas');
+    });
+    const linhas = [...grupos.values()].filter(g => !t || searchKey(`${g.nome} ${g.prontuario || ''}`).includes(t)).sort((a, b) => b.unidades - a.unidades)
+        .map(g => ({ nome: g.nome, prontuario: g.prontuario || '', dispensacoes: g.dispensacoes, saidas: g.saidas, produtos: g.produtos.size, unidades: g.unidades }));
+    const porPaciente = modo === 'PACIENTE';
+    return {
+        titulo: porPaciente ? 'Consumo da Farmácia por paciente' : 'Consumo da Farmácia por unidade',
+        descricao: porPaciente
+            ? 'Unidades dispensadas a cada paciente no período, já descontadas as sobras devolvidas ao estoque. Dispensação cancelada não conta.'
+            : 'Unidades dispensadas aos pacientes de cada unidade (andar e ala do leito) mais as saídas do estoque da Farmácia para setores, no período. Sobras devolvidas e operações canceladas não contam.',
+        colunas: porPaciente
+            ? [{ k: 'nome', label: 'Paciente' }, { k: 'prontuario', label: 'Prontuário' }, { k: 'dispensacoes', label: 'Dispensações' }, { k: 'produtos', label: 'Produtos diferentes' }, { k: 'unidades', label: 'Unidades' }]
+            : [{ k: 'nome', label: 'Unidade / destino' }, { k: 'dispensacoes', label: 'Dispensações' }, { k: 'saidas', label: 'Saídas' }, { k: 'produtos', label: 'Produtos diferentes' }, { k: 'unidades', label: 'Unidades' }],
+        linhas, resumo: [{ rot: porPaciente ? 'Pacientes' : 'Unidades', valor: linhas.length }, { rot: 'Unidades consumidas', valor: linhas.reduce((a, l) => a + l.unidades, 0) }]
+    };
+}
+
+/**
+ * Medicamentos de controle especial: cada dispensação no período, com paciente, receita/notificação, lote, prescritor e quem dispensou,
+ * e as sobras devolvidas. Listagem para conferência; não substitui a escrituração oficial exigida pela vigilância sanitária.
+ */
+function relatorioFarmaciaControlados(dispensacoes, devolucoes, de, ate, termo = '') {
+    const t = searchKey(termo);
+    const sobras = sobrasPorDispensacao(devolucoes);
+    const lista = (dispensacoes || []).filter(d => (d.controlado || d.controle === 'Controle especial') && dentro(d.criado_em, de, ate)
+        && (!t || searchKey(`${d.produto_desc} ${d.paciente_nome} ${d.lote_codigo} ${d.receita_numero} ${d.codigo}`).includes(t)))
+        .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
+    const ativas = lista.filter(d => d.ativo !== false);
+    return {
+        titulo: 'Medicamentos controlados', descricao: 'Dispensações de medicamentos de controle especial no período (ordem de data), com receita, lote, prescritor e responsável. Canceladas aparecem marcadas e não somam. Serve para conferência; a escrituração oficial segue as regras da vigilância sanitária.',
+        colunas: [{ k: 'data', label: 'Data' }, { k: 'codigo', label: 'Dispensação' }, { k: 'produto', label: 'Medicamento' }, { k: 'lote', label: 'Lote' }, { k: 'quantidade', label: 'Qtd.' }, { k: 'devolvido', label: 'Devolvido' },
+            { k: 'paciente', label: 'Paciente' }, { k: 'receita', label: 'Receita / notificação' }, { k: 'prescritor', label: 'Prescritor' }, { k: 'dispensou', label: 'Dispensado por' }, { k: 'situacao', label: 'Situação' }],
+        linhas: lista.map(d => ({ data: formatDateTimeBR(d.criado_em), codigo: d.codigo, produto: d.produto_desc, lote: rotuloLote(d.lote_codigo), quantidade: Number(d.quantidade) || 0, devolvido: sobras.get(d.id) || 0,
+            paciente: `${d.paciente_nome || '—'}${d.prontuario ? ' · ' + d.prontuario : ''}`, receita: d.receita_numero || '—', prescritor: d.prescritor || '—', dispensou: d.dispensado_por_nome || d.criado_por || '—', situacao: d.ativo === false ? 'Cancelada' : 'Ativa' })),
+        resumo: [{ rot: 'Dispensações', valor: ativas.length }, { rot: 'Unidades', valor: ativas.reduce((a, d) => a + (Number(d.quantidade) || 0) - (sobras.get(d.id) || 0), 0) }, { rot: 'Canceladas', valor: lista.length - ativas.length }]
     };
 }
 

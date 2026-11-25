@@ -53,7 +53,7 @@ Object.assign(CAD_DEFS.produto, {
             { k: 'localizacao', label: 'Localização de armazenamento', type: 'text', ph: 'Ex.: Prateleira B2' },
             { k: 'eh_opme', label: 'Classificação', type: 'check', checkLabel: 'É OPME (órtese, prótese ou material especial)', rerender: true, span2: true,
                 help: 'Habilita a aba "OPME" (depois de salvar). Produtos comuns não preenchem dados de OPME.' },
-            { k: 'cfg_usa_lote', label: 'Controle de estoque', type: 'check', checkLabel: 'Controlar estoque por lote', rerender: true, span2: true,
+            { k: 'cfg_usa_lote', label: 'Controle de estoque', type: 'check', checkLabel: 'Controlar estoque por lote', rerender: true, span2: true, apos: (st) => produtoSemLoteHtml(st),
                 help: 'Marcado: aparece a aba "Lotes"; entradas exigem lote e validade, saídas usam o lote que vence primeiro e o saldo é a soma dos lotes. Desmarcado: saldo geral, sem exigir lote.' }
         ] },
         { id: 'lotes', label: 'Lotes', render: (def, st, ro) => renderProdutoLotes(st, ro), hide: (f) => !f.cfg_usa_lote },
@@ -185,8 +185,8 @@ function produtoMovimentos(codigo, setor) {
         if (h.barcode !== codigo || (h.sector || h.setor) !== setor) return;
         const qtd = Number(h.quantity ?? h.qty ?? 0);
         const acao = h.action || '';
-        const saida = ['CONSU_SALA', 'SAIDA', 'DISPENSACAO', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO'].includes(acao);
-        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', DISPENSACAO: 'Dispensação ao paciente', ESTORNO_DISPENSACAO: 'Estorno de dispensação (cancelamento)', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ENTRADA_NF: 'Entrada por NF-e', AJUSTE_SOBRA: 'Sobra de inventário', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
+        const saida = ['CONSU_SALA', 'SAIDA', 'DISPENSACAO', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO', 'ESTORNO_ENTRADA_NF', 'CONVERSAO_SAIDA'].includes(acao);
+        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', DISPENSACAO: 'Dispensação ao paciente', ESTORNO_DISPENSACAO: 'Estorno de dispensação (cancelamento)', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ENTRADA_NF: 'Entrada por NF-e', AJUSTE_SOBRA: 'Sobra de inventário', ESTORNO_ENTRADA_NF: 'Estorno de entrada por NF-e', CONVERSAO_SAIDA: 'Conversão: saída do saldo sem lote', CONVERSAO_ENTRADA: 'Conversão: entrada no lote', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
             delta: saida ? -qtd : qtd, qtd, lote: h.batch ?? h.batch_code ?? '', validade: '', origem: saida ? rotuloSetor(setor) : 'Entrada', destino: saida ? (acao === 'CONSU_SALA' ? 'Sala de procedimento' : 'Saída do estoque') : rotuloSetor(setor),
             setor: rotuloSetor(setor), usuario: h.user ?? h.user_name ?? '', paciente: '', fornecedor: '', obs: '' });
     });
@@ -346,7 +346,7 @@ CAD_STORES.produto = {
         const controlaAntes = p ? produtoControlaLote(p) : false;
         if (p && cadastro.config.usa_lote && !controlaAntes) {
             const semLote = (p.lotes || []).filter(l => loteEhSaldoGeral(l)).reduce((s, l) => s + (Number(l.quantidade) || 0), 0);
-            if (semLote > 0) throw new Error(`Este produto tem ${semLote} un no saldo geral, sem lote. Para controlar por lote, dê saída ou baixa desse saldo e registre a entrada com o número do lote (nenhum lote é criado automaticamente).`);
+            if (semLote > 0) throw new Error(`Este produto tem ${semLote} un no saldo geral, sem lote. Use "Converter saldo sem lote" (logo abaixo da opção) para informar o lote e a validade reais desse saldo, ou dê saída dele; depois ligue o controle por lote. Nenhum lote é criado automaticamente.`);
         }
 
         const antesResumo = p ? { nome: p.material, descricao: p.descricao, min: p.min, ativo: produtoAtivo(p), fabricante: p.empresa, controle_lote: controlaAntes } : null;

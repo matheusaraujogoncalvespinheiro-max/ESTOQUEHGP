@@ -36,8 +36,10 @@ Object.assign(CAD_DEFS, {
         desc: 'Item que volta ao estoque (não utilizado, procedimento cancelado, troca). Lote vencido não volta: use Perdas.',
         rotulo: (r) => `${r.codigo} - ${r.produto_desc}`, search: ['codigo', 'produto_desc', 'lote_codigo', 'origem'], filters: [filtroSetorOps],
         columns: [...colsProduto, { k: 'origem', label: 'Origem', sort: true }, { k: 'motivo', label: 'Motivo' }, dataHoraCol],
-        validar: validarDevolucao, depois: aplicarDevolucao,
+        watch: ['dispensacao'], validar: validarDevolucao, depois: aplicarDevolucao,
         tabs: [{ id: 'dados', label: 'Dados da devolução', fields: [fProduto,
+            { k: 'dispensacao_id', label: 'Sobra de dispensação (opcional)', type: 'select', span2: true, opts: () => opcoesDispensacoesDevolviveis(),
+                help: 'Para medicamento dispensado que não foi usado: volta ao mesmo lote da dispensação, no máximo o que foi dispensado (lote e validade abaixo não são usados).' },
             { k: 'lote_codigo', label: 'Lote do item devolvido', type: 'text', maxlen: 40, help: 'Obrigatório para produto controlado por lote.' }, { k: 'validade', label: 'Validade do lote', type: 'date', help: 'Obrigatória para produto controlado por lote.' }, fQtd,
             { k: 'origem', label: 'Origem (setor, paciente ou sala)', type: 'text', req: true },
             { k: 'motivo', label: 'Motivo', type: 'select', req: true, opts: MOTIVOS_DEVOLUCAO }, fRequisicao, fRequisicaoItem, { ...OBS }] }]

@@ -1,7 +1,7 @@
 /* Consulta de cadastros no padrão "lista limpa" (pages/cadastros/lista-consulta.js).
    Usa as cores do tema (--sh-*), então funciona no claro e no escuro. */
 
-.cq-page { display: flex; flex-direction: column; gap: 20px; max-width: 1280px; margin: 0 auto; width: 100%; }
+.cq-page { display: flex; flex-direction: column; gap: 20px; width: 100%; }
 
 /* Barra superior */
 .cq-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
@@ -153,12 +153,15 @@ html[data-tema='escuro'] .cd-acoesfim__lista { background: var(--sh-surface-2); 
 .pl-grade { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px 16px; }
 .pl-grade .cq-campo { width: auto; }
 .pl-c4 { grid-column: span 4; }
+.pl-c6 { grid-column: span 6; }
 .pl-c8 { grid-column: span 8; }
 .pl-c12 { grid-column: span 12; }
 .pl-grade textarea.cq-input { height: auto; min-height: 64px; padding: 10px 12px; resize: vertical; }
 .pl-modal .cq-cod-ro { height: 42px; padding: 0 12px; justify-content: flex-start; border: 1px solid var(--sh-line); border-radius: 8px; }
 @media (max-width: 720px) {
-    .pl-c4, .pl-c8 { grid-column: span 12; }
+    .pl-c4, .pl-c6, .pl-c8 { grid-column: span 12; }
     .pl-faixa, .pl-faixa .cq-input { width: 100%; }
     .pl-faixa__in { width: 100%; }
 }
+/* Aviso de saldo sem lote (abaixo de "Controlar estoque por lote") */
+.pl-conv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--sh-line); border-radius: 8px; background: var(--sh-surface-2); font-size: .8125rem; color: var(--sh-ink); }

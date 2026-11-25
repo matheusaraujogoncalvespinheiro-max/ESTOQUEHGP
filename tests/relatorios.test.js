@@ -120,3 +120,20 @@ test('patrimônio (#69): situação, garantia vencida, custo e baixa', () => {
     assert.match(r.linhas.find(l => l.codigo === 'EQP1').garantia, /Vencida em/);
     assert.match(r.linhas.find(l => l.codigo === 'EQP2').baixa, /Sem conserto/);
 });
+
+test('Farmácia: consumo por paciente/unidade desconta sobra; controlados listam receita e devolvido; Estoque por lote filtra validade', () => {
+    const disp = `[{ id: 'd1', codigo: 'DSP1', produto_desc: 'STENT', lote_codigo: 'L2', quantidade: 5, paciente_id: 'pa', paciente_nome: 'PACIENTE A', leito_id: '101A', criado_em: '2026-03-01T10:00', controlado: true, controle: 'Controle especial', receita_numero: 'R1', ativo: true },
+        { id: 'd2', codigo: 'DSP2', produto_desc: 'GAZE', quantidade: 9, paciente_id: 'pb', paciente_nome: 'PACIENTE B', criado_em: '2026-03-02T10:00', ativo: false }]`;
+    const dev = `[{ id: 'v1', dispensacao_id: 'd1', quantidade: 2, ativo: true }]`;
+    const pac = json(`relatorioFarmaciaConsumo('PACIENTE', { dispensacoes: ${disp}, devolucoes: ${dev} }, '', '')`);
+    assert.equal(pac.linhas.length, 1); assert.equal(pac.linhas[0].unidades, 3);
+    const uni = json(`relatorioFarmaciaConsumo('UNIDADE', { dispensacoes: ${disp}, devolucoes: [], saidas: [{ setor: 'FARMACIA', destino_detalhe: 'UTI', quantidade: 4, produto_desc: 'X', criado_em: '2026-03-03', ativo: true }], unidadeDoLeito: () => '1º andar · Ala A' }, '', '')`);
+    assert.deepEqual(uni.linhas.map(l => `${l.nome}:${l.unidades}`), ['1º andar · Ala A:5', 'UTI:4']);
+    const ctr = json(`relatorioFarmaciaControlados(${disp}, ${dev}, '', '')`);
+    assert.equal(ctr.linhas.length, 1); assert.equal(ctr.linhas[0].devolvido, 2); assert.equal(ctr.linhas[0].receita, 'R1');
+    const lotes = json(`relatorioEstoqueLotes([{ barcode: 'A', material: 'X', setor: 'OPME', cadastro: { config: { usa_lote: true } }, lotes: [{ lote: 'L1', validade: '2026-05-01', quantidade: 1 }, { lote: 'L2', validade: '2027-05-01', quantidade: 1 }] },
+        { barcode: 'B', material: 'Y', setor: 'OPME', qtd: 3, lotes: [] }], '', new Date('2026-01-01'), { de: '2026-04-01', ate: '2026-06-30' })`);
+    assert.deepEqual(lotes.linhas.map(l => l.lote), ['L1']);
+    const salas = json(`relatorioSalasSemBaixa([{ id: 1, status: 'EM_PROCEDIMENTO', paciente: 'P', materiais: [{ barcode: 'A', material: 'X', lote: 'L1', qtd_puxada: 3, qtd_confirmada: 1 }, { barcode: 'B', material: 'Y', lote: 'L2', qtd_puxada: 2, qtd_confirmada: 0, baixado: true }] }])`);
+    assert.equal(salas.linhas.length, 1); assert.equal(salas.linhas[0].pendente, 2);
+});

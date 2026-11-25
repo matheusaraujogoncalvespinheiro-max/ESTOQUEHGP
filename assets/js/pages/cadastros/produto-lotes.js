@@ -277,3 +277,42 @@ function loteHistorico(codigo) {
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { validarDadosLote };
+
+// ---- Conversão do saldo geral "Sem lote" em lote real (para poder ligar o controle por lote sem lote fictício) ----
+
+/** Aviso + botão abaixo da opção "Controlar estoque por lote", só quando o produto aberto tem saldo sem lote. */
+function produtoSemLoteHtml(st) {
+    const ctx = st && st.id ? lotesProdutoAberto() : null;
+    if (!ctx || st.mode !== 'form') return '';
+    const saldo = (ctx.p.lotes || []).filter(l => loteEhSaldoGeral(l)).reduce((s, l) => s + (Number(l.quantidade) || 0), 0);
+    if (!saldo) return '';
+    return `<div class="pl-conv"><span>Saldo sem lote: <strong>${saldo} un</strong>. Para controlar por lote, informe o lote e a validade reais desse saldo.</span>
+        ${lotesPodeMovimentar(ctx.setor) ? `<button type="button" class="cq-btn cq-btn--texto" onclick="loteConverterSemLote()">${lucideIcon('repeat', 'w-4 h-4')} Converter saldo sem lote</button>` : ''}</div>`;
+}
+
+function loteConverterSemLote() {
+    const ctx = lotesProdutoAberto();
+    if (!ctx) return;
+    const saldo = (ctx.p.lotes || []).filter(l => loteEhSaldoGeral(l)).reduce((s, l) => s + (Number(l.quantidade) || 0), 0);
+    const d = openModal({ title: `Converter saldo sem lote · ${ctx.p.material}`, size: 'md', content: `<div class="modal__body">
+        <p class="at-hint">Informe o lote verdadeiro (da embalagem) de ${saldo} un sem lote. Se o saldo for de mais de um lote, converta uma parte de cada vez. O total do produto não muda; as duas pontas ficam no histórico.</p>
+        <div class="pl-grade">
+            <label class="cq-campo pl-c6"><span>Lote *</span><input class="cq-input" id="cv_lote" maxlength="40" autocomplete="off"></label>
+            <label class="cq-campo pl-c6"><span>Quantidade *</span><input class="cq-input" id="cv_qtd" type="number" min="1" max="${saldo}" step="1" value="${saldo}"></label>
+            <label class="cq-campo pl-c6"><span>Fabricação</span><input class="cq-input" id="cv_fab" type="date" max="${todayISO()}"></label>
+            <label class="cq-campo pl-c6"><span>Validade *</span><input class="cq-input" id="cv_val" type="date" min="${todayISO()}"></label>
+        </div>
+        <div class="at-actions" style="margin-top:12px"><button type="button" class="at-btn at-btn--primary" id="cv_ok">Converter</button></div></div>` });
+    d.querySelector('#cv_ok').onclick = () => {
+        const v = (id) => d.querySelector(id).value;
+        const r = converterSaldoGeralEmLote(ctx.setor, ctx.p, { lote: v('#cv_lote'), quantidade: v('#cv_qtd'), validade: v('#cv_val'), fabricacao: v('#cv_fab') });
+        if (!r.ok) return showMsg(r.message, 'error');
+        if (typeof auditar === 'function') auditar({ entidade: 'lote', entidade_id: `${ctx.syncId}_${r.lote.lote}`, acao: 'CONVERTER_SEM_LOTE', depois: { produto: ctx.p.barcode, setor: ctx.setor, lote: r.lote.lote, quantidade: Number(v('#cv_qtd')) } });
+        saveToLocalStorage();
+        d.close();
+        showMsg(`Saldo convertido no lote ${r.lote.lote}.`);
+        render();
+    };
+}
+
+window.loteConverterSemLote = loteConverterSemLote;
