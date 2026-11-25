@@ -28,7 +28,7 @@ const semAcentos = (t) => String(t || '').toLowerCase().normalize('NFD').replace
 /** E-mail usado no login: sempre o e-mail completo digitado. */
 function emailDeLogin(entrada) {
     const t = String(entrada || '').trim().toLowerCase();
-    if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(t)) throw new Error('Informe um e-mail válido.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) throw new Error('Informe um e-mail válido.');
     return t;
 }
 
