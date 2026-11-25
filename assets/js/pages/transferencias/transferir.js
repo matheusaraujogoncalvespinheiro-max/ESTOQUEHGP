@@ -21,123 +21,24 @@ function handleTransfer(e) {
         return;
     }
 
-    if (produtoOrigem.qtd < qtd) {
-        showMsg("Quantidade insuficiente para transferência", "error");
+    if (!(qtd > 0)) {
+        showMsg("Informe uma quantidade válida", "error");
         return;
     }
+    const conflito = conferirTransferenciaLote(produtoOrigem, toSetor);
+    if (conflito) return showMsg(conflito, "error");
 
-    // Determinar de quais lotes retirar (FIFO por validade)
-    let quantidadeRestante = qtd;
-    const lotesUsados = [];
-
-    // Ordenar lotes por validade (mais próxima primeiro)
-    produtoOrigem.lotes.sort((a, b) => {
-        if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-        if (a.validade === 'N/A') return 1;
-        if (b.validade === 'N/A') return -1;
-        return new Date(a.validade) - new Date(b.validade);
-    });
-
-    for (const loteOrigem of produtoOrigem.lotes) {
-        if (quantidadeRestante <= 0) break;
-
-        const quantidadeDoLote = Math.min(loteOrigem.quantidade, quantidadeRestante);
-        lotesUsados.push({
-            ...loteOrigem,
-            quantidadeTransferida: quantidadeDoLote
-        });
-
-        quantidadeRestante -= quantidadeDoLote;
+    // Saída da origem pelo FEFO (nunca de lote vencido ou inativo), repartindo entre lotes se preciso. Grava em transação.
+    const saida = retirarEstoqueFEFO(fromSetor, produtoOrigem, qtd);
+    if (!saida.ok) {
+        showMsg(saida.message, "error");
+        return;
     }
+    const lotesUsados = saida.partes.map(p => ({ lote: p.lote, validade: p.validade, remessa: p.remessa, quantidadeTransferida: p.quantidade }));
 
-    // Remover dos lotes de origem
-    for (const loteUsado of lotesUsados) {
-        const loteIndex = produtoOrigem.lotes.findIndex(l => l.id === loteUsado.id);
-        produtoOrigem.lotes[loteIndex].quantidade -= loteUsado.quantidadeTransferida;
-
-        if (produtoOrigem.lotes[loteIndex].quantidade <= 0) {
-            produtoOrigem.lotes.splice(loteIndex, 1);
-        }
-    }
-
-    // Atualizar produto de origem
-    produtoOrigem.qtd = produtoOrigem.lotes.reduce((total, l) => total + l.quantidade, 0);
-
-    // Se não há mais lotes, remover o produto
-    if (produtoOrigem.lotes.length === 0) {
-        const produtoIndex = MOCK_DATA[fromSetor].findIndex(p => p.barcode === barcode);
-        MOCK_DATA[fromSetor].splice(produtoIndex, 1);
-    } else {
-        // Atualizar lote e validade principais
-        produtoOrigem.lotes.sort((a, b) => {
-            if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-            if (a.validade === 'N/A') return 1;
-            if (b.validade === 'N/A') return -1;
-            return new Date(a.validade) - new Date(b.validade);
-        });
-        produtoOrigem.lote = produtoOrigem.lotes[0].lote;
-        produtoOrigem.validade = produtoOrigem.lotes[0].validade;
-    }
-
-    // Adicionar ao destino (criar novos lotes ou adicionar a existentes)
-    const produtoDestino = MOCK_DATA[toSetor].find(i => i.barcode === barcode);
-
-    if (produtoDestino) {
-        // Para cada lote transferido
-        for (const loteUsado of lotesUsados) {
-            const loteExistente = produtoDestino.lotes.find(
-                l => l.lote === loteUsado.lote && l.validade === loteUsado.validade
-            );
-
-            if (loteExistente) {
-                loteExistente.quantidade += loteUsado.quantidadeTransferida;
-            } else {
-                produtoDestino.lotes.push({
-                    id: Date.now(),
-                    lote: loteUsado.lote,
-                    validade: loteUsado.validade,
-                    quantidade: loteUsado.quantidadeTransferida,
-                    data_entrada: new Date().toISOString().split('T')[0]
-                });
-            }
-        }
-
-        // Atualizar quantidade total
-        produtoDestino.qtd = produtoDestino.lotes.reduce((total, l) => total + l.quantidade, 0);
-
-        // Ordenar lotes por validade
-        produtoDestino.lotes.sort((a, b) => {
-            if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-            if (a.validade === 'N/A') return 1;
-            if (b.validade === 'N/A') return -1;
-            return new Date(a.validade) - new Date(b.validade);
-        });
-        produtoDestino.lote = produtoDestino.lotes[0].lote;
-        produtoDestino.validade = produtoDestino.lotes[0].validade;
-
-    } else {
-        // Criar novo produto no destino
-        const novoProduto = {
-            id: Date.now(),
-            barcode: produtoOrigem.barcode,
-            material: produtoOrigem.material,
-            descricao: produtoOrigem.descricao,
-            empresa: produtoOrigem.empresa,
-            marca: produtoOrigem.marca,
-            lote: lotesUsados[0].lote,
-            validade: lotesUsados[0].validade,
-            qtd: qtd,
-            min: produtoOrigem.min,
-            lotes: lotesUsados.map(loteUsado => ({
-                id: Date.now() + Math.random(),
-                lote: loteUsado.lote,
-                validade: loteUsado.validade,
-                quantidade: loteUsado.quantidadeTransferida,
-                data_entrada: new Date().toISOString().split('T')[0]
-            }))
-        };
-
-        MOCK_DATA[toSetor].push(novoProduto);
+    // Entrada no destino nos MESMOS lotes (o produto é criado lá, com o mesmo cadastro, se ainda não existir)
+    for (const l of lotesUsados) {
+        devolverAoLote(toSetor, barcode, { lote: l.lote, validade: l.validade, remessa: l.remessa }, l.quantidadeTransferida, produtoOrigem);
     }
 
     // Registrar no histórico
@@ -153,7 +54,7 @@ function handleTransfer(e) {
         destino: toSetor,
         data: now.toLocaleDateString('pt-PT'),
         hora: now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
-        lotes: lotesUsados.map(l => `${l.lote} (${l.quantidadeTransferida} un)`)
+        lotes: lotesUsados.map(l => `${rotuloLote(l.lote)} (${l.quantidadeTransferida} un)`)
     };
     TRANSFER_HISTORY.unshift(transferItem);
     if (typeof db_saveTransferHistory === 'function') db_saveTransferHistory(transferItem);

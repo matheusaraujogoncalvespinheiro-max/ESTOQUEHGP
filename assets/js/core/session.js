@@ -34,7 +34,12 @@ function writeSession(data) {
 function startSession() {
     if (!state.currentUser) return;
     lastSessionTouch = Date.now();
-    writeSession({ username: state.currentUser.username, module: state.activeModule, ts: lastSessionTouch });
+    writeSession({ username: state.currentUser.username, module: state.activeModule, rota: rotaSessao(), ts: lastSessionTouch });
+}
+
+/** Tela completa (com o cadastro/relatório aberto), quando o arquivo de rotas está carregado. */
+function rotaSessao() {
+    return typeof rotaDoEstado === 'function' ? rotaDoEstado() : state.activeModule;
 }
 
 /** Apaga a sessão (logout, expiração). */
@@ -53,7 +58,8 @@ function saveSession() {
     if (!state.isAuthenticated || !state.currentUser) return;
     const saved = readSession();
     if (!saved || saved.username !== state.currentUser.username) return startSession();
-    if (saved.module !== state.activeModule) writeSession({ ...saved, module: state.activeModule });
+    const rota = rotaSessao();
+    if (saved.module !== state.activeModule || saved.rota !== rota) writeSession({ ...saved, module: state.activeModule, rota });
 }
 
 /** Marca atividade do usuário (movimento, clique, tecla): mantém a sessão viva. */
@@ -87,7 +93,12 @@ function tryRestoreSession() {
     state.sessionPending = false;
     clearTimeout(sessionWaitTimer);
 
-    // Volta para a mesma tela, se este perfil ainda puder abri-la; senão, para a tela inicial
+    // Volta para a mesma tela (a do endereço ou a guardada, com o cadastro/relatório aberto), se este perfil
+    // ainda puder abri-la; senão, para a tela inicial
+    if (typeof restaurarRotaInicial === 'function' && restaurarRotaInicial(saved.rota || saved.module)) {
+        resetInactivityTimer();
+        return true;
+    }
     const wanted = saved.module;
     const allowed = wanted && (typeof canOpenModule !== 'function' || canOpenModule(wanted));
     state.activeModule = allowed ? wanted : (typeof homeModule === 'function' ? homeModule(record.role) : 'DASHBOARD');

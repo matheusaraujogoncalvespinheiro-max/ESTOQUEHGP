@@ -67,7 +67,7 @@ Object.assign(CAD_DEFS, {
     },
     inventario: {
         key: 'inventario', label: 'Inventário de Estoque', singular: 'Inventário', icon: 'clipboard-list', prefix: 'INV', semInativar: true, roles: roles(R_FISC, ['ADMIN', 'CHEFE_OPME', 'FUNC_OPME', 'CHEFE_HEMODINAMICA', 'FUNC_HEMODINAMICA', 'FUNC_CENTRO_CIRURGICO']),
-        desc: 'Contagem física por setor. Carregue os produtos, informe o que contou e conclua: as diferenças ficam registradas e, se quiser, as faltas são baixadas do estoque.',
+        desc: 'Contagem física por setor. Carregue os produtos, informe o que contou e conclua: as diferenças ficam registradas e, se quiser, o estoque é ajustado (faltas baixadas, sobras lançadas).',
         rotulo: (r) => `${r.codigo} - ${r.setor}`, search: ['codigo', 'setor'], filters: [{ k: 'situacao', label: 'Situação', opts: ['Em contagem', 'Concluído'] }, filtroSetorOps],
         columns: [{ k: 'codigo', label: 'Código', sort: true }, { k: 'setor', label: 'Setor', sort: true }, { k: 'data_inventario', label: 'Data', sort: true, get: (r) => (r.data_inventario ? formatDateBR(r.data_inventario) : '—') }, { k: 'situacao', label: 'Situação', sort: true },
             { k: 'observacoes', label: 'Observação', get: (r) => r.observacoes || '—' }, { k: 'divergencias', label: 'Divergências', num: true }, { k: 'faltas', label: 'Faltas', num: true }, { k: 'sobras', label: 'Sobras', num: true }],
@@ -82,9 +82,11 @@ Object.assign(CAD_DEFS, {
         tabs: [{ id: 'dados', label: 'Contagem', fields: [
             { k: 'setor', label: 'Setor de estoque', type: 'select', req: true, roEdit: true, opts: SETORES_OPS_OPTS }, { k: 'data_inventario', label: 'Data da contagem', type: 'date', req: true, max: todayISO() },
             { k: 'situacao', label: 'Situação', type: 'select', req: true, opts: ['Em contagem', 'Concluído'] },
-            { k: 'aplicar_ajuste', label: 'Ajuste', type: 'check', checkLabel: 'Ao concluir, baixar as faltas do estoque (lotes que vencem primeiro)' },
+            { k: 'aplicar_ajuste', label: 'Ajuste', type: 'check', checkLabel: 'Ao concluir, ajustar o estoque: baixar as faltas (lotes que vencem primeiro) e dar entrada nas sobras',
+                help: 'Sobra de produto controlado por lote precisa do lote e da validade (colunas da contagem). Sem controle por lote, sem lote vai para o saldo geral.' },
             { k: 'itens', label: 'Produtos contados', type: 'itens', req: true, span2: true, semAdicionar: true, carregarRotulo: 'Carregar produtos do setor', carregar: (f) => { if (!f.setor) throw new Error('Escolha o setor primeiro.'); return itensInventario(f.setor); },
-                colunas: [{ k: 'produto', label: 'Produto', type: 'produto' }, { k: 'quantidade_sistema', label: 'Saldo no sistema', ro: true }, { k: 'quantidade_contada', label: 'Qtd. contada', type: 'number' }] },
+                colunas: [{ k: 'produto', label: 'Produto', type: 'produto' }, { k: 'quantidade_sistema', label: 'Saldo no sistema', ro: true }, { k: 'quantidade_contada', label: 'Qtd. contada', type: 'number' },
+                    { k: 'lote', label: 'Lote da sobra' }, { k: 'fabricacao', label: 'Fabricação', type: 'date' }, { k: 'validade', label: 'Validade da sobra', type: 'date' }] },
             { ...OBS }] }]
     },
 
@@ -119,15 +121,23 @@ Object.assign(CAD_DEFS.entradanf, {
     botoesLista: [{ rotulo: 'NF Destinadas', icon: 'file-text', fn: 'entradaNfDestinadas', cor: 'azul' }, { rotulo: 'Importar XML', icon: 'upload', fn: 'entradaImportarXml', cor: 'claro', direita: true }],
     kpiERP: (todos) => ({ rotulo: 'Total Pendente', valor: formatMoney(todos.filter(r => r.situacao === 'Pendente').reduce((a, r) => a + (Number(r.valor_nota) || 0), 0)), icon: 'banknote' }),
     corLinha: (r) => (r.situacao === 'Lançada' ? 'ok' : (r.situacao === 'Cancelada' ? 'cancelada' : '')),
+    // Depois que os itens entraram no estoque, a entrada não muda mais (desfazer = saída/perda pelas Movimentações)
+    somenteLeitura: (r) => Boolean(r.estoque_lancado),
+    depois: (reg) => aplicarEntradaEstoqueNF(reg),
+    depoisEdicao: (reg, form, atual) => aplicarEntradaEstoqueNF(reg, atual),
     top: [{ k: 'codigo', label: 'N. Interno', type: 'text', ro: true, roVazio: '0', col: 2 }, { k: 'situacao', label: 'Status', type: 'select', req: true, col: 2, opts: STATUS_ENTRADA },
         { k: 'nfe', label: 'NF-e', type: 'ref', ref: 'nfe', req: true, roEdit: true, col: 5 }, { k: 'data_entrada', label: 'Data do lançamento', type: 'date', max: todayISO(), col: 3 }],
     tabs: [
         { id: 'itens', label: 'Itens', fields: [{ k: 'itens', label: 'Itens da nota', type: 'itens', col: 12, semAdicionar: true,
-            colunas: [{ k: 'codigo', label: 'Código', ro: true }, { k: 'descricao', label: 'Descrição', ro: true }, { k: 'quantidade', label: 'Qtde', ro: true }, { k: 'valor_unit', label: 'Vlr un', ro: true }, { k: 'produto', label: 'Produto do estoque', type: 'produto' }] }] },
+            colunas: [{ k: 'codigo', label: 'Código', ro: true }, { k: 'descricao', label: 'Descrição', ro: true }, { k: 'quantidade', label: 'Qtde', ro: true }, { k: 'valor_unit', label: 'Vlr un', ro: true }, { k: 'produto', label: 'Produto do estoque', type: 'produto' },
+                { k: 'lote', label: 'Lote' }, { k: 'fabricacao', label: 'Fabricação', type: 'date' }, { k: 'validade', label: 'Validade', type: 'date' }] }] },
         { id: 'fatura', label: 'Fatura', fields: [{ k: 'faturas', label: 'Faturas (duplicatas)', type: 'itens', col: 12, semAdicionar: true, colunas: [{ k: 'numero', label: 'Duplicata', ro: true }, { k: 'vencimento', label: 'Vencimento', ro: true }, { k: 'valor', label: 'Valor', ro: true }] }] },
         { id: 'adicionais', label: 'Adicionais', fields: [
             { k: 'cfop', label: 'CFOP de entrada (4 dígitos)', type: 'digits', len: 4, maxlen: 4, col: 3, help: 'Obrigatório para lançar.' }, { k: 'natureza_operacao', label: 'Natureza da operação', type: 'text', col: 5 },
-            { k: 'valor_confere', label: 'Conferência', type: 'check', checkLabel: 'Valor e itens conferidos com a mercadoria', col: 4 }, { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 }] }]
+            { k: 'valor_confere', label: 'Conferência', type: 'check', checkLabel: 'Valor e itens conferidos com a mercadoria', col: 4 },
+            { k: 'entrada_estoque', label: 'Estoque', type: 'check', checkLabel: 'Ao lançar, dar entrada dos itens no estoque', col: 12,
+                help: 'Cada item precisa estar vinculado a um produto. Produto controlado por lote exige lote e validade (o XML traz do grupo de rastreabilidade, quando o fornecedor informa). Não marque se a mercadoria já entrou por um Recebimento.' },
+            { k: 'observacoes', label: 'Observações', type: 'textarea', col: 12, maxlen: 500 }] }]
 });
 
 Object.assign(CAD_DEFS.nfe, {
@@ -172,8 +182,10 @@ Object.assign(CAD_DEFS.inventario, {
     tabs: [
         { id: 'itens', label: 'Itens', fields: [{ k: 'itens', label: 'Produtos contados', type: 'itens', req: true, col: 12, semAdicionar: true, carregarRotulo: 'Carregar produtos do setor',
             carregar: (f) => { if (!f.setor) throw new Error('Escolha o setor primeiro.'); return itensInventario(f.setor); },
-            colunas: [{ k: 'produto', label: 'Produto', type: 'produto' }, { k: 'quantidade_sistema', label: 'Saldo no sistema', ro: true }, { k: 'quantidade_contada', label: 'Qtd. contada', type: 'number' }] }] },
-        { id: 'observacoes', label: 'Observações', fields: [{ k: 'observacoes', label: 'Observação', type: 'textarea', col: 12, maxlen: 500 }, { k: 'aplicar_ajuste', label: 'Ajuste', type: 'check', checkLabel: 'Ao concluir, baixar as faltas do estoque (lotes que vencem primeiro)', col: 12 }] }]
+            colunas: [{ k: 'produto', label: 'Produto', type: 'produto' }, { k: 'quantidade_sistema', label: 'Saldo no sistema', ro: true }, { k: 'quantidade_contada', label: 'Qtd. contada', type: 'number' },
+                { k: 'lote', label: 'Lote da sobra' }, { k: 'fabricacao', label: 'Fabricação', type: 'date' }, { k: 'validade', label: 'Validade da sobra', type: 'date' }] }] },
+        { id: 'observacoes', label: 'Observações', fields: [{ k: 'observacoes', label: 'Observação', type: 'textarea', col: 12, maxlen: 500 }, { k: 'aplicar_ajuste', label: 'Ajuste', type: 'check', checkLabel: 'Ao concluir, ajustar o estoque: baixar as faltas (lotes que vencem primeiro) e dar entrada nas sobras', col: 12,
+            help: 'Sobra de produto controlado por lote precisa do lote e da validade (colunas da aba Itens). Sem controle por lote, sem lote vai para o saldo geral.' }] }]
 });
 
 Object.assign(CAD_DEFS.nfse, {

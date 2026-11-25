@@ -10,6 +10,7 @@ function handleAddExistingProduct(e) {
     const lote = form.loteExisting.value;
     const remessa = form.remessaExisting ? form.remessaExisting.value : '';
     const validade = form.validadeExisting.value;
+    const fabricacao = form.fabricacaoExisting ? form.fabricacaoExisting.value : '';
     const quantidade = parseInt(form.quantidadeExisting.value);
 
     if (!hasPermission('update_stock', setor)) {
@@ -22,14 +23,23 @@ function handleAddExistingProduct(e) {
         return;
     }
 
-    if (!lote || !remessa || !validade) {
-        showMsg("Erro: Para adicionar estoque, informe lote, remessa e validade!", "error");
-        return;
-    }
-
     const existente = findProductByBarcodeAndSetor(barcode, setor);
     if (existente && !produtoAtivo(existente)) {
         showMsg("Produto inativo: reative o cadastro antes de dar entrada.", "error");
+        return;
+    }
+
+    // Produto com controle por lote: lote e validade obrigatórios. Sem controle: só o processo (lote e validade opcionais).
+    if (!remessa) {
+        showMsg("Erro: informe o processo da entrada!", "error");
+        return;
+    }
+    if (existente && produtoControlaLote(existente) && (!lote || !validade)) {
+        showMsg("Este produto é controlado por lote: informe o lote e a validade!", "error");
+        return;
+    }
+    if (fabricacao && validade && fabricacao > validade) {
+        showMsg("A data de fabricação não pode ser depois da validade.", "error");
         return;
     }
 
@@ -43,9 +53,14 @@ function handleAddExistingProduct(e) {
         marca: marca,
         material: form.materialExisting?.value?.toUpperCase(),
         descricao: form.descricaoExisting?.value?.toUpperCase(),
-        min: parseInt(form.minExisting?.value) || 5
+        min: parseInt(form.minExisting?.value) || 5,
+        fabricacao
     });
 
+    if (result.type === 'erro') {
+        showMsg(result.message, 'error');
+        return;
+    }
     if (result.type === 'created') {
         showMsg("Produto criado com novo lote!");
     } else {
@@ -56,7 +71,7 @@ function handleAddExistingProduct(e) {
 
     // Log Entry
     const descricaoItem = result.produto ? result.produto.material : (form.materialExisting?.value?.toUpperCase() || '-');
-    logEntryHistory('ENTRADA', setor, barcode, descricaoItem, quantidade, lote);
+    logEntryHistory('ENTRADA', setor, barcode, descricaoItem, quantidade, result.lote ? result.lote.lote : lote);
     saveToLocalStorage();
     form.reset();
 
@@ -126,26 +141,24 @@ function searchProductByBarcode() {
                     <div class="text-slate-600">Setor Atual:</div>
                     <div class="font-medium">${setor === 'OPME' ? 'OPME' : setor === 'HEMODINAMICA' ? 'Hemodinâmica' : 'Centro Cirúrgico'}</div>
                     
+                    <div class="text-slate-600">Controle de estoque:</div>
+                    <div class="font-medium">${produtoControlaLote(produto) ? 'Por lote (lote e validade obrigatórios)' : 'Saldo geral (lote e validade opcionais)'}</div>
+
                     <div class="text-slate-600">Estoque Total:</div>
                     <div class="font-medium ${produto.qtd <= produto.min ? 'text-red-600' : 'text-green-600'}">${produto.qtd} unidades</div>
                 </div>
                 
                 <div class="mt-3 pt-3 border-t border-blue-200">
                     <h5 class="font-bold text-blue-700 mb-2 text-sm">Lotes Disponíveis:</h5>
-                    ${produto.lotes && produto.lotes.length > 0 ?
-                produto.lotes.sort((a, b) => {
-                    if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-                    if (a.validade === 'N/A') return 1;
-                    if (b.validade === 'N/A') return -1;
-                    return new Date(a.validade) - new Date(b.validade);
-                }).map(lote => `
+                    ${produto.lotes && produto.lotes.some(l => Number(l.quantidade) > 0) ?
+                produto.lotes.filter(l => Number(l.quantidade) > 0).sort((a, b) => compararFEFO(a, b)).map(lote => `
                             <div class="text-xs bg-white p-2 rounded-lg mb-1 border border-blue-100">
                                 <div class="flex justify-between">
-                                    <span class="font-medium">Lote: ${lote.lote}</span>
+                                    <span class="font-medium">Lote: ${escapeHtml(rotuloLote(lote.lote))}</span>
                                     <span class="text-slate-500">${lote.quantidade} un.</span>
                                 </div>
                                 <div class="flex justify-between mt-1">
-                                    <span>Validade: ${lote.validade !== 'N/A' ? new Date(lote.validade).toLocaleDateString('pt-PT') : 'N/A'}</span>
+                                    <span>Validade: ${lote.validade && lote.validade !== 'N/A' ? new Date(lote.validade).toLocaleDateString('pt-PT') : 'N/A'}</span>
                                     <span class="text-slate-500">Entrada: ${lote.data_entrada}</span>
                                 </div>
                             </div>
@@ -166,8 +179,26 @@ function searchProductByBarcode() {
 
     if (empresaInput) empresaInput.value = produto.empresa;
     if (marcaInput) marcaInput.value = produto.marca || produto.empresa;
-    if (loteInput) loteInput.value = produto.lote;
-    if (validadeInput) validadeInput.value = produto.validade;
+    // Lotes já cadastrados viram sugestões do campo Lote: escolher um existente soma nele (sem duplicar); um número novo cria o lote
+    const lista = document.getElementById('lotesExistentesList');
+    if (lista) lista.innerHTML = (produto.lotes || []).filter(l => !loteEhSaldoGeral(l) && l.ativo !== false).map(l => `<option value="${escapeHtml(l.lote)}">${escapeHtml(`val. ${l.validade && l.validade !== 'N/A' ? formatDateBR(l.validade) : '—'} · ${l.quantidade} un`)}</option>`).join('');
+    const principal = (produto.lotes || []).find(l => Number(l.quantidade) > 0 && !loteEhSaldoGeral(l));
+    if (loteInput) loteInput.value = principal ? principal.lote : '';
+    if (validadeInput) validadeInput.value = principal && principal.validade !== 'N/A' ? principal.validade : '';
+    window.__produtoEntrada = produto;
+    const obrig = produtoControlaLote(produto) ? ' *' : ' (opcional)';
+    ['loteExistingObrig', 'validadeExistingObrig'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = obrig; });
+}
+
+/** Ao digitar/escolher um lote que já existe, traz a validade e a fabricação dele (o mesmo lote não pode ter outra validade). */
+function entradaLoteEscolhido(codigo) {
+    const p = window.__produtoEntrada;
+    const l = p && (p.lotes || []).find(x => String(x.lote) === String(codigo).trim());
+    if (!l) return;
+    const v = document.getElementById('validadeExisting');
+    if (v && l.validade && l.validade !== 'N/A') v.value = l.validade;
+    const f = document.getElementById('fabricacaoExisting');
+    if (f && l.fabricacao) f.value = l.fabricacao;
 }
 
 function renderAddExistingForm() {
@@ -224,8 +255,9 @@ function renderAddExistingForm() {
             </div>
 
             <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Lote *</label>
-            <input type="text" id="loteExisting" name="loteExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Número do lote">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Lote<span id="loteExistingObrig"> *</span></label>
+            <input type="text" id="loteExisting" name="loteExisting" list="lotesExistentesList" oninput="entradaLoteEscolhido(this.value)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all" placeholder="Escolha um lote existente ou digite um novo">
+            <datalist id="lotesExistentesList"></datalist>
             </div>
 
             <div>
@@ -236,8 +268,13 @@ function renderAddExistingForm() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-            <label class="block text-sm font-medium text-slate-700 mb-2">Validade *</label>
-            <input type="date" id="validadeExisting" name="validadeExisting" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Validade<span id="validadeExistingObrig"> *</span></label>
+            <input type="date" id="validadeExisting" name="validadeExisting" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+            </div>
+
+            <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2">Fabricação (opcional)</label>
+            <input type="date" id="fabricacaoExisting" name="fabricacaoExisting" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
             </div>
 
             <div>
@@ -271,7 +308,7 @@ function renderAddExistingForm() {
             </li>
             <li class="flex items-start gap-2">
             <i data-lucide="info" class="w-4 h-4 text-cyan-500 mt-0.5"></i>
-            <span>Os campos Empresa, Marca e Lote serão preenchidos automaticamente, mas podem ser alterados</span>
+            <span>Produto controlado por lote: escolha um lote existente (a quantidade soma nele) ou digite um novo, com a validade. Produto sem controle por lote: lote e validade são opcionais (sem lote, entra no saldo geral)</span>
             </li>
             <li class="flex items-start gap-2">
             <i data-lucide="info" class="w-4 h-4 text-cyan-500 mt-0.5"></i>
@@ -284,4 +321,5 @@ function renderAddExistingForm() {
 
 // Expor funções usadas em atributos onclick/oninput do HTML
 window.searchProductByBarcode = searchProductByBarcode;
+window.entradaLoteEscolhido = entradaLoteEscolhido;
 window.handleAddExistingProduct = handleAddExistingProduct;

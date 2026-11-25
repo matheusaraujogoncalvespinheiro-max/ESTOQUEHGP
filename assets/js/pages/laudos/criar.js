@@ -422,7 +422,7 @@ function renderLaudoOPMEList() {
                 <div class="font-medium">${item.material}</div>
                 <div class="text-sm text-slate-500">${item.descricao}</div>
                 <div class="text-xs text-slate-400 mt-1">
-                    Processo: ${item.remessa || 'N/A'} | Código: ${item.barcode} | Lote: ${item.lote} | Empresa: ${item.empresa}
+                    Processo: ${item.remessa || 'N/A'} | Código: ${item.barcode} | Lote: ${rotuloLote(item.lote)} | Empresa: ${item.empresa}
                 </div>
             </div>
             <div class="flex items-center gap-3">

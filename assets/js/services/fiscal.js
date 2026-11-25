@@ -35,11 +35,21 @@ function lerXmlNFe(texto) {
     const chave = onlyDigits((inf.getAttribute('Id') || '').replace(/^NFe/, '') || q(doc, 'protNFe infProt chNFe'));
     if (!validarChaveNFe(chave)) throw new Error('A chave de acesso do XML é inválida.');
     const dh = q(inf, 'ide dhEmi') || q(inf, 'ide dEmi');
-    const itens = [...inf.querySelectorAll('det')].map(d => ({
-        codigo: q(d, 'prod cProd'), descricao: q(d, 'prod xProd'), ncm: q(d, 'prod NCM'), cfop: q(d, 'prod CFOP'),
-        un: q(d, 'prod uCom'), cst: q(d, 'imposto ICMS CST') || q(d, 'imposto ICMS CSOSN'), desconto: Number(q(d, 'prod vDesc')) || 0,
-        quantidade: Number(q(d, 'prod qCom')) || 0, valor_unit: Number(q(d, 'prod vUnCom')) || 0
-    }));
+    // Rastreabilidade (grupo <rastro> do item: nLote, qLote, dFab, dVal). Item com vários lotes vira uma linha por lote,
+    // com a quantidade de cada lote e o desconto rateado; item sem <rastro> fica sem lote (a conferência informa, se o produto exigir).
+    const itens = [];
+    [...inf.querySelectorAll('det')].forEach(d => {
+        const base = {
+            codigo: q(d, 'prod cProd'), descricao: q(d, 'prod xProd'), ncm: q(d, 'prod NCM'), cfop: q(d, 'prod CFOP'),
+            un: q(d, 'prod uCom'), cst: q(d, 'imposto ICMS CST') || q(d, 'imposto ICMS CSOSN'), desconto: Number(q(d, 'prod vDesc')) || 0,
+            quantidade: Number(q(d, 'prod qCom')) || 0, valor_unit: Number(q(d, 'prod vUnCom')) || 0, lote: '', fabricacao: '', validade: ''
+        };
+        const rastros = [...d.querySelectorAll('prod rastro')].map(r => ({ lote: q(r, 'nLote'), quantidade: Number(q(r, 'qLote')) || 0, fabricacao: q(r, 'dFab').slice(0, 10), validade: q(r, 'dVal').slice(0, 10) }))
+            .filter(r => r.lote);
+        if (!rastros.length) { itens.push(base); return; }
+        if (rastros.length === 1) { itens.push({ ...base, lote: rastros[0].lote, fabricacao: rastros[0].fabricacao, validade: rastros[0].validade }); return; }
+        rastros.forEach(r => itens.push({ ...base, ...r, desconto: base.quantidade ? Math.round(base.desconto * r.quantidade / base.quantidade * 100) / 100 : 0 }));
+    });
     const faturas = [...doc.querySelectorAll('cobr dup')].map(x => ({ numero: q(x, 'nDup'), vencimento: q(x, 'dVenc'), valor: Number(q(x, 'vDup')) || 0 }));
     const cStat = q(doc, 'protNFe infProt cStat');
     return {
@@ -85,8 +95,53 @@ function validarEntradaMercadoria(form, id) {
         if (form.data_entrada < nfe.data_emissao) throw new Error('O lançamento não pode ser anterior à emissão da nota.');
         if (!/^[1-3]\d{3}$/.test(String(form.cfop || ''))) throw new Error('O CFOP de entrada tem 4 dígitos e começa com 1, 2 ou 3.');
         if (!form.valor_confere) throw new Error('Confirme a conferência de valor e itens para lançar.');
+        const atual = id ? (CAD_DATA.entradanf || []).find(e => e.id === id) : null;
+        if (form.entrada_estoque && !(atual && atual.estoque_lancado)) {
+            if (form.recebimento_id || (atual && atual.recebimento_id)) throw new Error('Esta entrada está ligada a um recebimento, que já deu entrada no estoque. Desmarque "Dar entrada no estoque" para não lançar duas vezes.');
+            conferirItensEntradaEstoque(form.itens || []);
+            extra.estoque_lancado = true;
+        }
     }
     return extra;
+}
+
+/**
+ * Itens da entrada de mercadoria que vão para o estoque, conferidos pelas mesmas regras de lote de qualquer entrada:
+ * produto controlado por lote exige lote e validade; lote existente com outra validade é recusado; sem controle, sem lote vai ao saldo geral.
+ * Devolve [{ pr, item, quantidade }] ou lança erro (nada é gravado).
+ */
+function conferirItensEntradaEstoque(itens) {
+    if (!itens.length) throw new Error('A entrada não tem itens para dar entrada no estoque.');
+    return itens.map((i, n) => {
+        const nome = `Item ${n + 1} (${i.descricao || i.codigo || 'sem descrição'})`;
+        const pr = i.produto ? cadProdutoDe(i.produto) : null;
+        if (!pr || !pr.produto) throw new Error(`${nome}: vincule o produto do estoque (aba Itens) ou desmarque "Dar entrada no estoque".`);
+        const quantidade = Number(i.quantidade);
+        if (!(quantidade > 0) || !Number.isInteger(quantidade)) throw new Error(`${nome}: a quantidade (${i.quantidade}) precisa ser inteira e maior que zero para entrar no estoque.`);
+        const controla = produtoControlaLote(pr.produto);
+        if (controla && !String(i.lote || '').trim()) throw new Error(`${nome}: ${pr.produto.material} é controlado por lote: informe o lote.`);
+        if (controla && !i.validade) throw new Error(`${nome}: informe a validade do lote.`);
+        if (i.validade && i.validade < todayISO()) throw new Error(`${nome}: validade vencida (produto vencido não entra no estoque).`);
+        if (i.fabricacao && i.validade && i.fabricacao > i.validade) throw new Error(`${nome}: a fabricação não pode ser depois da validade.`);
+        const conf = conferirEntradaLote(pr.produto, { lote: i.lote, validade: i.validade });
+        if (!conf.ok) throw new Error(`${nome}: ${conf.message}`);
+        const repetido = itens.slice(0, n).find(o => o.produto === i.produto && String(o.lote || '').trim() === String(i.lote || '').trim() && (o.validade || '') !== (i.validade || ''));
+        if (repetido) throw new Error(`${nome}: o lote ${i.lote} aparece com duas validades diferentes nesta nota.`);
+        return { pr, item: i, quantidade };
+    });
+}
+
+/** Lança no estoque os itens da entrada (uma vez só: o registro fica com estoque_lancado). */
+function aplicarEntradaEstoqueNF(reg, atual = null) {
+    if (!reg.estoque_lancado || (atual && atual.estoque_lancado)) return;
+    conferirItensEntradaEstoque(reg.itens || []).forEach(({ pr, item, quantidade }) => {
+        const p = pr.produto;
+        const r = addProductWithBatch(pr.setor, { barcode: p.barcode, lote: String(item.lote || '').trim(), validade: item.validade, fabricacao: item.fabricacao, remessa: `NF ${reg.numero_nfe || ''}`.trim(),
+            quantidade, empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min, preco: item.valor_unit });
+        if (r.type === 'erro') throw new Error(r.message);
+        if (typeof logEntryHistory === 'function') logEntryHistory('ENTRADA_NF', pr.setor, p.barcode, p.material, quantidade, r.lote.lote, `NF ${reg.numero_nfe || ''} · ${reg.codigo || ''}`);
+    });
+    if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
 }
 
 /** Cria um registro direto (sem formulário), com código sequencial e auditoria. */
@@ -165,14 +220,30 @@ function validarInventario(form) {
         const sistema = Number(pr.produto.qtd) || 0;
         const dif = contou ? Number(i.quantidade_contada) - sistema : 0;
         if (dif !== 0) { divergencias++; if (dif < 0) faltas += -dif; else sobras += dif; }
-        return { produto: i.produto, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}`, quantidade_sistema: sistema, quantidade_contada: contou ? Number(i.quantidade_contada) : '', diferenca: dif };
+        const lote = String(i.lote || '').trim(), validade = i.validade || '', fabricacao = i.fabricacao || '';
+        // Sobra que vai entrar no estoque: mesmas regras de qualquer entrada (com controle por lote: lote e validade obrigatórios)
+        if (dif > 0 && concluir && form.aplicar_ajuste) {
+            const nome = `Item ${n + 1} (${pr.produto.material})`;
+            if (!Number.isInteger(dif)) throw new Error(`${nome}: a sobra precisa ser um número inteiro.`);
+            const controla = produtoControlaLote(pr.produto);
+            if (controla && !lote) throw new Error(`${nome}: sobra de ${dif} un em produto controlado por lote: informe o lote da sobra.`);
+            if (controla && !validade) throw new Error(`${nome}: informe a validade do lote da sobra.`);
+            if (validade && validade < todayISO()) throw new Error(`${nome}: a sobra está vencida e não entra no estoque. Descarte por Perdas e conte sem ela.`);
+            if (fabricacao && validade && fabricacao > validade) throw new Error(`${nome}: a fabricação não pode ser depois da validade.`);
+            const conf = conferirEntradaLote(pr.produto, { lote, validade });
+            if (!conf.ok) throw new Error(`${nome}: ${conf.message}`);
+        }
+        return { produto: i.produto, produto_desc: `${pr.produto.barcode} · ${pr.produto.material}`, quantidade_sistema: sistema, quantidade_contada: contou ? Number(i.quantidade_contada) : '', diferenca: dif, lote, validade, fabricacao };
     });
     if (form.aplicar_ajuste && !concluir) throw new Error('O ajuste só pode ser aplicado com o inventário concluído.');
     if (form.aplicar_ajuste && !hasPermission('register', form.setor)) throw new Error('Somente Administrador e Chefe OPME aplicam ajuste de inventário.');
-    return { itens: conf, divergencias, faltas, sobras, ajuste_aplicado: Boolean(form.aplicar_ajuste && faltas > 0) };
+    return { itens: conf, divergencias, faltas, sobras, ajuste_aplicado: Boolean(form.aplicar_ajuste && (faltas > 0 || sobras > 0)) };
 }
 
-/** Ajuste das FALTAS: baixa o saldo dos lotes (os que vencem primeiro) e registra no histórico. Sobras exigem lançamento próprio (lote e validade). */
+/**
+ * Ajuste do inventário concluído: FALTAS baixam o saldo dos lotes (os que vencem primeiro); SOBRAS entram no estoque pelas regras
+ * de lote (produto controlado: no lote informado na contagem; sem controle: no lote informado ou no saldo geral). Tudo fica no histórico.
+ */
 function aplicarAjusteInventario(reg) {
     if (!reg.ajuste_aplicado) return;
     reg.itens.filter(i => i.diferenca < 0).forEach(i => {
@@ -185,6 +256,15 @@ function aplicarAjusteInventario(reg) {
             if (removeFromBatch(pr.setor, pr.produto.id, l.id, tira)) { registrarHistoricoEstoque('BAIXA', pr, tira, l.lote, `Inventário ${reg.codigo}`); falta -= tira; }
         }
     });
+    reg.itens.filter(i => i.diferenca > 0).forEach(i => {
+        const pr = cadProdutoDe(i.produto);
+        const p = pr.produto;
+        const r = addProductWithBatch(pr.setor, { barcode: p.barcode, lote: i.lote || '', validade: i.validade || '', fabricacao: i.fabricacao || '', remessa: p.remessa || '',
+            quantidade: i.diferenca, empresa: p.empresa, marca: p.marca, material: p.material, descricao: p.descricao, min: p.min, obs: `Sobra do inventário ${reg.codigo}` });
+        if (r.type === 'erro') { showMsg(`${p.material}: ${r.message}`, 'error'); return; }
+        registrarHistoricoEstoque('AJUSTE_SOBRA', pr, i.diferenca, r.lote.lote, `Inventário ${reg.codigo}`);
+    });
+    if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
 }
 
 
@@ -214,7 +294,7 @@ async function gerarEntradaDoXml() {
         if (!nfe) nfe = await criarRegistroCad('nfe', { ...d, natureza_operacao: x.natureza || d.natureza_operacao, busca: searchKey(`${d.numero} ${d.chave} ${d.emitente_nome}`) });
         if ((CAD_DATA.entradanf || []).some(e => e.nfe === nfe.id && e.situacao !== 'Cancelada')) throw new Error('Esta NF-e já tem uma entrada registrada.');
         const itens = d.itens.map((i, n) => ({ ...i, produto: x.vinculos[n] || '' }));
-        const entrada = await criarRegistroCad('entradanf', { nfe: nfe.id, situacao: 'Pendente', data_entrada: '', cfop: '', valor_confere: false, valor_nota: nfe.valor_total, fornecedor_nome: nfe.emitente_nome, numero_nfe: nfe.numero, data_emissao: nfe.data_emissao, natureza_operacao: x.natureza, itens, faturas: d.faturas, observacoes: '' });
+        const entrada = await criarRegistroCad('entradanf', { nfe: nfe.id, situacao: 'Pendente', entrada_estoque: true, data_entrada: '', cfop: '', valor_confere: false, valor_nota: nfe.valor_total, fornecedor_nome: nfe.emitente_nome, numero_nfe: nfe.numero, data_emissao: nfe.data_emissao, natureza_operacao: x.natureza, itens, faturas: d.faturas, observacoes: '' });
         state.xmlImport = null;
         showMsg(`Entrada ${entrada.codigo} gerada como pendente. Confira e lance.`);
         cadAbrir('entradanf');

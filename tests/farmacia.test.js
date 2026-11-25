@@ -187,7 +187,10 @@ test('dispensação: valida item prescrito, internação ativa, setor, lote, sal
     assert.match(erro({ produto: '' }), /Selecione o produto/);
     assert.match(erro({ quantidade: 0 }), /quantidade/);
     assert.match(erro({ quantidade: 1.5 }), /quantidade/);
-    assert.match(erro({ lote: '' }), /Selecione o lote/);
+    // Lote em branco = FEFO: o sistema escolhe o lote que vence primeiro (L-B, 20 dias) e grava qual foi
+    dados('__f', formDisp({ lote: '' }));
+    assert.equal(j('validarDispensacao(__f)').lote_codigo, 'L-B');
+    assert.match(erro({ lote: '', quantidade: 11 }), /tem só 10 un/);
     assert.match(erro({ lote: '2', quantidade: 11 }), /tem só 10 un/);
     assert.match(erro({ produto: 'FARMACIA|MED003', lote: '4', prescricao_item: 'r2|0' }), /vencido/);
     assert.match(erro({ produto: 'FARMACIA|MED004', lote: '5' }), /inativo/);

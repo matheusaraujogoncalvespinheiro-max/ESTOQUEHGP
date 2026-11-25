@@ -167,21 +167,24 @@ function finalizeTransferCart() {
     };
 
     if (!isRequestingFromOther) {
-        // Immediate deduction since user is sending their own stock
+        // Baixa imediata (o setor envia o próprio estoque) pelo FEFO; os itens guardam os lotes que saíram,
+        // para o destino receber nos mesmos lotes e a recusa devolver ao lote certo
         for (let item of state.transferCart) {
             const product = findProductByBarcodeAndSetor(item.barcode, fromSetor);
-            if (product) {
-                let remainingToRemove = item.quantity;
-                const batches = [...product.lotes].sort((a, b) => new Date(a.validade) - new Date(b.validade));
-                
-                for (let batch of batches) {
-                    if (remainingToRemove <= 0) break;
-                    const qtyToRemove = Math.min(batch.quantidade, remainingToRemove);
-                    removeFromBatch(fromSetor, product.id, batch.id, qtyToRemove);
-                    remainingToRemove -= qtyToRemove;
-                }
-            }
+            if (!product) return showMsg(`Produto ${item.barcode} não encontrado no estoque de origem.`, 'error');
+            const plano = planejarSaidaFEFO(product, item.quantity);
+            if (!plano.ok) return showMsg(`${product.material}: ${plano.message}`, 'error');
+            const conflito = conferirTransferenciaLote(product, toSetor);
+            if (conflito) return showMsg(conflito, 'error');
         }
+        const enviados = [];
+        for (let item of state.transferCart) {
+            const product = findProductByBarcodeAndSetor(item.barcode, fromSetor);
+            const saida = retirarEstoqueFEFO(fromSetor, product, item.quantity);
+            if (!saida.ok) return showMsg(saida.message, 'error');
+            saida.partes.forEach(p => enviados.push({ ...item, quantity: p.quantidade, lote: p.lote, validade: p.validade, remessa: p.remessa || '' }));
+        }
+        newTransfer.items = enviados;
     }
 
     if (!MOCK_DATA.REQUESTS) MOCK_DATA.REQUESTS = [];

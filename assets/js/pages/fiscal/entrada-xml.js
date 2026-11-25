@@ -59,5 +59,5 @@ function xmlVincular(n) {
 
 function xmlDetalheItem(n) {
     const i = state.xmlImport.d.itens[n];
-    hModal(`Item ${n + 1}`, `<dl class="about-list">${[['Código', i.codigo], ['Descrição', i.descricao], ['NCM', i.ncm], ['CFOP', i.cfop], ['CST/CSOSN', i.cst], ['Unidade', i.un], ['Quantidade', i.quantidade], ['Valor unitário', formatMoney(i.valor_unit)], ['Desconto', formatMoney(i.desconto || 0)]].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v || '—')}</dd></div>`).join('')}</dl>`, 'md');
+    hModal(`Item ${n + 1}`, `<dl class="about-list">${[['Código', i.codigo], ['Descrição', i.descricao], ['NCM', i.ncm], ['CFOP', i.cfop], ['CST/CSOSN', i.cst], ['Unidade', i.un], ['Quantidade', i.quantidade], ['Lote', i.lote || '—'], ['Fabricação', i.fabricacao ? formatDateBR(i.fabricacao) : '—'], ['Validade', i.validade ? formatDateBR(i.validade) : '—'], ['Valor unitário', formatMoney(i.valor_unit)], ['Desconto', formatMoney(i.desconto || 0)]].map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v || '—')}</dd></div>`).join('')}</dl>`, 'md');
 }

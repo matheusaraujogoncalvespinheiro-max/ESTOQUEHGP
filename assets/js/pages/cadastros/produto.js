@@ -26,11 +26,11 @@ Object.assign(CAD_DEFS.produto, {
     semSitForm: true,
     // Bloco superior: identificação e informações principais
     top: [
-        { k: 'codigo', label: 'Código Interno', type: 'text', req: true, roEdit: true, maxlen: 40, help: 'Código de barras / identificador único no setor. Não muda depois de salvo.' },
-        { k: 'codigo_fabricante', label: 'Código do Fabricante', type: 'text', maxlen: 40 },
-        { k: 'nome', label: 'Nome do Produto', type: 'upper', req: true, maxlen: 120 },
+        { k: 'codigo', label: 'Código Interno', type: 'text', req: true, roEdit: true, maxlen: 40, colGrade: 3, help: 'Código de barras / identificador único no setor. Não muda depois de salvo.' },
+        { k: 'codigo_fabricante', label: 'Código do Fabricante', type: 'text', maxlen: 40, colGrade: 3 },
+        { k: 'nome', label: 'Nome do Produto', type: 'upper', req: true, maxlen: 120, colGrade: 6 },
         { k: 'custo', label: 'Valor de Custo (R$)', type: 'money' },
-        { k: 'ativo_sel', label: 'Situação', type: 'select', opts: CAD_SIM_NAO, req: true },
+        { k: 'ativo_sel', label: 'Situação', type: 'select', opts: CAD_SIM_NAO, req: true, colGrade: 3 },
         { k: 'estoque', label: 'Estoque Atual', type: 'text', ro: true, help: 'Saldo real dos lotes. Só muda por movimentação.' }
     ],
     kpisExtra: (todos) => [
@@ -52,8 +52,11 @@ Object.assign(CAD_DEFS.produto, {
             { k: 'max', label: 'Estoque máximo', type: 'number' },
             { k: 'localizacao', label: 'Localização de armazenamento', type: 'text', ph: 'Ex.: Prateleira B2' },
             { k: 'eh_opme', label: 'Classificação', type: 'check', checkLabel: 'É OPME (órtese, prótese ou material especial)', rerender: true, span2: true,
-                help: 'Habilita a aba "OPME" (depois de salvar). Produtos comuns não preenchem dados de OPME.' }
+                help: 'Habilita a aba "OPME" (depois de salvar). Produtos comuns não preenchem dados de OPME.' },
+            { k: 'cfg_usa_lote', label: 'Controle de estoque', type: 'check', checkLabel: 'Controlar estoque por lote', rerender: true, span2: true,
+                help: 'Marcado: aparece a aba "Lotes"; entradas exigem lote e validade, saídas usam o lote que vence primeiro e o saldo é a soma dos lotes. Desmarcado: saldo geral, sem exigir lote.' }
         ] },
+        { id: 'lotes', label: 'Lotes', render: (def, st, ro) => renderProdutoLotes(st, ro), hide: (f) => !f.cfg_usa_lote },
         { id: 'adicionais', label: 'Adicionais', fields: [
             { k: 'desc_complementar', label: 'Descrição complementar', type: 'textarea', span2: true },
             { k: 'especificacoes', label: 'Especificações técnicas', type: 'textarea', span2: true },
@@ -105,7 +108,7 @@ Object.assign(CAD_DEFS.produto, {
 // Opções em caixas de marcação, cada uma com um "i" que explica o que ela significa.
 const PRODUTO_OPCOES = [
     { k: 'listar_inventario', label: 'Listar no Inventário', padrao: true, info: 'O produto entra na contagem periódica de estoque (inventário).' },
-    { k: 'usa_lote', label: 'Usa Lote', info: 'O produto é controlado por lote: toda entrada e saída identifica o lote.' },
+    { k: 'usa_lote', label: 'Controlar estoque por lote', info: 'O produto é controlado por lote: toda entrada e saída identifica o lote e o saldo é a soma dos lotes (aba Lotes). Fica na aba Dados.' },
     { k: 'usa_validade', label: 'Controla Validade', info: 'O produto tem prazo de validade. Lotes vencidos são bloqueados para saída.' },
     { k: 'usa_serie', label: 'Usa Número de Série', info: 'Cada unidade tem número de série próprio e deve ser registrado na entrada e na saída.' },
     { k: 'usa_kit', label: 'Usa Kit', info: 'O produto é um kit composto por outros itens.' },
@@ -119,7 +122,7 @@ const PRODUTO_OPCOES = [
 // Três colunas, como no modelo: cada coluna reúne opções do mesmo assunto
 const PRODUTO_COLUNAS = [
     ['listar_inventario', 'altera_descricao', 'altera_valor', 'fracionado'],
-    ['usa_lote', 'usa_validade', 'usa_serie', 'usa_conferencia'],
+    ['usa_validade', 'usa_serie', 'usa_conferencia'],   // "Controlar estoque por lote" fica na aba Dados (abre a aba Lotes)
     ['usa_kit', 'usa_multipla_embalagem']
 ];
 
@@ -153,7 +156,8 @@ function produtoRow(p, setor) {
         controlado: produtoControlado(p), principio_ativo: (c.medicamento && c.medicamento.principio_ativo) || '',
         classe_id: c.classe_id || '', grupo_id: c.grupo_id || '', subgrupo_id: c.subgrupo_id || '', fabricante_id: c.fabricante_id || '', unidade_id: c.unidade_id || '',
         estoque_situacao: estoque <= 0 ? 'zerado' : (estoque <= Number(p.min || 0) ? 'baixo' : 'ok'),
-        lote: lotes.map(l => l.lote).join(' '),
+        lote: lotes.filter(l => !loteEhSaldoGeral(l)).map(l => l.lote).join(' '),
+        controle: produtoControlaLote(p) ? 'lote' : 'geral',
         lotes_vencidos: lotes.filter(l => l.quantidade > 0 && loteVencido(l)).length,
         _p: p
     };
@@ -182,7 +186,7 @@ function produtoMovimentos(codigo, setor) {
         const qtd = Number(h.quantity ?? h.qty ?? 0);
         const acao = h.action || '';
         const saida = ['CONSU_SALA', 'SAIDA', 'DISPENSACAO', 'PERDA', 'BAIXA', 'DEV_FORNECEDOR', 'ESTORNO_DEVOLUCAO', 'ESTORNO_RECEBIMENTO'].includes(acao);
-        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', DISPENSACAO: 'Dispensação ao paciente', ESTORNO_DISPENSACAO: 'Estorno de dispensação (cancelamento)', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
+        mov.push({ ts: parseDataHora(h.date, h.time), tipo: saida ? 'SAIDA' : 'ENTRADA', rotulo: ({ CADASTRO: 'Cadastro / entrada inicial', CONSU_SALA: 'Consumo em sala', SAIDA: 'Saída', DISPENSACAO: 'Dispensação ao paciente', ESTORNO_DISPENSACAO: 'Estorno de dispensação (cancelamento)', PERDA: 'Perda', BAIXA: 'Baixa', DEV_FORNECEDOR: 'Devolução ao fornecedor', DEVOLUCAO: 'Devolução ao estoque', RECEBIMENTO: 'Recebimento de compra', ENTRADA_NF: 'Entrada por NF-e', AJUSTE_SOBRA: 'Sobra de inventário', ESTORNO_SAIDA: 'Estorno de saída (cancelamento)', ESTORNO_PERDA: 'Estorno de perda (cancelamento)', ESTORNO_BAIXA: 'Estorno de baixa (cancelamento)', ESTORNO_DEV_FORNECEDOR: 'Estorno de devolução ao fornecedor', ESTORNO_DEVOLUCAO: 'Estorno de devolução ao estoque', ESTORNO_RECEBIMENTO: 'Estorno de recebimento' }[acao] || 'Entrada de estoque'),
             delta: saida ? -qtd : qtd, qtd, lote: h.batch ?? h.batch_code ?? '', validade: '', origem: saida ? rotuloSetor(setor) : 'Entrada', destino: saida ? (acao === 'CONSU_SALA' ? 'Sala de procedimento' : 'Saída do estoque') : rotuloSetor(setor),
             setor: rotuloSetor(setor), usuario: h.user ?? h.user_name ?? '', paciente: '', fornecedor: '', obs: '' });
     });
@@ -232,14 +236,14 @@ function renderProdutoMovimentacao(st) {
     if (F.resp) mov = mov.filter(m => searchKey(m.usuario).includes(searchKey(F.resp)));
     if (F.lote) mov = mov.filter(m => searchKey(m.lote).includes(searchKey(F.lote)));
     const p = row._p;
-    const lotes = (p.lotes || []);
+    const lotes = (p.lotes || []).filter(l => Number(l.quantidade) > 0);   // a aba Lotes mostra todos (inclusive zerados e inativos)
     const campo = (rot, ctl) => `<div class="cd-filter"><span>${rot}</span>${ctl}</div>`;
     return `
     <div class="at-stack">
         <div>
             <h3 class="at-label" style="margin:0 0 8px">Saldo por lote (rastreabilidade)</h3>
             ${lotes.length ? `<div class="cd-tablewrap"><table class="tri-table cd-table"><thead><tr><th>Lote</th><th>Validade</th><th>Quantidade</th><th>Entrada</th><th>Situação do lote</th></tr></thead><tbody>
-                ${lotes.map(l => `<tr><td data-label="Lote">${escapeHtml(l.lote)}</td><td data-label="Validade">${l.validade && l.validade !== 'N/A' ? formatDateBR(l.validade) : 'Sem validade'}</td><td data-label="Quantidade">${l.quantidade}</td>
+                ${lotes.map(l => `<tr><td data-label="Lote">${escapeHtml(rotuloLote(l.lote))}</td><td data-label="Validade">${l.validade && l.validade !== 'N/A' ? formatDateBR(l.validade) : 'Sem validade'}</td><td data-label="Quantidade">${l.quantidade}</td>
                     <td data-label="Entrada">${l.data_entrada ? formatDateBR(l.data_entrada) : '—'}</td>
                     <td data-label="Situação do lote">${statusValidade(l.validade) === 'VENCIDO' ? '<span class="at-badge at-badge--emergencia">Vencido</span>' : (statusValidade(l.validade) === 'A_VENCER' ? '<span class="at-badge at-badge--urgente">A vencer</span>' : '<span class="at-badge at-badge--ok">Válido</span>')}</td></tr>`).join('')}
             </tbody></table></div>` : '<div class="at-empty">Sem lotes com saldo. Use "Adicionar Estoque" para dar entrada.</div>'}
@@ -338,7 +342,14 @@ CAD_STORES.produto = {
             });
         } else if (p && p.cadastro && p.cadastro.opme) cadastro.opme = p.cadastro.opme; // preserva o que já havia
 
-        const antesResumo = p ? { nome: p.material, descricao: p.descricao, min: p.min, ativo: produtoAtivo(p), fabricante: p.empresa } : null;
+        // Ligar o controle por lote: o saldo precisa estar todo em lotes (o saldo geral "Sem lote" não vira lote fictício)
+        const controlaAntes = p ? produtoControlaLote(p) : false;
+        if (p && cadastro.config.usa_lote && !controlaAntes) {
+            const semLote = (p.lotes || []).filter(l => loteEhSaldoGeral(l)).reduce((s, l) => s + (Number(l.quantidade) || 0), 0);
+            if (semLote > 0) throw new Error(`Este produto tem ${semLote} un no saldo geral, sem lote. Para controlar por lote, dê saída ou baixa desse saldo e registre a entrada com o número do lote (nenhum lote é criado automaticamente).`);
+        }
+
+        const antesResumo = p ? { nome: p.material, descricao: p.descricao, min: p.min, ativo: produtoAtivo(p), fabricante: p.empresa, controle_lote: controlaAntes } : null;
         const campos = {
             material: String(form.nome).trim().toUpperCase(),
             descricao: String(form.descricao).trim().toUpperCase(),
@@ -363,7 +374,7 @@ CAD_STORES.produto = {
             logEntryHistory('CADASTRO', setor, p.barcode, p.material, 0, '');
             await auditar({ entidade: 'produto', entidade_id: salvo.id, acao: 'CRIAR', depois: { codigo: p.barcode, nome: p.material, setor } });
         } else {
-            const depois = { nome: p.material, descricao: p.descricao, min: p.min, ativo, fabricante: p.empresa };
+            const depois = { nome: p.material, descricao: p.descricao, min: p.min, ativo, fabricante: p.empresa, controle_lote: Boolean(cadastro.config.usa_lote) };
             const d = diffCampos(antesResumo, depois, Object.keys(depois));
             await auditar({ entidade: 'produto', entidade_id: salvo.id, acao: 'EDITAR', antes: d.antes, depois: d.depois });
         }

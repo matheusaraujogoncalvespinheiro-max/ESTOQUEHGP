@@ -93,6 +93,7 @@ function cadKpis(def, rows) {
 
 function renderCadList(def) {
     if (def.estiloERP && typeof renderCadListaERP === 'function') return renderCadListaERP(def);
+    if (!def.listaClassica && typeof renderCadListaConsulta === 'function') return renderCadListaConsulta(def);
     const L = cadList(def);
     const rows = cadFiltrar(def);
     const pages = Math.max(1, Math.ceil(rows.length / L.size));
@@ -185,7 +186,13 @@ function cadNovo() {
     st.mode = 'form'; st.id = null; st.tab = cadAbas(def, {})[0].id; st.dirty = false; st.saving = false;
     st.form = { ativo: true, ativo_sel: '1', ...(typeof def.defaults === 'function' ? def.defaults() : (def.defaults || {})), ...((cadStoreOf(def).defaults && cadStoreOf(def).defaults(def)) || {}) };
     st.secoes = {};
-    renderFresh(); window.scrollTo(0, 0);
+    renderFresh(); cadAposAbrir(def);
+}
+
+/** Depois de abrir um cadastro: em janela, foca o primeiro campo; em tela própria, volta ao topo. */
+function cadAposAbrir(def) {
+    if (typeof cadEmModal === 'function' && cadEmModal(def)) cqFocarModal();
+    else window.scrollTo(0, 0);
 }
 
 async function cadAbrirRegistro(id, modo) {
@@ -199,7 +206,7 @@ async function cadAbrirRegistro(id, modo) {
     st.form = cadStoreOf(def).toForm ? cadStoreOf(def).toForm(def, rec) : cadFormatarParaForm(def, rec);
     st.form.ativo_sel = rec.ativo === false ? '0' : '1';
     st.secoes = {};
-    renderFresh(); window.scrollTo(0, 0);
+    renderFresh(); cadAposAbrir(def);
 }
 const cadEditar = (id) => cadAbrirRegistro(id, 'form');
 /** Clique em qualquer parte da linha da grid: abre o cadastro para edição (ou só para ver, sem permissão de editar). */
@@ -351,7 +358,11 @@ function cadProdutoDe(valor) {
 function cadLotesOpcoes(valorProduto) {
     const pr = cadProdutoDe(valorProduto);
     if (!pr) return [];
-    return (pr.produto.lotes || []).filter(l => l.quantidade > 0).map(l => ({ id: String(l.id), rotulo: `${l.lote} · ${l.validade && l.validade !== 'N/A' ? 'val. ' + formatDateBR(l.validade) : 'sem validade'} · ${l.quantidade} un${loteVencido(l) ? ' · VENCIDO' : ''}` }));
+    // Lote inativo nunca aparece. Produto sem controle por lote com só o saldo geral: nada a escolher (a saída usa o saldo geral);
+    // se ele ainda tem lotes antigos com saldo, eles continuam escolhíveis como antes.
+    const lotes = (pr.produto.lotes || []).filter(l => l.quantidade > 0 && l.ativo !== false);
+    if (typeof loteEhSaldoGeral === 'function' && lotes.every(loteEhSaldoGeral)) return [];
+    return lotes.map(l => typeof loteEhSaldoGeral === 'function' && loteEhSaldoGeral(l) ? { id: String(l.id), rotulo: `Saldo geral (sem lote) · ${l.quantidade} un` } : ({ id: String(l.id), rotulo: `${l.lote} · ${l.validade && l.validade !== 'N/A' ? 'val. ' + formatDateBR(l.validade) : 'sem validade'} · ${l.quantidade} un${loteVencido(l) ? ' · VENCIDO' : ''}` }));
 }
 
 function cadItemCampo(k, i, c, v) {
@@ -421,7 +432,7 @@ function cadControle(def, f, st, readonly) {
         case 'arquivo': return `<input class="at-input" type="file" accept="${f.accept || '*'}" onchange="cadArquivo('${f.k}', this)">`;
         case 'operacao': { const ops = cadOperacoesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: val, opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione a operação' : 'Nenhuma operação ativa deste tipo') : 'Escolha o tipo primeiro', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
         case 'produto': return cadComboHtml({ id, valor: val, opts: cadProdutosOpcoes(f.setores), placeholder: 'Selecione o produto', vazio: 'Selecione', fn: 'cadSelecionar', arg: f.k });
-        case 'lote': { const ops = cadLotesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: String(val || ''), opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Selecione o lote' : 'Sem lote com saldo') : 'Escolha o produto antes', vazio: ops.length ? 'Selecione' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
+        case 'lote': { const ops = cadLotesOpcoes(st.form[f.dep]); return cadComboHtml({ id, valor: String(val || ''), opts: ops, placeholder: st.form[f.dep] ? (ops.length ? 'Automático (FEFO)' : (cadProdutoDe(st.form[f.dep]) && typeof produtoControlaLote === 'function' && !produtoControlaLote(cadProdutoDe(st.form[f.dep]).produto) ? 'Produto sem controle por lote' : 'Sem lote com saldo')) : 'Escolha o produto antes', vazio: ops.length ? 'Automático (FEFO)' : null, fn: 'cadSelecionar', arg: f.k, desabilitado: !ops.length }); }
         case 'municipio': {
             const uf = st.form[f.dep || 'uf'];
             const lista = (IBGE_MUNICIPIOS[uf] || []).map(([cod, nome]) => ({ id: String(cod), rotulo: nome }));
@@ -476,7 +487,9 @@ function renderCadForm(def, readonly) {
     const topHtml = def.top
         ? (def.layout === 'erp'
             ? `<section class="at-card cd-top cd-top--erp"><div class="cd-grid12">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`
-            : `<section class="at-card cd-top"><div class="at-form cd-topgrid">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`)
+            : (typeof cqGradeCampos === 'function'
+                ? `<section class="at-card cd-top">${cqGradeCampos(def, def.top, st, readonly)}</section>`
+                : `<section class="at-card cd-top"><div class="at-form cd-topgrid">${def.top.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div></section>`))
         : '';
 
     if (def.layout === 'erp') {
@@ -512,10 +525,7 @@ function renderCadForm(def, readonly) {
             </div>
             <div class="cd-head__btns">
                 <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadVoltar()">${lucideIcon('arrow-left', 'w-4 h-4')} Voltar para consulta</button>
-                ${readonly
-                    ? (cadCan(def, 'editar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="cadEditar(${cadArg(st.id)})">${lucideIcon('pencil', 'w-4 h-4')} Editar</button>` : '')
-                    : `<button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadCancelar()">Cancelar</button>
-                       <button type="submit" class="at-btn at-btn--primary at-btn--sm" style="flex:none" data-busy-label>${lucideIcon('save', 'w-4 h-4')} Salvar</button>`}
+                ${readonly && cadCan(def, 'editar') ? `<button type="button" class="at-btn at-btn--primary at-btn--sm" style="flex:none" onclick="cadEditar(${cadArg(st.id)})">${lucideIcon('pencil', 'w-4 h-4')} Editar</button>` : ''}
             </div>
         </header>
 
@@ -534,16 +544,31 @@ function renderCadForm(def, readonly) {
             </div>
         </section>
 
-        ${podeSit ? `<section class="at-card cd-sit"><label class="cd-filter"><span>Situação do registro</span>
+        ${podeSit && typeof cqGradeCampos !== 'function' ? `<section class="at-card cd-sit"><label class="cd-filter"><span>Situação do registro</span>
             <select class="at-select" id="cad_ativo_sel" onchange="cadSituacaoForm(this.value)" data-keep="cad_ativo_sel">
                 <option value="1" ${ativo ? 'selected' : ''}>Ativo</option><option value="0" ${ativo ? '' : 'selected'}>Inativo</option></select></label>
             <span class="at-hint">Registros já usados em outras operações não são excluídos: apenas inativados.</span></section>` : ''}
+
+        ${readonly ? '' : `<div class="cd-acoesfim">
+            <button type="button" class="cd-acoesfim__lista" onclick="cadVoltar()">${lucideIcon('layout-grid', 'w-4 h-4')} ${escapeHtml(def.label)}</button>
+            <button type="button" class="at-btn at-btn--ghost at-btn--sm" onclick="cadCancelar()">Cancelar</button>
+            <button type="submit" class="cd-acoesfim__salvar" data-busy-label>${lucideIcon('check', 'w-4 h-4')} Salvar</button>
+        </div>`}
     </form>`;
 }
 
 /** Campos da aba; no layout ERP, em grade de 12 colunas com seções (Endereço, Contato...) que podem ser recolhidas. */
 function cadCorpoDaAba(def, aba, st, readonly) {
-    if (def.layout !== 'erp') return `<div class="at-form">${aba.fields.map(f => cadCampoHtml(def, f, st, readonly)).join('')}${aba.fields.length === 0 ? '<div class="at-empty">Sem campos.</div>' : ''}</div>`;
+    if (def.layout !== 'erp') {
+        if (!aba.fields.length) return '<div class="at-empty">Sem campos.</div>';
+        // Grade alinhada (lista-consulta.js); na 1ª aba, "Ativo" fica na primeira linha em vez do fim da tela
+        if (typeof cqGradeCampos === 'function') {
+            const primeira = cadAbas(def, st.form)[0] === aba;
+            const { fimPrimeira } = cqCelulasFixas(def, st, readonly);
+            return cqGradeCampos(def, aba.fields, st, readonly, { fimPrimeira: primeira ? fimPrimeira : null });
+        }
+        return `<div class="at-form">${aba.fields.map(f => cadCampoHtml(def, f, st, readonly)).join('')}</div>`;
+    }
     const blocos = [];
     let atual = { titulo: '', campos: [] };
     aba.fields.forEach(f => { if (f.secao) { blocos.push(atual); atual = { titulo: f.secao, campos: [] }; } else atual.campos.push(f); });
@@ -1139,5 +1164,8 @@ function renderCad() {
     if (!def) return '<div class="at-empty">Selecione um cadastro no menu.</div>';
     if (!cadCan(def, 'ver')) return '<div class="p-8 text-center text-red-600 font-bold text-xl">Acesso Negado</div>';
     cadWatchEntity(def.key);
-    return st.mode === 'list' ? renderCadList(def) : renderCadForm(def, st.mode === 'view');
+    if (st.mode === 'list') return renderCadList(def);
+    // Cadastro pequeno: janela por cima da consulta (lista-consulta.js); os grandes, em tela própria
+    if (typeof cadEmModal === 'function' && cadEmModal(def)) return renderCadList(def) + renderCadModal(def, st.mode === 'view');
+    return renderCadForm(def, st.mode === 'view');
 }

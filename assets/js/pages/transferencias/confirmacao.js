@@ -4,38 +4,26 @@ function approveRequest(id) {
     const request = MOCK_DATA.REQUESTS.find(r => String(r.id) === String(id));
     if (!request || request.status !== 'PENDING_APPROVAL') return;
 
-    // Deduct stock from origin and record specific batches
-    const fulfilledItems = [];
+    // Confere tudo antes de mexer no estoque: saldo disponível (sem lotes vencidos/inativos) e controle por lote no destino
     for (let item of request.items) {
         const product = findProductByBarcodeAndSetor(item.barcode, request.fromSetor);
-        if (product) {
-            let remainingToRemove = item.quantity;
-            const batches = [...product.lotes].sort((a, b) => {
-                if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-                if (a.validade === 'N/A') return 1;
-                if (b.validade === 'N/A') return -1;
-                return new Date(a.validade) - new Date(b.validade);
-            });
-            
-            for (let batch of batches) {
-                if (remainingToRemove <= 0) break;
-                const qtyToRemove = Math.min(batch.quantidade, remainingToRemove);
-                
-                fulfilledItems.push({
-                    ...item,
-                    quantity: qtyToRemove,
-                    lote: batch.lote,
-                    validade: batch.validade,
-                    remessa: batch.remessa || ''
-                });
-
-                removeFromBatch(request.fromSetor, product.id, batch.id, qtyToRemove);
-                remainingToRemove -= qtyToRemove;
-            }
-        } else {
+        if (!product) {
             showMsg("Produto ausente no estoque para envio. Estoque pode ter zerado.", "error");
             return;
         }
+        const plano = planejarSaidaFEFO(product, item.quantity);
+        if (!plano.ok) return showMsg(`${product.material}: ${plano.message}`, "error");
+        const conflito = conferirTransferenciaLote(product, request.toSetor);
+        if (conflito) return showMsg(conflito, "error");
+    }
+
+    // Baixa na origem pelo FEFO e registra os lotes que realmente saíram (o recebimento e a recusa usam esses lotes)
+    const fulfilledItems = [];
+    for (let item of request.items) {
+        const product = findProductByBarcodeAndSetor(item.barcode, request.fromSetor);
+        const saida = retirarEstoqueFEFO(request.fromSetor, product, item.quantity);
+        if (!saida.ok) return showMsg(saida.message, "error");
+        saida.partes.forEach(p => fulfilledItems.push({ ...item, quantity: p.quantidade, lote: p.lote, validade: p.validade, remessa: p.remessa || '' }));
     }
 
     // Update request items with the specific batches that were actually sent

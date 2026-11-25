@@ -24,4 +24,52 @@ async function baixarLoteTransacional(database, productId, loteCodigo, quantidad
     });
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { baixarLoteTransacional };
+/**
+ * ENTRADA em lote, também em transação: soma a quantidade ao saldo que está no banco (nunca grava um saldo absoluto da memória).
+ * Se o lote ainda não existe, cria o documento com os dados informados (validade, fabricação, preço, prateleira...).
+ * Entrada em lote que já existe só muda o saldo (e reativa o lote, se for um retorno); os demais dados do lote não são tocados.
+ */
+async function entrarLoteTransacional(database, productId, loteCodigo, quantidade, dadosNovo = {}) {
+    const q = Number(quantidade);
+    if (!(q > 0)) throw new Error('Quantidade de entrada inválida.');
+    const docId = `${productId}_${loteCodigo}`;
+    const ref = database.collection('product_batches').doc(docId);
+    const agora = new Date().toISOString();
+    return database.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists) {
+            const atual = Number(snap.data().quantity) || 0;
+            tx.update(ref, { quantity: atual + q, ativo: true, atualizado_em: agora });
+            return { ok: true, saldo: atual + q, novo: false };
+        }
+        const limpo = {};
+        Object.entries(dadosNovo || {}).forEach(([k, v]) => { if (v !== undefined) limpo[k] = v; });
+        tx.set(ref, {
+            ...limpo,
+            id: docId, product_id: productId, lote_code: loteCodigo,
+            validade: limpo.validade || 'N/A',
+            quantity: q, qtd_inicial: q, ativo: true,
+            data_entrada: limpo.data_entrada || agora.slice(0, 10),
+            criado_em: agora, atualizado_em: agora
+        });
+        return { ok: true, saldo: q, novo: true };
+    });
+}
+
+/** Cadastra um lote SEM saldo (aba Lotes, quantidade inicial 0). Recusa se o número já existe no produto: nunca duplica nem sobrescreve. */
+async function criarLoteSemSaldoTransacional(database, productId, loteCodigo, dados = {}) {
+    const docId = `${productId}_${loteCodigo}`;
+    const ref = database.collection('product_batches').doc(docId);
+    const agora = new Date().toISOString();
+    return database.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists) throw new Error(`O lote ${loteCodigo} já está cadastrado neste produto.`);
+        const limpo = {};
+        Object.entries(dados || {}).forEach(([k, v]) => { if (v !== undefined) limpo[k] = v; });
+        tx.set(ref, { ...limpo, id: docId, product_id: productId, lote_code: loteCodigo, validade: limpo.validade || 'N/A', quantity: 0, qtd_inicial: 0, ativo: true,
+            data_entrada: limpo.data_entrada || agora.slice(0, 10), criado_em: agora, atualizado_em: agora });
+        return { ok: true, id: docId };
+    });
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { baixarLoteTransacional, entrarLoteTransacional, criarLoteSemSaldoTransacional };

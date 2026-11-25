@@ -168,7 +168,16 @@ async function db_syncProducts() {
                     lote: b.lote_code,
                     validade: b.validade,
                     quantidade: b.quantity,
-                    data_entrada: b.data_entrada
+                    data_entrada: b.data_entrada,
+                    // Dados do lote (aba Lotes do produto); ausentes nos lotes antigos
+                    remessa: b.remessa || '',
+                    fabricacao: b.fabricacao || '',
+                    preco: b.preco ?? '',
+                    prateleira: b.prateleira || '',
+                    fornecedor_id: b.fornecedor_id || '',
+                    obs: b.obs || '',
+                    qtd_inicial: b.qtd_inicial ?? '',
+                    ativo: b.ativo !== false
                 }))
             };
 
@@ -273,6 +282,13 @@ async function db_saveBatch(productId, batch) {
     } catch (err) {
         console.error('Error saving batch:', err);
     }
+}
+
+/** Atualiza só os DADOS de um lote (fabricação, validade, preço, prateleira, situação...). O saldo (quantity) nunca passa por aqui. */
+async function db_atualizarDadosLote(productId, batchCode, campos) {
+    if (!db) throw new Error('Banco de dados indisponível.');
+    const { quantity, quantidade, ...resto } = campos || {};
+    await db.collection('product_batches').doc(`${productId}_${batchCode}`).update({ ...resto, atualizado_em: new Date().toISOString() });
 }
 
 async function db_deleteBatch(productId, batchCode) {

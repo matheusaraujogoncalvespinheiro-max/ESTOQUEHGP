@@ -110,19 +110,53 @@ function relatorioReposicao(produtos) {
     };
 }
 
-/** Lotes vencidos e a vencer (alerta de DIAS_ALERTA_VALIDADE dias), com saldo. */
+/**
+ * Lotes vencidos e a vencer (alerta de DIAS_ALERTA_VALIDADE dias), com saldo. Entram também os lotes com validade de produtos
+ * sem controle por lote (lotes antigos): o vencimento é real e não pode ficar escondido. O saldo geral "Sem lote" não tem validade.
+ */
 function relatorioValidade(produtos, hoje = new Date()) {
     const linhas = [];
     produtos.forEach(p => (p.lotes || []).filter(l => l.quantidade > 0).forEach(l => {
         const st = statusValidade(l.validade, hoje);
         if (st !== 'VENCIDO' && st !== 'A_VENCER') return;
-        linhas.push({ situacao: st === 'VENCIDO' ? 'Vencido' : 'A vencer', codigo: p.barcode, produto: p.material, setor: p.setor, lote: l.lote, validade: formatDateBR(l.validade), dias: diasParaVencer(l.validade, hoje), quantidade: l.quantidade });
+        linhas.push({ situacao: st === 'VENCIDO' ? 'Vencido' : 'A vencer', codigo: p.barcode, produto: p.material, setor: p.setor, lote: rotuloLote(l.lote), controle: produtoControlaLote(p) ? 'Por lote' : 'Sem controle (lote antigo)', validade: formatDateBR(l.validade), dias: diasParaVencer(l.validade, hoje), quantidade: l.quantidade });
     }));
     linhas.sort((a, b) => a.dias - b.dias);
     return {
         titulo: 'Validade dos lotes', descricao: `Lotes vencidos e que vencem em até ${DIAS_ALERTA_VALIDADE} dias. Vencidos não podem sair do estoque: use perda/descarte.`,
-        colunas: [{ k: 'situacao', label: 'Situação' }, { k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'setor', label: 'Setor' }, { k: 'lote', label: 'Lote' }, { k: 'validade', label: 'Validade' }, { k: 'dias', label: 'Dias' }, { k: 'quantidade', label: 'Qtd.' }],
+        colunas: [{ k: 'situacao', label: 'Situação' }, { k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'setor', label: 'Setor' }, { k: 'lote', label: 'Lote' }, { k: 'controle', label: 'Controle' }, { k: 'validade', label: 'Validade' }, { k: 'dias', label: 'Dias' }, { k: 'quantidade', label: 'Qtd.' }],
         linhas, resumo: [{ rot: 'Lotes vencidos', valor: linhas.filter(l => l.situacao === 'Vencido').length }, { rot: 'A vencer', valor: linhas.filter(l => l.situacao === 'A vencer').length }, { rot: 'Unidades em risco', valor: linhas.reduce((a, l) => a + l.quantidade, 0) }]
+    };
+}
+
+/**
+ * Estoque por lote: produto controlado por lote = uma linha por lote (saldo, fabricação, validade, situação, prateleira);
+ * produto sem controle = uma linha com o saldo geral. Usa todos os produtos sincronizados do banco (não só os da tela).
+ * termo filtra por código, produto ou lote; situacao: '' | 'VENCIDO' | 'A_VENCER' | 'SEM_SALDO' | 'INATIVO' | 'OK'.
+ */
+function relatorioEstoqueLotes(produtos, termo = '', hoje = new Date()) {
+    const q = searchKey(termo);
+    const ROT = { OK: 'Válido', A_VENCER: 'A vencer', VENCIDO: 'Vencido', SEM_SALDO: 'Sem saldo', INATIVO: 'Inativo' };
+    const linhas = [];
+    produtos.forEach(p => {
+        const controla = produtoControlaLote(p);
+        const base = { codigo: p.barcode, produto: p.material, setor: p.setor, controle: controla ? 'Por lote' : 'Saldo geral' };
+        if (!controla) {
+            linhas.push({ ...base, lote: '—', fabricacao: '—', validade: '—', situacao: Number(p.qtd) > 0 ? 'Com saldo' : 'Sem saldo', prateleira: '—', quantidade: Number(p.qtd) || 0 });
+            return;
+        }
+        (p.lotes || []).filter(l => !loteEhSaldoGeral(l) || Number(l.quantidade) > 0).forEach(l => linhas.push({ ...base,
+            lote: rotuloLote(l.lote), fabricacao: l.fabricacao ? formatDateBR(l.fabricacao) : '—', validade: semValidade(l.validade) ? '—' : formatDateBR(l.validade),
+            situacao: ROT[situacaoLote(l, hoje)], prateleira: l.prateleira || '—', quantidade: Number(l.quantidade) || 0 }));
+    });
+    const filtradas = q ? linhas.filter(l => searchKey(`${l.codigo} ${l.produto} ${l.lote} ${l.situacao}`).includes(q)) : linhas;
+    const deLote = filtradas.filter(l => l.controle === 'Por lote');
+    return {
+        titulo: 'Estoque por lote', descricao: 'Saldo de cada lote dos produtos controlados por lote (o saldo do produto é a soma dos lotes) e o saldo geral dos produtos sem controle por lote. Pesquise por código, produto, lote ou situação (vencido, a vencer, sem saldo, inativo).',
+        colunas: [{ k: 'codigo', label: 'Código' }, { k: 'produto', label: 'Produto' }, { k: 'setor', label: 'Setor' }, { k: 'controle', label: 'Controle' }, { k: 'lote', label: 'Lote' }, { k: 'fabricacao', label: 'Fabricação' }, { k: 'validade', label: 'Validade' }, { k: 'situacao', label: 'Situação' }, { k: 'prateleira', label: 'Prateleira' }, { k: 'quantidade', label: 'Qtd.' }],
+        linhas: filtradas,
+        resumo: [{ rot: 'Lotes', valor: deLote.length }, { rot: 'Vencidos', valor: deLote.filter(l => l.situacao === 'Vencido').length }, { rot: 'A vencer', valor: deLote.filter(l => l.situacao === 'A vencer').length },
+            { rot: 'Sem saldo', valor: deLote.filter(l => l.situacao === 'Sem saldo').length }, { rot: 'Unidades', valor: filtradas.reduce((a, l) => a + l.quantidade, 0) }]
     };
 }
 

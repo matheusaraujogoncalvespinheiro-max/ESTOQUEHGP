@@ -170,7 +170,7 @@ function renderSalaDetail(salaIndex) {
                                                     <p class="text-sm font-bold text-slate-800">${item.material}</p>
                                                     <p class="text-[10px] text-slate-500">${item.barcode}</p>
                                                 </td>
-                                                <td class="px-6 py-4 text-sm text-slate-600 font-mono">${item.lote}</td>
+                                                <td class="px-6 py-4 text-sm text-slate-600 font-mono">${escapeHtml(rotuloLote(item.lote))}</td>
                                                 <td class="px-6 py-4 text-sm font-bold text-center text-slate-800">${item.qtd_puxada}</td>
                                                 <td class="px-6 py-4">
                                                     <div class="flex items-center justify-center gap-3">
@@ -329,7 +329,7 @@ function handleSearchStockSalas(e, salaIndex) {
                     </div>
                     <div class="text-right">
                         <p class="text-blue-400 font-black text-sm">${p.qtd} unid.</p>
-                        <p class="text-slate-500 text-[10px]">Lote: ${p.lote}</p>
+                        <p class="text-slate-500 text-[10px]">Lote: ${escapeHtml(rotuloLote(p.lote))}</p>
                     </div>
                 </div>
             </div>
@@ -356,7 +356,7 @@ function pullMaterialToSala(salaIndex, barcode) {
     }
 
     // Perguntar quantidade
-    const qtdStr = prompt(`Quantas unidades de ${product.material} (Lote: ${product.lote}) deseja puxar para a sala?`, "1");
+    const qtdStr = prompt(`Quantas unidades de ${product.material} deseja puxar para a sala? (saem dos lotes que vencem primeiro)`, "1");
     if (qtdStr === null) return;
     const qtd = parseInt(qtdStr);
 
@@ -365,33 +365,34 @@ function pullMaterialToSala(salaIndex, barcode) {
         return;
     }
 
-    // Subtrair do estoque global
-    product.qtd -= qtd;
-    // Note: Em produção, isso precisaria atualizar o lote específico também
-    if (product.lotes && product.lotes.length > 0) {
-        product.lotes[0].quantidade -= qtd; // Simplificação: tira do primeiro lote
+    // Saída pelo FEFO (nunca de lote vencido ou inativo), gravada no banco; cada lote usado vira uma linha na sala
+    const saida = retirarEstoqueFEFO('CENTRO_CIRURGICO', product, qtd);
+    if (!saida.ok) {
+        showMsg(saida.message, 'error');
+        return;
     }
-
-    // Adicionar à sala
-    const itemExistente = sala.materiais.find(m => m.barcode === barcode && m.lote === product.lote);
-    if (itemExistente) {
-        itemExistente.qtd_puxada += qtd;
-    } else {
-        sala.materiais.push({
-            barcode: product.barcode,
-            material: product.material,
-            lote: product.lote,
-            qtd_puxada: qtd,
-            qtd_confirmada: 0
-        });
-    }
+    saida.partes.forEach(p => {
+        const itemExistente = sala.materiais.find(m => m.barcode === barcode && m.lote === p.lote);
+        if (itemExistente) {
+            itemExistente.qtd_puxada += p.quantidade;
+        } else {
+            sala.materiais.push({
+                barcode: product.barcode,
+                material: product.material,
+                lote: p.lote,
+                validade: p.validade,
+                baixado: true,   // a saída já foi gravada no banco: a devolução volta ao lote
+                qtd_puxada: p.quantidade,
+                qtd_confirmada: 0
+            });
+        }
+    });
 
     document.getElementById('searchResultsSalas').classList.add('hidden');
     document.getElementById('searchStockSalas').value = '';
 
     render();
     saveToLocalStorage();
-    if (typeof db_saveProduct === 'function') db_saveProduct(product, 'CENTRO_CIRURGICO');
     if (typeof db_saveSala === 'function') db_saveSala(sala);
 }
 
@@ -429,15 +430,18 @@ function removeItemSala(salaIndex, itemIdx) {
     }
 }
 
+/** Devolve o que não foi usado ao MESMO lote de onde saiu (gravado no banco em transação). */
 function returnMaterialToStock(item, qtd) {
-    const product = MOCK_DATA.CENTRO_CIRURGICO.find(p => p.barcode === item.barcode && p.lote === item.lote);
-    if (product) {
-        product.qtd += qtd;
-        if (product.lotes && product.lotes.length > 0) {
-            const lote = product.lotes.find(l => l.lote === item.lote) || product.lotes[0];
-            lote.quantidade += qtd;
-        }
+    if (!(qtd > 0)) return;
+    // Item puxado antes desta versão: a saída nunca foi gravada no banco, então a devolução também não grava (evita somar saldo em dobro)
+    if (!item.baixado) {
+        const product = MOCK_DATA.CENTRO_CIRURGICO.find(p => p.barcode === item.barcode);
+        const lote = product && (product.lotes || []).find(l => l.lote === item.lote);
+        if (lote) { lote.quantidade += qtd; recalcularProdutoEstoque(product); }
         saveToLocalStorage();
-        if (typeof db_saveProduct === 'function') db_saveProduct(product, 'CENTRO_CIRURGICO');
+        return;
     }
+    const r = devolverAoLote('CENTRO_CIRURGICO', item.barcode, { lote: item.lote, validade: item.validade || '' }, qtd, { material: item.material });
+    if (r.type === 'erro') showMsg(`Não foi possível devolver ${item.material} ao estoque: ${r.message}`, 'error');
+    saveToLocalStorage();
 }

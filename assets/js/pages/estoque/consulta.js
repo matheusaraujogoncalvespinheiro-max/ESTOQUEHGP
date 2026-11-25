@@ -4,6 +4,12 @@
 const SETORES_SEM_AJUSTE_DIRETO = ['FARMACIA'];
 const MSG_SEM_AJUSTE_DIRETO = 'Neste estoque a quantidade só muda por dispensação, saída, devolução ou perda, para ficar rastreada.';
 
+/**
+ * Botões +/- da lista. Grava no banco pelas mesmas regras das demais movimentações:
+ * - saída (-1): FEFO, nunca de lote vencido ou inativo (darBaixaNoEstoque);
+ * - entrada (+1): produto sem controle por lote soma no lote que vence primeiro (ou no saldo geral, se não houver lote);
+ *   produto com controle por lote precisa do número do lote e da validade: use "Adicionar Estoque".
+ */
 function updateQuantity(setor, id, delta, batchId = null) {
     if (!hasPermission('update_stock', setor)) {
         showMsg("Sem permissão para alterar este estoque", "error");
@@ -11,71 +17,27 @@ function updateQuantity(setor, id, delta, batchId = null) {
     }
     if (SETORES_SEM_AJUSTE_DIRETO.includes(setor)) return showMsg(MSG_SEM_AJUSTE_DIRETO, 'error');
 
-    const produto = MOCK_DATA[setor].find(i => i.id === id);
+    const produto = MOCK_DATA[setor].find(i => String(i.id) === String(id));
     if (!produto) return;
+    const antes = Number(produto.qtd) || 0;
 
-    // Se não especificar batchId, usar o primeiro lote (FIFO - First In First Out)
-    if (!batchId && produto.lotes && produto.lotes.length > 0) {
-        // Ordenar por validade (mais próxima primeiro) e data de entrada
-        produto.lotes.sort((a, b) => {
-            if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-            if (a.validade === 'N/A') return 1;
-            if (b.validade === 'N/A') return -1;
-            const dateA = new Date(a.validade);
-            const dateB = new Date(b.validade);
-            if (dateA.getTime() !== dateB.getTime()) {
-                return dateA - dateB;
-            }
-            return new Date(a.data_entrada) - new Date(b.data_entrada);
-        });
-        batchId = produto.lotes[0].id;
+    if (delta < 0) {
+        const r = darBaixaNoEstoque(setor, produto.barcode, Math.abs(delta), batchId);
+        if (!r.success) return showMsg(r.message, 'error');
+        logEntryHistory('BAIXA', setor, produto.barcode, produto.material, Math.abs(delta), r.lote.lote, 'Ajuste na lista do estoque');
+    } else {
+        if (produtoControlaLote(produto)) return showMsg('Produto controlado por lote: use "Adicionar Estoque" para informar o lote e a validade da entrada.', 'error');
+        const alvo = batchId ? (produto.lotes || []).find(l => String(l.id) === String(batchId)) : ((produto.lotes || []).filter(l => l.ativo !== false).sort((a, b) => compararFEFO(a, b))[0] || null);
+        const r = addProductWithBatch(setor, { barcode: produto.barcode, lote: alvo ? alvo.lote : '', validade: alvo ? alvo.validade : '', quantidade: delta }, { retorno: true });
+        if (r.type === 'erro') return showMsg(r.message, 'error');
+        logEntryHistory('ENTRADA', setor, produto.barcode, produto.material, delta, r.lote.lote, 'Ajuste na lista do estoque');
     }
 
-    if (batchId) {
-        // Atualizar lote específico
-        const lote = produto.lotes.find(l => l.id === batchId);
-        if (lote) {
-            if (delta < 0 && lote.quantidade < Math.abs(delta)) {
-                showMsg("Quantidade insuficiente neste lote", "error");
-                return;
-            }
-
-            const oldLoteQtd = lote.quantidade;
-            lote.quantidade = Math.max(0, lote.quantidade + delta);
-
-            // Se lote zerou, removê-lo
-            if (lote.quantidade <= 0) {
-                const loteIndex = produto.lotes.findIndex(l => l.id === batchId);
-                produto.lotes.splice(loteIndex, 1);
-            }
-
-            // Atualizar quantidade total
-            produto.qtd = produto.lotes.reduce((total, l) => total + l.quantidade, 0);
-
-            // Se não há mais lotes, remover o produto
-            if (produto.lotes.length === 0) {
-                const produtoIndex = MOCK_DATA[setor].findIndex(p => p.id === id);
-                MOCK_DATA[setor].splice(produtoIndex, 1);
-            } else {
-                // Atualizar lote e validade principais
-                produto.lotes.sort((a, b) => {
-                    if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-                    if (a.validade === 'N/A') return 1;
-                    if (b.validade === 'N/A') return -1;
-                    return new Date(a.validade) - new Date(b.validade);
-                });
-                produto.lote = produto.lotes[0].lote;
-                produto.validade = produto.lotes[0].validade;
-            }
-
-            // Adicionar notificação se estoque ficou baixo
-            if (oldLoteQtd > produto.min && produto.qtd <= produto.min &&
-                state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
-                addNotification('low_stock', `Estoque baixo: ${produto.material} (${produto.qtd}/${produto.min})`, produto.barcode);
-            }
-        }
+    // Notificação se o estoque ficou baixo
+    if (antes > produto.min && produto.qtd <= produto.min &&
+        state.currentUser.role !== 'FUNC_ENFERMAGEM' && state.currentUser.role !== 'CHEFE_HEMODINAMICA') {
+        addNotification('low_stock', `Estoque baixo: ${produto.material} (${produto.qtd}/${produto.min})`, produto.barcode);
     }
-
     saveToLocalStorage();
     render();
 }
@@ -161,11 +123,11 @@ function renderProductList(data, setor) {
                     </div>
                     <div class="flex justify-between gap-4 text-sm">
                         <span class="text-slate-500 shrink-0 whitespace-nowrap">Lote Atual:</span>
-                        <span class="text-right min-w-0 break-words">${item.lote}</span>
+                        <span class="text-right min-w-0 break-words">${escapeHtml(rotuloLote(item.lote) || '—')}</span>
                     </div>
                     <div class="flex justify-between gap-4 text-sm">
                         <span class="text-slate-500 shrink-0 whitespace-nowrap">Validade Atual:</span>
-                        <span class="text-right min-w-0 break-words">${item.validade !== 'N/A' ? new Date(item.validade).toLocaleDateString('pt-PT') : 'N/A'}</span>
+                        <span class="text-right min-w-0 break-words">${item.validade && item.validade !== 'N/A' ? new Date(item.validade).toLocaleDateString('pt-PT') : 'N/A'}</span>
                     </div>
                     <div class="flex justify-between gap-4 text-sm">
                         <span class="text-slate-500 shrink-0 whitespace-nowrap">Mínimo:</span>
@@ -178,15 +140,10 @@ function renderProductList(data, setor) {
                 <div class="mb-4 pt-4 border-t border-slate-100">
                     <h4 class="text-sm font-bold text-slate-700 mb-2">Lotes Disponíveis:</h4>
                     <div class="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                        ${item.lotes.sort((a, b) => {
-                if (a.validade === 'N/A' && b.validade === 'N/A') return 0;
-                if (a.validade === 'N/A') return 1;
-                if (b.validade === 'N/A') return -1;
-                return new Date(a.validade) - new Date(b.validade);
-            }).map(lote => `
+                        ${item.lotes.filter(l => Number(l.quantidade) > 0).sort((a, b) => compararFEFO(a, b)).map(lote => `
                         <div class="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
                             <div class="text-xs min-w-[8rem] flex-1">
-                                <div class="font-medium break-all">Lote: ${lote.lote}</div>
+                                <div class="font-medium break-all">Lote: ${escapeHtml(rotuloLote(lote.lote))}${lote.ativo === false ? ' (inativo)' : ''}</div>
                                 <div class="text-slate-500">Validade: ${lote.validade !== 'N/A' ? new Date(lote.validade).toLocaleDateString('pt-PT') : 'N/A'}</div>
                                 ${rotuloValidade(lote.validade) ? `<div class="font-bold ${statusValidade(lote.validade) === 'VENCIDO' ? 'text-red-600' : 'text-amber-600'}">${rotuloValidade(lote.validade)}</div>` : ''}
                             </div>

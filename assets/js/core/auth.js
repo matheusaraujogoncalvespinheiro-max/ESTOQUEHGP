@@ -92,6 +92,7 @@ window.handleForgotPassword = handleForgotPassword;
 
 function logout() {
     clearSession();
+    if (typeof limparRota === 'function') limparRota();
     if (typeof authAtivo === 'function' && authAtivo()) {   // sai do Firebase Auth e para de ler o banco
         authSair();
         if (typeof pararSincronizacao === 'function') pararSincronizacao();

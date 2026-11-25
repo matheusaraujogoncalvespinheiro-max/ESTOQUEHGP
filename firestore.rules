@@ -478,9 +478,14 @@ service cloud.firestore {
     }
 
     // ---------- Estoque e demais módulos já existentes ----------
+    // Lotes (saldo do estoque): qualquer usuário logado movimenta, como antes, mas o saldo gravado nunca pode ser negativo
+    // nem deixar de ser número. As baixas e entradas do sistema já gravam em transação (services/baixa-lote.js).
+    match /product_batches/{id} {
+      allow create, update: if logado() && request.resource.data.quantity is number && request.resource.data.quantity >= 0;
+    }
     match /{col}/{id} {
       allow read: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
-      allow create, update: if logado() && col in ['products', 'product_batches', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
+      allow create, update: if logado() && col in ['products', 'product_entry_history', 'stock_transfer_history', 'material_requests', 'laudos', 'patients', 'mapa_schedule', 'procedimentos_agendados', 'procedimentos_nao_realizados', 'salas', 'salas_history', 'notifications', 'portaria_visits', 'portaria_config'];
       // Correção (achada no teste do emulador): antes este delete valia para QUALQUER coleção (usuários, atendimentos...). Agora só para as do estoque.
       allow delete: if col in ['products', 'product_batches', 'mapa_schedule'] && temPerfil(estoque());
     }

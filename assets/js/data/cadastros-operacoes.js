@@ -10,7 +10,7 @@ const ROLES_MOV_EST = { ver: [...R_EST, 'CHEFE_FARMACIA'], criar: [...R_EST, 'CH
 const SETORES_OPS_OPTS = [{ id: 'OPME', rotulo: 'OPME' }, { id: 'HEMODINAMICA', rotulo: 'Hemodinâmica' }, { id: 'CENTRO_CIRURGICO', rotulo: 'Centro Cirúrgico' }, { id: 'FARMACIA', rotulo: 'Farmácia' }];
 const dataHoraCol = { k: 'criado_em', label: 'Registrado em', sort: true, get: (r) => (r.criado_em ? formatDateTimeBR(r.criado_em) : '—') };
 const fProduto = { k: 'produto', label: 'Produto', type: 'produto', req: true, span2: true };
-const fLote = { k: 'lote', label: 'Lote (com saldo)', type: 'lote', dep: 'produto', req: true };
+const fLote = { k: 'lote', label: 'Lote (com saldo)', type: 'lote', dep: 'produto', help: 'Em branco, sai do lote que vence primeiro (FEFO). Produto sem controle por lote sai do saldo geral.' };
 const fRequisicao = { k: 'requisicao', label: 'Requisição atendida (opcional)', type: 'select', opts: () => (CAD_DATA.requisicao || []).filter(r => !['Atendida', 'Cancelada'].includes(r.situacao)).map(r => ({ id: r.id, rotulo: `${r.codigo} - ${r.unidade}` })), help: 'Vincule a saída (ou a sobra devolvida) a uma requisição da Farmácia: a situação dela acompanha as saídas.' };
 const fRequisicaoItem = { k: 'requisicao_item', label: 'Nº do item da requisição', type: 'number', min: 1 };
 const fQtd = { k: 'quantidade', label: 'Quantidade', type: 'number', req: true, min: 1 };
@@ -38,7 +38,7 @@ Object.assign(CAD_DEFS, {
         columns: [...colsProduto, { k: 'origem', label: 'Origem', sort: true }, { k: 'motivo', label: 'Motivo' }, dataHoraCol],
         validar: validarDevolucao, depois: aplicarDevolucao,
         tabs: [{ id: 'dados', label: 'Dados da devolução', fields: [fProduto,
-            { k: 'lote_codigo', label: 'Lote do item devolvido', type: 'text', req: true, maxlen: 40 }, { k: 'validade', label: 'Validade do lote', type: 'date', req: true }, fQtd,
+            { k: 'lote_codigo', label: 'Lote do item devolvido', type: 'text', maxlen: 40, help: 'Obrigatório para produto controlado por lote.' }, { k: 'validade', label: 'Validade do lote', type: 'date', help: 'Obrigatória para produto controlado por lote.' }, fQtd,
             { k: 'origem', label: 'Origem (setor, paciente ou sala)', type: 'text', req: true },
             { k: 'motivo', label: 'Motivo', type: 'select', req: true, opts: MOTIVOS_DEVOLUCAO }, fRequisicao, fRequisicaoItem, { ...OBS }] }]
     },
@@ -131,7 +131,7 @@ Object.assign(CAD_DEFS, {
             { k: 'pedido', label: 'Pedido de compra', type: 'ref', ref: 'pedido', req: true }, { k: 'nota_fiscal', label: 'Nota fiscal', type: 'text', req: true, maxlen: 30 },
             { k: 'data_recebimento', label: 'Data do recebimento', type: 'date', req: true, max: todayISO() },
             { k: 'recebimento_total', label: 'Pedido', type: 'check', checkLabel: 'Recebimento total do pedido' },
-            { k: 'itens', label: 'Itens recebidos (entram no estoque)', type: 'itens', req: true, span2: true, colunas: [{ k: 'produto', label: 'Produto', type: 'produto', req: true }, { k: 'lote', label: 'Lote', req: true }, { k: 'validade', label: 'Validade', type: 'date', req: true }, { k: 'quantidade', label: 'Qtd.', type: 'number', req: true }, { k: 'valor_unit', label: 'Valor unit. (R$)', type: 'money' }] },
+            { k: 'itens', label: 'Itens recebidos (entram no estoque)', type: 'itens', req: true, span2: true, colunas: [{ k: 'produto', label: 'Produto', type: 'produto', req: true }, { k: 'lote', label: 'Lote' }, { k: 'validade', label: 'Validade', type: 'date' }, { k: 'quantidade', label: 'Qtd.', type: 'number', req: true }, { k: 'valor_unit', label: 'Valor unit. (R$)', type: 'money' }] },
             { ...OBS }] }]
     },
 

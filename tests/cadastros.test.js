@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const ctx = vm.createContext({ console, state: { currentUser: null }, MOCK_DATA: {} });
-['assets/js/core/utils.js', 'assets/js/core/validators.js', 'assets/js/data/cadastros.js', 'assets/js/services/estrutura-hospitalar.js', 'assets/js/services/operacoes.js', 'assets/js/services/farmacia.js', 'assets/js/data/cadastros-operacoes.js', 'assets/js/data/cadastros-farmacia.js', 'assets/js/data/cadastros-central.js'].forEach(f =>
+['assets/js/core/utils.js', 'assets/js/core/validators.js', 'assets/js/data/cadastros.js', 'assets/js/services/estrutura-hospitalar.js', 'assets/js/services/operacoes.js', 'assets/js/services/farmacia.js', 'assets/js/data/cadastros-operacoes.js', 'assets/js/data/cadastros-farmacia.js', 'assets/js/data/cadastros-central.js', 'assets/js/data/cadastros-tributario.js'].forEach(f =>
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', f), 'utf8'), ctx, { filename: f }));
 const call = (code) => vm.runInContext(code, ctx);
 
@@ -91,4 +91,21 @@ test('leitos adicionais: leito ocupado não é inativado e o código só muda co
     situacao('LIVRE');
     assert.deepEqual(Array.from(await call(`dependenciasDoLeito(${rec})`)), []);
     assert.equal((await call("validarLeitoCadastro({ quarto: 'uti01', identificador: '3' }, 'a')")).leito_id, 'UTI013');
+});
+
+test('CFOP: entrada/saída e tipo de UF pelo primeiro dígito; primeiro dígito inválido é recusado', () => {
+    assert.deepEqual(JSON.parse(call("JSON.stringify(cfopClassificar('1102'))")), { sentido: 'Entrada', tipo_uf: 'Dentro da UF' });
+    assert.deepEqual(JSON.parse(call("JSON.stringify(cfopClassificar('6.102'))")), { sentido: 'Saída', tipo_uf: 'Fora da UF' });
+    assert.deepEqual(JSON.parse(call("JSON.stringify(cfopClassificar('3101'))")), { sentido: 'Entrada', tipo_uf: 'Exterior' });
+    assert.equal(call("validarCfop({ cfop: '4102' }).length"), 1);
+    assert.equal(call("validarCfop({ cfop: '5102' }).length"), 0);
+    assert.equal(call("validarCfop({ cfop: '51' }).length"), 0); // o tamanho é conferido pela regra geral (len: 4)
+});
+
+test('Operação: estoque precisa combinar com o CFOP padrão', () => {
+    call("globalThis.CAD_DATA = { cfop: [{ id: 'c1', cfop: '5102' }, { id: 'c2', cfop: '1102' }] }");
+    assert.equal(call("validarOperacao({ estoque: 'Entrada', cfop_id: 'c1' }).length"), 1);
+    assert.equal(call("validarOperacao({ estoque: 'Entrada', cfop_id: 'c2' }).length"), 0);
+    assert.equal(call("validarOperacao({ estoque: 'Neutro', cfop_id: 'c1' }).length"), 0);
+    assert.equal(call("validarOperacao({ estoque: 'Saída' }).length"), 0);
 });

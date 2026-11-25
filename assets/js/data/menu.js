@@ -69,6 +69,7 @@ const MENU_TREE = [
             group(10, 'Principal', [cadItem(10, 'Paciente', 'paciente'), cadItem(20, 'Fornecedor', 'fornecedor'), cadItem(30, 'Funcionário', 'funcionario'), cadItem(40, 'Municípios', 'municipio')]),
             group(20, 'Estoque', [cadItem(10, 'Produto', 'produto'), cadItem(20, 'Classe', 'classe'), cadItem(30, 'Grupo', 'grupo'), cadItem(40, 'Sub-Grupo', 'subgrupo'),
                 cadItem(50, 'Fabricante', 'fabricante'), cadItem(60, 'Unidade', 'unidade'), cadItem(70, 'Etiqueta', 'etiqueta')]),
+            group(25, 'Fiscal', [cadItem(10, 'CFOP', 'cfop'), cadItem(20, 'Operações', 'operacao')]),
             group(30, 'Financeiro', [cadItem(10, 'Centro de Custo', 'centrocusto'), cadItem(20, 'Plano de Contas', 'plano'), cadItem(30, 'Sub-Plano de Contas', 'subplano'),
                 cadItem(40, 'Contas', 'conta'), cadItem(50, 'Metas', 'metas')]),
             group(35, 'Assistência', [cadItem(10, 'Tipos de Exame', 'tipoexame'), cadItem(12, 'Exames de Laboratório', 'labexame'), cadItem(15, 'Tipos de Atendimento', 'tipoatendimento'), cadItem(17, 'Locais de Atendimento', 'localatendimento'), cadItem(20, 'Especialidades', 'especialidade'), cadItem(30, 'Unidades Assistenciais', 'unidadeassist'), cadItem(40, 'Quartos e Leitos', 'leito'), cadItem(50, 'Escalas de Enfermagem', 'escalaenf')]),
@@ -154,38 +155,50 @@ const MENU_TREE = [
         ]
     },
 
-    // 7B. ASSISTÊNCIA: leitos, internações, prontuário, Farmácia por pisos, NIR e Setor de Transporte
+    // 7B. ASSISTÊNCIA, em grupos: atendimento, leitos e internação, enfermagem, prontuário, cuidados e registros, regulação e transporte
     {
         id: 'assistencia', ordem: 75, label: 'Assistência', icon: 'bed-double',
         children: [
-            item(5, 'Triagem Clínica', 'TRIAGEM_CLINICA', { icon: 'heart-pulse', access: byPermission('triagem_clinica') }),
-            item(6, 'Atendimento Médico', 'ATENDIMENTO_MEDICO', { icon: 'stethoscope', access: byPermission('atendimento_medico') }),
-            item(7, 'Painel de Chamadas', 'PAINEL_CHAMADA', { icon: 'tv', access: byPermission('painel_chamada') }),
-            item(10, 'Mapa de Ocupação', 'MAPA_LEITOS', { icon: 'layout-grid', access: byPermission('mapa_ver') }),
-            item(12, 'Fila de Leito', 'FILA_LEITO', { icon: 'list-ordered', access: byPermission('fila_leito') }),
-            item(14, 'Painel de Disponibilidade', 'PAINEL_LEITOS', { icon: 'tv', access: byPermission('mapa_ver') }),
-            item(20, 'Internações', 'INTERNACOES', { icon: 'bed-double', access: byPermission('internacao_gerenciar') }),
-            item(22, 'Painel de Enfermagem', 'ENF_PAINEL', { icon: 'activity', access: byPermission('enfermagem_ver') }),
-            item(24, 'Checagem de Medicação', 'ENF_CHECAGEM', { icon: 'pill', access: byPermission('enfermagem_ver') }),
-            item(26, 'Passagem de Plantão', 'ENF_PLANTAO', { icon: 'repeat-2', access: byPermission('enfermagem_ver') }),
-            item(27, 'Painel da UTI', 'UTI_PAINEL', { icon: 'heart-pulse', access: byPermission('uti_ver') }),
-            item(28, 'Mapa de Dietas', 'NUTRICAO_DIETAS', { icon: 'utensils', access: byPermission('dieta_ver') }),
-            item(29, 'Hemoterapia', 'HEMOTERAPIA', { icon: 'droplets', access: byPermission('hemoterapia_ver') }),
-            item(29.5, 'Óbitos', 'OBITOS', { icon: 'lock', access: byPermission('obito_ver') }),
-            item(30, 'Prontuário Eletrônico', 'PRONTUARIO', {
-                icon: 'clipboard-list',
-                access: byPermission('prontuario_ver'),
-                before: () => { if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'prontuarios'; },
-                active: () => state.activeModule === 'PRONTUARIO' && (Boolean(state.prontuario && state.prontuario.pacienteId) || !state.prontuarioLista || state.prontuarioLista.modo !== 'farmacia_pisos')
-            }),
-            item(35, 'Farmácia (Distribuição p/ Pisos)', 'PRONTUARIO', {
-                icon: 'pill',
-                access: byPermission('prontuario_ver'),
-                before: () => { state.prontuario = null; if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'farmacia_pisos'; },
-                active: () => state.activeModule === 'PRONTUARIO' && !(state.prontuario && state.prontuario.pacienteId) && Boolean(state.prontuarioLista && state.prontuarioLista.modo === 'farmacia_pisos')
-            }),
-            item(40, 'NIR (Regulação e Documentação)', 'NIR_REGULACAO', { icon: 'file-check', access: byPermission('nir_ver') }),
-            item(50, 'Setor de Transporte', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
+            group(10, 'Atendimento', [
+                item(10, 'Triagem Clínica', 'TRIAGEM_CLINICA', { icon: 'heart-pulse', access: byPermission('triagem_clinica') }),
+                item(20, 'Atendimento Médico', 'ATENDIMENTO_MEDICO', { icon: 'stethoscope', access: byPermission('atendimento_medico') }),
+                item(30, 'Painel de Chamadas', 'PAINEL_CHAMADA', { icon: 'tv', access: byPermission('painel_chamada') })
+            ]),
+            group(20, 'Leitos e Internação', [
+                item(10, 'Mapa de Ocupação', 'MAPA_LEITOS', { icon: 'layout-grid', access: byPermission('mapa_ver') }),
+                item(20, 'Fila de Leito', 'FILA_LEITO', { icon: 'list-ordered', access: byPermission('fila_leito') }),
+                item(30, 'Painel de Disponibilidade', 'PAINEL_LEITOS', { icon: 'tv', access: byPermission('mapa_ver') }),
+                item(40, 'Internações', 'INTERNACOES', { icon: 'bed-double', access: byPermission('internacao_gerenciar') })
+            ]),
+            group(30, 'Enfermagem', [
+                item(10, 'Painel de Enfermagem', 'ENF_PAINEL', { icon: 'activity', access: byPermission('enfermagem_ver') }),
+                item(20, 'Checagem de Medicação', 'ENF_CHECAGEM', { icon: 'pill', access: byPermission('enfermagem_ver') }),
+                item(30, 'Passagem de Plantão', 'ENF_PLANTAO', { icon: 'repeat-2', access: byPermission('enfermagem_ver') }),
+                item(40, 'Painel da UTI', 'UTI_PAINEL', { icon: 'heart-pulse', access: byPermission('uti_ver') })
+            ]),
+            group(40, 'Prontuário', [
+                item(10, 'Prontuário Eletrônico', 'PRONTUARIO', {
+                    icon: 'clipboard-list',
+                    access: byPermission('prontuario_ver'),
+                    before: () => { if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'prontuarios'; },
+                    active: () => state.activeModule === 'PRONTUARIO' && (Boolean(state.prontuario && state.prontuario.pacienteId) || !state.prontuarioLista || state.prontuarioLista.modo !== 'farmacia_pisos')
+                }),
+                item(20, 'Farmácia (Distribuição p/ Pisos)', 'PRONTUARIO', {
+                    icon: 'pill',
+                    access: byPermission('prontuario_ver'),
+                    before: () => { state.prontuario = null; if (typeof prontuarioLista === 'function') prontuarioLista().modo = 'farmacia_pisos'; },
+                    active: () => state.activeModule === 'PRONTUARIO' && !(state.prontuario && state.prontuario.pacienteId) && Boolean(state.prontuarioLista && state.prontuarioLista.modo === 'farmacia_pisos')
+                })
+            ]),
+            group(50, 'Cuidados e Registros', [
+                item(10, 'Mapa de Dietas', 'NUTRICAO_DIETAS', { icon: 'utensils', access: byPermission('dieta_ver') }),
+                item(20, 'Hemoterapia', 'HEMOTERAPIA', { icon: 'droplets', access: byPermission('hemoterapia_ver') }),
+                item(30, 'Óbitos', 'OBITOS', { icon: 'lock', access: byPermission('obito_ver') })
+            ]),
+            group(60, 'Regulação e Transporte', [
+                item(10, 'NIR (Regulação e Documentação)', 'NIR_REGULACAO', { icon: 'file-check', access: byPermission('nir_ver') }),
+                item(20, 'Setor de Transporte', 'TRANSPORTE_NIR', { icon: 'ambulance', access: byPermission('transporte_ver') })
+            ])
         ]
     },
 
@@ -275,14 +288,16 @@ const MENU_TREE = [
                 relItem(50, 'Eventos e segurança do paciente', 'EVENTOS_NSP', byPermission('nsp_gerenciar')),
                 relItem(60, 'Agenda ambulatorial e faltas', 'AGENDA_AMB', byPermission('agenda_ambulatorial_ver')),
                 relItem(70, 'Cirurgias e RPA', 'CIRURGIAS_REL', byPermission('cirurgia_ver')),
-                relItem(80, 'Hemoterapia e transfusões', 'HEMOTERAPIA_REL', byPermission('hemoterapia_ver'))
+                relItem(80, 'Hemoterapia e transfusões', 'HEMOTERAPIA_REL', byPermission('hemoterapia_ver')),
+                relItem(90, 'Procedimentos', 'PROCEDIMENTOS_REL', byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM', 'FUNC_CENTRO_CIRURGICO'))
             ]),
             group(15, 'Apoio e infraestrutura', [
                 relItem(10, 'Manutenção e equipamentos', 'MANUTENCAO_REL', byPermission('manutencao_ver_todas')),
                 relItem(20, 'Transporte', 'TRANSPORTE_REL', byPermission('transporte_ver_todos')),
                 relItem(30, 'Rouparia e lavanderia', 'ROUPARIA_REL', byPermission('rouparia_ver')),
                 relItem(40, 'Resíduos por grupo e setor', 'RESIDUOS_REL', byPermission('residuos_ver')),
-                relItem(50, 'Voluntariado e horas', 'VOLUNTARIADO_REL', byPermission('voluntariado_gerenciar'))
+                relItem(50, 'Voluntariado e horas', 'VOLUNTARIADO_REL', byPermission('voluntariado_gerenciar')),
+                relItem(60, 'Patrimônio', 'PATRIMONIO', byRole('ADMIN', 'FUNC_MANUTENCAO'))
             ]),
             group(17, 'Gestão', [
                 relItem(10, 'Ouvidoria', 'OUVIDORIA_REL', byPermission('ouvidoria_ver')),
@@ -293,15 +308,14 @@ const MENU_TREE = [
                 relItem(10, 'Curva ABC', 'CURVA_ABC', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
                 relItem(20, 'Reposição', 'REPOSICAO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
                 relItem(30, 'Validade dos lotes', 'VALIDADE', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
-                relItem(40, 'Rastreabilidade por paciente e lote', 'RASTREIO', byRole(...ROLES_RASTREIO))
+                relItem(31, 'Estoque por lote', 'ESTOQUE_LOTES', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_FARMACIA')),
+                relItem(40, 'Rastreabilidade por paciente e lote', 'RASTREIO', byRole(...ROLES_RASTREIO)),
+                relItem(50, 'Consumo', 'CONSUMO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA')),
+                relItem(60, 'Perdas', 'PERDAS', byRole('ADMIN', 'CHEFE_OPME')),
+                relItem(70, 'Compras', 'COMPRAS', byRole('ADMIN', 'CHEFE_OPME'))
             ]),
             group(30, 'OPME', [relItem(10, 'Rastreabilidade', 'OPME_RASTREIO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA'))]),
-            relItem(40, 'Consumo', 'CONSUMO', byRole('ADMIN', 'CHEFE_OPME', 'CHEFE_HEMODINAMICA')),
-            relItem(50, 'Compras', 'COMPRAS', byRole('ADMIN', 'CHEFE_OPME')),
-            relItem(60, 'Procedimentos', 'PROCEDIMENTOS_REL', byRole('ADMIN', 'CHEFE_HEMODINAMICA', 'FUNC_ENFERMAGEM', 'FUNC_CENTRO_CIRURGICO')),
-            relItem(70, 'Perdas', 'PERDAS', byRole('ADMIN', 'CHEFE_OPME')),
-            relItem(75, 'Patrimônio', 'PATRIMONIO', byRole('ADMIN', 'FUNC_MANUTENCAO')),
-            relItem(80, 'Auditoria', 'AUDITORIA', byPermission('auditoria_ver'))
+            group(40, 'Sistema', [relItem(10, 'Auditoria', 'AUDITORIA', byPermission('auditoria_ver'))])
         ]
     },
 

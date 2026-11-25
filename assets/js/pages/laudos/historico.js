@@ -199,7 +199,7 @@ function gerarPDFLaudo(laudoOrId) {
                     <tr>
                         <td>${item.descricao}</td>
                         <td>${item.remessa || ''}</td>
-                        <td>${item.lote}</td>
+                        <td>${escapeHtml(rotuloLote(item.lote))}</td>
                         <td>${item.quantidade}</td>
                         <td>${item.empresa}</td>
                     </tr>

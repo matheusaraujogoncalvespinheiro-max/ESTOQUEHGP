@@ -22,7 +22,8 @@ const OBS = { k: 'observacoes', label: 'Observações', type: 'textarea', span2:
 const CAD_DEFS = {
     // ============ PRINCIPAL (layout "ERP": bloco de identificação + abas Principal / Adicionais / Observações) ============
     paciente: {
-        key: 'paciente', store: 'paciente', sensivel: true, layout: 'erp', semSitForm: true, label: 'Pacientes', singular: 'Paciente', icon: 'users',
+        key: 'paciente', store: 'paciente', sensivel: true, layout: 'erp', semSitForm: true,
+        estiloConsulta: { busca: { label: 'Prontuário/Nome', ph: 'Pesquise pelo nome, prontuário ou CNS' }, textos: [{ k: 'cpf', label: 'CPF', ph: 'Pesquise pelo CPF', mascara: 'cpf' }], destaque: 'nome', mono: ['cpf'] }, label: 'Pacientes', singular: 'Paciente', icon: 'users',
         desc: 'Cadastro de identificação dos pacientes. O histórico de atendimentos e internações é preservado.',
         roles: { ver: ['ADMIN', 'FUNC_RECEPCAO', 'FUNC_EMERGENCIA'], criar: ['ADMIN', 'FUNC_RECEPCAO'], editar: ['ADMIN', 'FUNC_RECEPCAO'], inativar: ['ADMIN'] },
         rotulo: (r) => r.nome,
@@ -85,7 +86,8 @@ const CAD_DEFS = {
     },
 
     fornecedor: {
-        key: 'fornecedor', layout: 'erp', semSitForm: true, label: 'Fornecedores', singular: 'Fornecedor', icon: 'truck', prefix: 'FOR',
+        key: 'fornecedor', layout: 'erp', semSitForm: true,
+        estiloConsulta: { busca: { label: 'Código/Nome', ph: 'Pesquise pelo nome ou código' }, textos: [{ k: 'documento', label: 'CPF/CNPJ', ph: 'Pesquise pelo CPF/CNPJ', mascara: 'doc' }], destaque: 'razao_social', mono: ['documento'] }, label: 'Fornecedores', singular: 'Fornecedor', icon: 'truck', prefix: 'FOR',
         desc: 'Empresas que fornecem materiais, OPME e serviços ao hospital.',
         roles: roles(R_EST),
         rotulo: (r) => r.nome_fantasia || r.razao_social,
@@ -143,7 +145,8 @@ const CAD_DEFS = {
     },
 
     funcionario: {
-        key: 'funcionario', store: 'funcionario', layout: 'erp', semSitForm: true, label: 'Funcionários', singular: 'Funcionário', icon: 'id-card',
+        key: 'funcionario', store: 'funcionario', layout: 'erp', semSitForm: true,
+        estiloConsulta: { busca: { label: 'Matrícula/Nome', ph: 'Pesquise pelo nome ou matrícula' }, textos: [{ k: 'cargo', label: 'Cargo', ph: 'Pesquise pelo cargo' }], destaque: 'nome' }, label: 'Funcionários', singular: 'Funcionário', icon: 'id-card',
         desc: 'Funcionários do hospital. A matrícula identifica a pessoa e não muda depois de cadastrada.',
         roles: { ver: ['ADMIN', 'COORD_TRIAGEM'], criar: ['ADMIN'], editar: ['ADMIN'], inativar: ['ADMIN'] },
         rotulo: (r) => r.nome,
@@ -183,7 +186,8 @@ const CAD_DEFS = {
     },
 
     municipio: {
-        key: 'municipio', layout: 'erp', semSitForm: true, label: 'Municípios', singular: 'Município', icon: 'map-pin', prefix: 'MUN',
+        key: 'municipio', layout: 'erp', semSitForm: true,
+        estiloConsulta: { busca: { label: 'Código IBGE/Nome', ph: 'Pesquise pelo nome ou código IBGE' }, destaque: 'nome', mono: ['codigo_ibge'] }, label: 'Municípios', singular: 'Município', icon: 'map-pin', prefix: 'MUN',
         desc: 'Municípios usados nos endereços de pacientes e fornecedores.',
         roles: roles(['ADMIN'], ['ADMIN', 'CHEFE_OPME', 'FUNC_RECEPCAO']),
         rotulo: (r) => `${r.nome}/${r.uf}`,
@@ -227,11 +231,13 @@ const CAD_DEFS = {
             { k: 'fabricante', label: 'Fabricante', sort: true, get: (r) => r.fabricante || '—' },
             { k: 'setor', label: 'Setor', sort: true },
             { k: 'estoque', label: 'Estoque', sort: true, num: true, get: (r) => String(r.estoque) },
-            { k: 'tipo', label: 'Tipo', sort: true }
+            { k: 'tipo', label: 'Tipo', sort: true },
+            { k: 'controle', label: 'Controle', sort: true, get: (r) => (r.controle === 'lote' ? 'Por lote' : 'Saldo geral') }
         ],
         filters: [
             { k: 'setor', label: 'Setor', opts: () => setoresEstoqueVisiveis().map(s => ({ id: s, rotulo: rotuloSetorOps(s) })) },
             { k: 'tipo', label: 'Tipo', opts: ['OPME', 'Medicamento', 'Comum'] },
+            { k: 'controle', label: 'Controle de estoque', opts: [{ id: 'lote', rotulo: 'Por lote' }, { id: 'geral', rotulo: 'Saldo geral (sem lote)' }] },
             { k: 'classe_id', label: 'Classe', ref: 'classe' },
             { k: 'estoque_situacao', label: 'Estoque', opts: [{ id: 'baixo', rotulo: 'Abaixo do mínimo' }, { id: 'zerado', rotulo: 'Zerado' }, { id: 'ok', rotulo: 'Normal' }] }
         ]

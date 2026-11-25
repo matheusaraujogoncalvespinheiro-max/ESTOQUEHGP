@@ -10,16 +10,9 @@ function handleRequestResponse(requestId, action) {
     const transfer = MOCK_DATA.REQUESTS[requestIndex];
 
     if (action === 'REJECT') {
-        // Return items to sender stock with their precise batches
+        // Devolve cada item ao MESMO lote de onde saiu (mesmo zerado ou inativo)
         for (let item of transfer.items) {
-             addProductWithBatch(transfer.fromSetor, {
-                 barcode: item.barcode,
-                 lote: item.lote || 'N/A',
-                 validade: item.validade || 'N/A',
-                 remessa: item.remessa || '',
-                 quantidade: item.quantity,
-                 descricao: item.descricao
-             });
+            devolverAoLote(transfer.fromSetor, item.barcode, { lote: item.lote || '', validade: item.validade || '', remessa: item.remessa || '' }, item.quantity, { descricao: item.descricao, material: item.material });
         }
         // Limpar progresso de bipagem
         if (state.transferScans) {
@@ -35,57 +28,16 @@ function handleRequestResponse(requestId, action) {
     }
 
     if (action === 'APPROVE') {
-        // Add items to destination stock using the Captured Batch Info
+        // Entrada no destino nos MESMOS lotes que saíram da origem. Se o produto ainda não existe no destino,
+        // é criado com o mesmo cadastro da origem (inclusive o controle por lote).
+        const falhas = [];
         for (let item of transfer.items) {
-            const destProduct = findProductByBarcodeAndSetor(item.barcode, transfer.toSetor);
-            const sourceProduct = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor); // can be used for extra metadata
-            
-            if (destProduct) {
-                addProductWithBatch(transfer.toSetor, {
-                    barcode: item.barcode,
-                    lote: item.lote || `TRANSF-${transfer.id}`,
-                    quantidade: item.quantity,
-                    validade: item.validade || '2099-12-31',
-                    remessa: item.remessa || '',
-                    empresa: sourceProduct ? (sourceProduct.empresa || sourceProduct.fornecedor) : (item.empresa || ''),
-                    marca: sourceProduct ? sourceProduct.marca : (item.marca || ''),
-                    material: sourceProduct ? sourceProduct.material : (item.material || ''),
-                    descricao: item.descricao
-                });
-            } else {
-                let destList = MOCK_DATA[transfer.toSetor];
-                if (!destList) {
-                    MOCK_DATA[transfer.toSetor] = [];
-                }
-                
-                // Copy base product info
-                let baseProduct = sourceProduct ? {...sourceProduct} : {descricao: item.descricao, marca: 'Desconhecida', fornecedor: 'Desconhecido'};
-
-                MOCK_DATA[transfer.toSetor].push({
-                    ...baseProduct,
-                    id: Date.now() + Math.random(),
-                    barcode: item.barcode,
-                    qtd: item.quantity,
-                    lotes: [{
-                        id: Date.now() + Math.random(),
-                        lote: item.lote || `TRANSF-${transfer.id}`,
-                        validade: item.validade || '2099-12-31',
-                        remessa: item.remessa || '',
-                        quantidade: item.quantity,
-                        data_entrada: new Date().toISOString().split('T')[0]
-                    }]
-                });
-                
-                // Sync new product and batch to Firebase
-                if (typeof db_saveProduct === 'function') {
-                    db_saveProduct(MOCK_DATA[transfer.toSetor].slice(-1)[0], transfer.toSetor).then(saved => {
-                        if (saved && typeof db_saveBatch === 'function') {
-                            db_saveBatch(saved.id, MOCK_DATA[transfer.toSetor].slice(-1)[0].lotes[0]);
-                        }
-                    });
-                }
-            }
+            const sourceProduct = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor);
+            const base = sourceProduct || { descricao: item.descricao, material: item.material, marca: item.marca, empresa: item.empresa };
+            const r = devolverAoLote(transfer.toSetor, item.barcode, { lote: item.lote || '', validade: item.validade || '', remessa: item.remessa || '' }, item.quantity, base);
+            if (r.type === 'erro') falhas.push(`${item.descricao || item.barcode}: ${r.message}`);
         }
+        if (falhas.length) showMsg(`Alguns itens não entraram no estoque de destino: ${falhas.join(' | ')}`, 'error');
 
         const now = new Date();
         const transferHistoryItem = {

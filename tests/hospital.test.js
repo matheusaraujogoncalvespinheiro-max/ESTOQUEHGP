@@ -65,7 +65,7 @@ test('agendamento: exame que exige autorização só agenda com APAC aprovada e 
 });
 
 test('fila: urgentes primeiro, depois a mais antiga; a ordenação não altera a prioridade', () => {
-    ['mapa.js', 'prontuario.js', 'exames.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/pages/hospital', f), 'utf8'), ctx));
+    ['mapa.js', 'internacoes.js', 'prontuario.js', 'exames.js', 'autorizacoes.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/pages/hospital', f), 'utf8'), ctx));
     const ordem = call(`ordenarFila([{ id: 'a', prioridade: 'ELETIVO', criado_em: '1' }, { id: 'b', prioridade: 'URGENTE', criado_em: '3' }, { id: 'c', prioridade: 'URGENTE', criado_em: '2' }, { id: 'd', prioridade: 'ELETIVO', criado_em: '0' }]).map(x => x.id + ':' + x.prioridade[0]).join()`);
     assert.equal(ordem, 'c:U,b:U,d:E,a:E');
 });
@@ -94,6 +94,7 @@ test('sinais vitais: valida parâmetros clínicos da enfermagem e gera resumo as
 
 test('transporte NIR: valida demandas de paciente e insumo, transições de status e selo Em Transporte', () => {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/pages/hospital/transporte.js'), 'utf8'), ctx);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'assets/js/pages/hospital/nir.js'), 'utf8'), ctx);
     assert.equal(call("transicaoTransportePermitida('AGUARDANDO_NIR', 'SOLICITADO_NIR')"), true);
     assert.equal(call("transicaoTransportePermitida('SOLICITADO_NIR', 'EQUIPE_DESIGNADA')"), true);
     assert.equal(call("transicaoTransportePermitida('EQUIPE_DESIGNADA', 'EM_TRANSITO')"), true);

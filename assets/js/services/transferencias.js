@@ -6,15 +6,10 @@ function generateTransferReportMulti(transfer, items) {
         const product = findProductByBarcodeAndSetor(item.barcode, transfer.fromSetor) || {};
         const empresa = product.empresa || '-';
         const marca = product.marca || '-';
-        const lote = product.lotes && product.lotes.length > 0 ? product.lotes[0].lote : (product.lote || '-');
-        
-        let validade = '-';
-        if (product.lotes && product.lotes.length > 0) {
-            const spl = product.lotes[0].validade.split('-');
-            if (spl.length === 3) validade = `${spl[2]}/${spl[1]}/${spl[0]}`;
-        } else if (product.validade) {
-            validade = product.validade;
-        }
+        // O lote que saiu fica no próprio item (baixa FEFO); itens antigos sem lote usam o lote principal do produto, como antes
+        const lote = item.lote ? rotuloLote(item.lote) : (product.lotes && product.lotes.length > 0 ? rotuloLote(product.lotes[0].lote) : (product.lote || '-'));
+        const valOrigem = item.lote ? item.validade : (product.lotes && product.lotes.length > 0 ? product.lotes[0].validade : product.validade);
+        const validade = valOrigem && valOrigem !== 'N/A' ? dataBR(valOrigem) : '-';
         
         return `
         <tr>

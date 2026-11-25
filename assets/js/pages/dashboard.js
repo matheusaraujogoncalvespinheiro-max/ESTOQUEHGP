@@ -5,13 +5,8 @@
 function getDashboardStats() {
     const allItems = todosProdutosEstoque();
     const lowStockItems = allItems.filter(item => item.qtd <= item.min);
-    const expiredItems = allItems.filter(item => {
-        if (item.validade === 'N/A') return false;
-        const validade = new Date(item.validade);
-        const hoje = new Date();
-        const diasParaVencer = Math.ceil((validade - hoje) / (1000 * 60 * 60 * 24));
-        return diasParaVencer <= diasAlertaValidade();
-    });
+    // Produto com algum lote com saldo vencido ou a vencer (com ou sem controle por lote: o vencimento é real; "Sem lote" não tem validade)
+    const expiredItems = allItems.filter(item => (item.lotes || []).some(l => Number(l.quantidade) > 0 && ['VENCIDO', 'A_VENCER'].includes(statusValidade(l.validade))));
 
     if (state.currentUser && (state.currentUser.role === 'FUNC_ENFERMAGEM' || state.currentUser.role === 'CHEFE_HEMODINAMICA')) {
         return {

@@ -21,6 +21,7 @@ const RELATORIOS = {
     CURVA_ABC: { rotulo: 'Curva ABC', periodo: false, gerar: () => relatorioCurvaABC(produtosComSetor()) },
     REPOSICAO: { rotulo: 'Reposição', periodo: false, gerar: () => relatorioReposicao(produtosComSetor()) },
     VALIDADE: { rotulo: 'Validade dos lotes', periodo: false, gerar: () => relatorioValidade(produtosComSetor()) },
+    ESTOQUE_LOTES: { rotulo: 'Estoque por lote', periodo: false, busca: true, gerar: (f) => relatorioEstoqueLotes(produtosComSetor(), f.q) },
     OPME_RASTREIO: { rotulo: 'Rastreabilidade de OPME', periodo: true, busca: true, gerar: (f) => relatorioRastreabilidadeOpme(MOCK_DATA.LAUDOS || [], f.de, f.ate, f.q) },
     RASTREIO: { rotulo: 'Rastreabilidade por paciente e lote', periodo: true, busca: true, cad: ['dispensacao', 'saida'], gerar: (f) => relatorioRastreabilidade({ dispensacoes: CAD_DATA.dispensacao || [], saidas: CAD_DATA.saida || [], laudos: MOCK_DATA.LAUDOS || [], setores: setoresEstoqueVisiveis() }, f.de, f.ate, f.q) },
     EVENTOS_NSP: { rotulo: 'Eventos e segurança do paciente', periodo: true, gerar: (f) => relatorioEventosNsp(MOCK_DATA.OCORRENCIAS_EMERGENCIA || [], f.de, f.ate), watch: ['emergencia'] },

@@ -250,6 +250,7 @@ function render() {
 
     if (state.isAuthenticated) {
         saveSession();
+        if (typeof sincronizarRota === 'function') sincronizarRota();
         updateNotificationBadge();
 
         // Se estiver na criação de laudo, renderizar a lista de itens OPME
